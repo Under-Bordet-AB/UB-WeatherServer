@@ -63,10 +63,8 @@
 *   **Method:** `GET`
 *   **Path:** `/surprise`
 *   **Example Request:**
-*   ```bash
-    {
-        curl -X GET http://localhost:8080/weather/surprise
-    }
+    ```bash
+    curl -X GET http://localhost:8080/weather/surprise
     ```
 *   **Expected Response (JSON):**
     ```json
