@@ -1,0 +1,34 @@
+# Base style
+BasedOnStyle: LLVM
+
+# Indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# Braces
+BreakBeforeBraces: Attach   # function/if/for/while { on the same line
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: true
+
+# Pointer alignment
+PointerAlignment: Left       # int *ptr
+
+# Function parameters
+BinPackParameters: true      # try to keep parameters on one line
+AllowAllParametersOfDeclarationOnNextLine: false
+ColumnLimit: 0               # disable automatic wrapping for long function signatures
+
+# Spaces
+SpacesBeforeTrailingComments: 1
+SpaceBeforeParens: ControlStatements
+
+# Multi-line blocks
+BreakBeforeBinaryOperators: None    # keep expressions readable
+AllowAllArgumentsOnNextLine: false
+AllowAllConstructorInitializersOnNextLine: false
+
+# Optional readability tweaks
+DerivePointerAlignment: false
