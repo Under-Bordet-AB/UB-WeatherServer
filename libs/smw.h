@@ -5,20 +5,19 @@
 #include <stdint.h>
 
 #ifndef smw_max_tasks
-	#define smw_max_tasks 16
+#define smw_max_tasks 16
 #endif
 
 typedef struct
 {
-	void* context;
-	void (*callback)(void* context, uint64_t monTime);
+    void* context;
+    void (*callback)(void* context, uint64_t monTime);
 
 } smw_task;
 
-
 typedef struct
 {
-	smw_task tasks[smw_max_tasks];
+    smw_task tasks[smw_max_tasks];
 
 } smw;
 

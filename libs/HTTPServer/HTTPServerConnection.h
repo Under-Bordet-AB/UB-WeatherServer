@@ -2,20 +2,19 @@
 #ifndef __HTTPServerConnection_h_
 #define __HTTPServerConnection_h_
 
-#include "smw.h"
 #include "../TCPClient.h"
+#include "smw.h"
 
 typedef int (*HTTPServerConnection_OnRequest)(void* _Context);
 
-typedef enum
-{
-	HTTPServerConnection_State_Init,
-	HTTPServerConnection_State_Reading,
-	HTTPServerConnection_State_Parsing,
-	HTTPServerConnection_State_Timeout,
-	HTTPServerConnection_State_Done,
-	HTTPServerConnection_State_Dispose,
-	HTTPServerConnection_State_Failed
+typedef enum {
+    HTTPServerConnection_State_Init,
+    HTTPServerConnection_State_Reading,
+    HTTPServerConnection_State_Parsing,
+    HTTPServerConnection_State_Timeout,
+    HTTPServerConnection_State_Done,
+    HTTPServerConnection_State_Dispose,
+    HTTPServerConnection_State_Failed
 } HTTPServerConnection_State;
 
 #define READBUFFER_SIZE 4096
@@ -23,21 +22,20 @@ typedef enum
 
 typedef struct
 {
-	TCPClient tcpClient;
-	char readBuffer[READBUFFER_SIZE];
-	int bytesRead;
-	uint64_t startTime;
+    TCPClient tcpClient;
+    char readBuffer[READBUFFER_SIZE];
+    int bytesRead;
+    uint64_t startTime;
 
-	void* context;
-	HTTPServerConnection_OnRequest onRequest;
+    void* context;
+    HTTPServerConnection_OnRequest onRequest;
 
-	char* method;
-	char* url;
+    char* method;
+    char* url;
 
-	smw_task* task;
-	HTTPServerConnection_State state;
+    smw_task* task;
+    HTTPServerConnection_State state;
 } HTTPServerConnection;
-
 
 int HTTPServerConnection_Initiate(HTTPServerConnection* _Connection, int _FD);
 int HTTPServerConnection_InitiatePtr(int _FD, HTTPServerConnection** _ConnectionPtr);

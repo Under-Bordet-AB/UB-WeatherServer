@@ -2,18 +2,17 @@
 #define __TCPClient_h_
 
 #define _POSIX_C_SOURCE 200809L
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <fcntl.h>
+#include <unistd.h>
 
-typedef struct TCPClient
-{ 
+typedef struct TCPClient {
     int fd;
 
 } TCPClient;

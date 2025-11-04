@@ -7,14 +7,12 @@
 typedef struct
 {
 
-	smw_task* task;
+    smw_task* task;
 
 } Template;
 
-
 int Template_Initiate(Template* _Server);
 int Template_InitiatePtr(Template** _ServerPtr);
-
 
 void Template_Dispose(Template* _Server);
 void Template_DisposePtr(Template** _ServerPtr);

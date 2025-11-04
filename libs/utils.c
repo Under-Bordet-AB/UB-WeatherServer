@@ -2,8 +2,7 @@
 #include "utils.h"
 #include <time.h>
 
-uint64_t SystemMonotonicMS(void)
-{
+uint64_t SystemMonotonicMS(void) {
     long ms;
     time_t s;
 

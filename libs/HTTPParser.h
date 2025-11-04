@@ -9,8 +9,7 @@
 // A HTTPRequest struct should only be disposed by HTTPRequest_Dispose
 
 // If a HTTPRequest is not valid, why?
-typedef enum
-{
+typedef enum {
     Unknown = 0,
     NotInvalid = 1,
 
@@ -19,17 +18,14 @@ typedef enum
     URLTooLong = 4 // Originally existed because the URL was fixed size in the struct, but kept for extra safety
 } InvalidReason;
 
-
-typedef enum
-{
+typedef enum {
     Method_Unknown = 0,
 
     GET = 1,
     POST = 2,
 } RequestMethod;
 
-typedef enum
-{
+typedef enum {
     Protocol_Unknown = 0,
 
     HTTP_0_9 = 1,
@@ -44,8 +40,7 @@ typedef struct {
     const char* Value;
 } HTTPHeader;
 
-typedef enum
-{
+typedef enum {
     ResponseCode_Unknown = 0,
 
     OK = 200,
@@ -106,7 +101,6 @@ const char* HTTPRequest_tostring(HTTPRequest* request);
 
 HTTPRequest* HTTPRequest_fromstring(const char* request);
 void HTTPRequest_Dispose(HTTPRequest** request);
-
 
 HTTPResponse* HTTPResponse_new(ResponseCode code, const char* body);
 int HTTPResponse_add_header(HTTPResponse* response, const char* name, const char* value);
