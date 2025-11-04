@@ -42,7 +42,7 @@ int WeatherServerInstance_InitiatePtr(HTTPServerConnection* _Connection, Weather
 
 int WeatherServerInstance_OnRequest(void* _Context)
 {
-	WeatherServerInstance* connected_client = (WeatherServerInstance*)_Context;
+	// WeatherServerInstance* connected_client = (WeatherServerInstance*)_Context;
 	printf("WeatherServerInstance_OnRequest\n");
 
 	return 0;
@@ -51,8 +51,8 @@ int WeatherServerInstance_OnRequest(void* _Context)
 void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTime)
 {
 	// Select function to run in the weather API
-	_Server->connection->readBuffer;
-	_Server->connection->method;
+//	_Server->connection->readBuffer;
+	//_Server->connection->method;
 
 	// _Server.state = WORKING
 	// State machine
@@ -106,7 +106,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
 		}
 	}
 
-	_Server->connection->state = DONE!;
+	//_Server->connection->state = DONE!;
 }
 
 void WeatherServerInstance_Dispose(WeatherServerInstance* _Instance)

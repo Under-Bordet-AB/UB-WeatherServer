@@ -1,18 +1,18 @@
-#include <time.h>
+/* utils.h - small utility functions used across the project */
+#ifndef UB_WEATHERSERVER_UTILS_H
+#define UB_WEATHERSERVER_UTILS_H
 
-uint64_t SystemMonotonicMS()
-{
-	long            ms;
-	time_t          s;
+#include <stdint.h>
 
-	struct timespec spec;
-	clock_gettime(CLOCK_MONOTONIC, &spec);
-	s  = spec.tv_sec;
-	ms = (spec.tv_nsec / 1000000);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-	uint64_t result = s;
-	result *= 1000;
-	result += ms;
+/* Return monotonic system time in milliseconds. */
+uint64_t SystemMonotonicMS(void);
 
-	return result;
+#ifdef __cplusplus
 }
+#endif
+
+#endif /* UB_WEATHERSERVER_UTILS_H */
