@@ -12,10 +12,17 @@ int main()
 	WeatherServer server;
 	WeatherServer_Initiate(&server);
 
-	while(1)
+	/* Run the scheduler frequently so connection tasks don't time out.
+	   Earlier the loop slept 1s which caused the HTTP connection code to
+	   time out (HTTPSERVER_TIMEOUT_MS = 1000 ms). Call smw_work in a
+	   short loop with a small sleep. */
+	while (1)
 	{
 		smw_work(SystemMonotonicMS());
-		sleep(1);
+		/* sleep 10ms to avoid busy loop */
+
+		usleep(10000);
+
 	}
 
 	WeatherServer_Dispose(&server);
