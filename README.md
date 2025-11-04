@@ -11,7 +11,7 @@
     {
         "cities": [
             { "name": "Stockholm", "latitude": 59.3293, "longitude": 18.0686 },
-            { "name": "Gothenburg", "latitude": 57.7089, "longitude": 11.9746 },
+            { "name": "Göteborg", "latitude": 57.7089, "longitude": 11.9746 },
             { "name": "Malmö", "latitude": 55.6050, "longitude": 13.0038 }
         ]
     }
