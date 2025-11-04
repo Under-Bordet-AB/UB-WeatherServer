@@ -27,8 +27,9 @@ endif
 SRC_DIR=.
 BUILD_DIR=build
 
-# Find all .c files (following symlinks)
-SOURCES=$(shell find -L $(SRC_DIR) -type f -name '*.c')
+# Find all .c files (following symlinks), but ignore the V2 folder used for scaffolding
+# Use -prune to skip the V2 tree so developer drafts there won't be built.
+SOURCES=$(shell find -L $(SRC_DIR) \( -path "$(SRC_DIR)/V2" -o -path "$(SRC_DIR)/V2/*" \) -prune -o -type f -name '*.c' -print)
 
 # Per-target object lists in separate dirs
 SERVER_OBJECTS=$(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/server/%.o,$(SOURCES))

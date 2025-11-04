@@ -2,23 +2,22 @@
 #ifndef __WeatherServerInstance_h_
 #define __WeatherServerInstance_h_
 
-#include "smw.h"
 #include "HTTPServer/HTTPServerConnection.h"
+#include "smw.h"
 
 typedef enum {
-	WeatherServerInstance_State_Waiting,
-	WeatherServerInstance_State_Init,
-	WeatherServerInstance_State_Work,
-	WeatherServerInstance_State_Done,
-	WeatherServerInstance_State_Dispose
+    WeatherServerInstance_State_Waiting,
+    WeatherServerInstance_State_Init,
+    WeatherServerInstance_State_Work,
+    WeatherServerInstance_State_Done,
+    WeatherServerInstance_State_Dispose
 } WeatherServerInstance_State;
 
 typedef struct
 {
-	HTTPServerConnection* connection;
-	WeatherServerInstance_State state;
+    HTTPServerConnection* connection;
+    WeatherServerInstance_State state;
 } WeatherServerInstance;
-
 
 int WeatherServerInstance_Initiate(WeatherServerInstance* _Instance, HTTPServerConnection* _Connection);
 int WeatherServerInstance_InitiatePtr(HTTPServerConnection* _Connection, WeatherServerInstance** _InstancePtr);
