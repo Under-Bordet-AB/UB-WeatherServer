@@ -55,13 +55,6 @@ void HTTPServerConnection_TaskWork(void* _Context, uint64_t _MonTime)
 {
 	HTTPServerConnection* _Connection = (HTTPServerConnection*)_Context;
 
-	if(_Connection->state != HTTPServerConnection_State_Init && _MonTime - _Connection->startTime >= HTTPSERVER_TIMEOUT_MS)
-	{
-		printf("Connection timed out\n");
-		HTTPServerConnection_Dispose(_Connection);
-		return;
-	}
-
 	switch(_Connection->state)
 	{
 		case HTTPServerConnection_State_Init:
@@ -72,6 +65,12 @@ void HTTPServerConnection_TaskWork(void* _Context, uint64_t _MonTime)
 		}
 		case HTTPServerConnection_State_Reading:
 		{
+			if (_MonTime - _Connection->startTime >= HTTPSERVER_TIMEOUT_MS)
+			{
+				printf("Connection timed out during reading.\n");
+				_Connection->state = HTTPServerConnection_State_Waiting;
+			}
+
 			TCPClient* tcpClient = &_Connection->tcpClient;
 			int read = TCPClient_Read(tcpClient, (uint8_t*)(_Connection->readBuffer + _Connection->bytesRead), READBUFFER_SIZE - _Connection->bytesRead - 1);
 
@@ -107,7 +106,7 @@ void HTTPServerConnection_TaskWork(void* _Context, uint64_t _MonTime)
 		case HTTPServerConnection_State_Timeout:
 		{
 			printf("Connection timed out\n");
-			_Connection->state = HTTPServerConnection_State_Dispose;
+			_Connection->state = HTTPServerConnection_State_Waiting;
 			break;
 		}
 		case HTTPServerConnection_State_Done:
@@ -117,18 +116,18 @@ void HTTPServerConnection_TaskWork(void* _Context, uint64_t _MonTime)
 				_Connection->onRequest(_Connection->context);
 			}
 			// Ska den verkligen disposea här?
-			_Connection->state = HTTPServerConnection_State_Dispose;
+			_Connection->state = HTTPServerConnection_State_Waiting;
 			break;
 		}
-		case HTTPServerConnection_State_Dispose:
+		case HTTPServerConnection_State_Waiting:
 		{
-			HTTPServerConnection_Dispose(_Connection);
+			// HTTPServerConnection_Dispose(_Connection);
 			break;
 		}
 		case HTTPServerConnection_State_Failed:
 		{
 			printf("Reading failed\n");
-			_Connection->state = HTTPServerConnection_State_Dispose;
+			_Connection->state = HTTPServerConnection_State_Waiting;
 			break;
 		}
 		default:

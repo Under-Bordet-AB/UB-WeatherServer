@@ -1,7 +1,7 @@
 #include "WeatherServerInstance.h"
 #include <stdlib.h>
 
-
+#include "HTTPParser.h"
 #include "utils.h"
 
 //-----------------Internal Functions-----------------
@@ -42,8 +42,10 @@ int WeatherServerInstance_InitiatePtr(HTTPServerConnection* _Connection, Weather
 
 int WeatherServerInstance_OnRequest(void* _Context)
 {
-	// WeatherServerInstance* connected_client = (WeatherServerInstance*)_Context;
+	WeatherServerInstance* connected_client = (WeatherServerInstance*)_Context;
 	printf("WeatherServerInstance_OnRequest\n");
+
+	connected_client->state = WeatherServerInstance_State_Init;
 
 	return 0;
 }
@@ -68,6 +70,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
 	{
 		case WeatherServerInstance_State_Waiting:
 		{
+
 			// Wait for something to happen
 			break;
 		}
@@ -80,12 +83,31 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
 		}
 		case WeatherServerInstance_State_Work:
 		{
-			// Do the work
-			// Process request
-				// If /getweather
-					// Call weather API
-				// Else if /surprise
-					// Do something else
+			// char* method = _Server->connection->method;
+			char* url = _Server->connection->url;
+			// printf("%s\n", url);
+			if (strcmp(url, "/surprise") == 0)
+			{
+				// printf("SURPRISE!\n");
+				// HTTPResponse* response = HTTPResponse_new(OK, "SURPRISE!\n");
+
+				// if (HTTPResponse_add_header(response, "Access-Control-Allow-Origin", "*") == 0)
+				// {
+				// 	printf("Successfully added header\n");
+				// }
+
+				// const char* response_c = HTTPResponse_tostring(response);
+				// printf("%s\n", response_c);
+
+				// int byteswritten = TCPClient_Write(&_Server->connection->tcpClient, (uint8_t*)response_c, strlen(response_c));
+				
+				_Server->state = WeatherServerInstance_State_Done;
+
+				break;
+			}
+			
+			printf("404\n");
+
 			break;
 		}
 		case WeatherServerInstance_State_Done:

@@ -9,6 +9,7 @@ typedef int (*HTTPServerConnection_OnRequest)(void* _Context);
 
 typedef enum
 {
+	HTTPServerConnection_State_Waiting,
 	HTTPServerConnection_State_Init,
 	HTTPServerConnection_State_Reading,
 	HTTPServerConnection_State_Parsing,

@@ -59,7 +59,7 @@ int HTTPServer_OnAccept(int _FD, void* _Context)
 
 void HTTPServer_TaskWork(void* _Context, uint64_t _MonTime)
 {
-	printf("HTTPServer taskwork started\n");
+	// printf("HTTPServer taskwork started\n");
 	//HTTPServer* _Server = (HTTPServer*)_Context;
 }
 

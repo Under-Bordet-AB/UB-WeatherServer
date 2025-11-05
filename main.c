@@ -15,7 +15,7 @@ int main()
 	while(1)
 	{
 		smw_work(SystemMonotonicMS());
-		sleep(1);
+		usleep(10000);
 	}
 
 	WeatherServer_Dispose(&server);
