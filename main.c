@@ -26,3 +26,5 @@ int main()
 }
 
 
+// TODO: Write function: "HTTPServerConnection_SendResponse()".
+// TODO: Write WeatherServerInstance state-machine with mock-responses.
