@@ -16,7 +16,7 @@ int HTTPServerConnection_Initiate(HTTPServerConnection *_Connection, int _FD) {
   _Connection->bytesRead = 0;
   _Connection->state = HTTPServerConnection_State_Init;
   _Connection->startTime = 0;
-  _Connection->response = NULL;
+  _Connection->writeBuffer = NULL;
   _Connection->bytesSent = 0;
 
   _Connection->task =
@@ -58,7 +58,13 @@ void HTTPServerConnection_SetCallback(
 void HTTPServerConnection_SendResponse(HTTPServerConnection *_Connection,
                                        int _responseCode, char *_responseBody) {
 
-  _Connection->response = HTTPResponse_new(_responseCode, _responseBody);
+  if (_Connection->state != HTTPServerConnection_State_Wait)
+    return;
+  HTTPResponse *resp = HTTPResponse_new(_responseCode, _responseBody);
+  char *message = (char *)HTTPResponse_tostring(resp);
+  _Connection->writeBuffer = (uint8_t *)message;
+  _Connection->writeBufferSize = strlen(message);
+  HTTPResponse_Dispose(&resp);
   _Connection->state = HTTPServerConnection_State_Send;
 }
 
@@ -101,8 +107,6 @@ void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {
     _Connection->url = strdup(request->URL);
     _Connection->method = strdup(RequestMethod_tostring(request->method));
 
-    printf("%s\n%s\n\n", _Connection->method, _Connection->url);
-
     HTTPRequest_Dispose(&request);
 
     _Connection->state = HTTPServerConnection_State_Wait;
@@ -114,22 +118,21 @@ void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {
     break;
   }
   case HTTPServerConnection_State_Send: {
-    if (_Connection->response == NULL) {
+    if (_Connection->writeBuffer == NULL) {
       _Connection->state = HTTPServerConnection_State_Failed;
       break;
     }
-    char *message = (char *)HTTPResponse_tostring(_Connection->response);
-    int n = TCPClient_Write(&_Connection->tcpClient,
-                            (uint8_t *)(message + _Connection->bytesSent),
-                            strlen(message) - _Connection->bytesSent);
+    int n = TCPClient_Write(
+        &_Connection->tcpClient,
+        (uint8_t *)(_Connection->writeBuffer + _Connection->bytesSent),
+        _Connection->writeBufferSize - _Connection->bytesSent);
     if (n > 0) {
       _Connection->bytesSent += n;
     }
 
-    if (_Connection->bytesSent == strlen(message)) {
+    if (_Connection->bytesSent == _Connection->writeBufferSize) {
       _Connection->state = HTTPServerConnection_State_Wait;
     }
-    free(message);
     break;
   }
   case HTTPServerConnection_State_Wait: {
@@ -165,8 +168,8 @@ void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {
 
 void HTTPServerConnection_Dispose(HTTPServerConnection *_Connection) {
   TCPClient_Dispose(&_Connection->tcpClient);
-  if (_Connection->response)
-    HTTPResponse_Dispose(&_Connection->response);
+  if (_Connection->writeBuffer)
+    free(_Connection->writeBuffer);
   smw_destroyTask(_Connection->task);
 }
 
