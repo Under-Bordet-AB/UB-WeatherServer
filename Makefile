@@ -45,12 +45,12 @@ all: $(EXECUTABLES)
 debug-server:
 	@$(MAKE) MODE=debug --no-print-directory clean server
 	@-rm -f WADEBUG.txt
-	gdb server -ex run
+	# gdb server -ex run
 
 debug-client:
 	@$(MAKE) MODE=debug --no-print-directory clean client
 	@-rm -f WADEBUG.txt
-	gdb client -ex run
+	# gdb client -ex run
 
 # Link rules
 server: $(SERVER_OBJECTS)

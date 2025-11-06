@@ -15,6 +15,7 @@ int main()
 	while(1)
 	{
 		smw_work(SystemMonotonicMS());
+		usleep(10000);
 	}
 
 	WeatherServer_Dispose(&server);
@@ -25,3 +26,5 @@ int main()
 }
 
 
+// TODO: Write function: "HTTPServerConnection_SendResponse()".
+// TODO: Write WeatherServerInstance state-machine with mock-responses.
