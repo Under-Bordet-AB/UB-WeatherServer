@@ -9,7 +9,7 @@ INCLUDES =
 # -fsanitize=address -fno-omit-frame-pointer
 
 # Build mode: release (default) or debug
-MODE ?= release
+MODE ?= debug
 
 # Base warnings/defs
 CFLAGS_BASE=-Wall -Wno-psabi -Wfatal-errors -Werror -Ilibs
