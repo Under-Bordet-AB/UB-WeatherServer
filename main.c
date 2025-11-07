@@ -1,9 +1,25 @@
-#include <stdio.h>
-
-#include "smw.h"
-#include "utils.h"
+/*
+THIS IS HOW THE DATA LOOKS LIKE:
+{
+    LinkedList* instances;
+    smw_task* task;
+    HTTPServer {
+        HTTPServer_OnConnection onConnection;
+        smw_task* task;
+        TCPServer {
+            int listen_fd;
+            TCPServer_OnAccept onAccept;
+            void* context;
+            smw_task* task;
+        };
+    };
+};
+*/
 
 #include "WeatherServer.h"
+#include "smw.h"
+#include "utils.h"
+#include <stdio.h>
 
 int main() {
     smw_init();

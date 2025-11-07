@@ -1,8 +1,7 @@
-
 #ifndef __TCPServer_h_
 #define __TCPServer_h_
 
-#define _POSIX_C_SOURCE 200809L
+#include "smw.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -12,21 +11,16 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "smw.h"
-
+#define _POSIX_C_SOURCE 200809L
 #define MAX_CLIENTS 10
 
 typedef int (*TCPServer_OnAccept)(int client_fd, void* context);
 
-typedef struct
-{
+typedef struct {
     int listen_fd;
-
     TCPServer_OnAccept onAccept;
     void* context;
-
     smw_task* task;
-
 } TCPServer;
 
 int TCPServer_Initiate(TCPServer* _Server, const char* _Port, TCPServer_OnAccept _OnAccept, void* _Context);
@@ -35,10 +29,10 @@ int TCPServer_InitiatePtr(const char* _Port, TCPServer_OnAccept _OnAccept, void*
 void TCPServer_Dispose(TCPServer* _Server);
 void TCPServer_DisposePtr(TCPServer** _ServerPtr);
 
+// utility function to set the file descriptor to non-blocking mode (adds O_NONBLOCK)
 static inline int TCPServer_Nonblocking(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
-    if (flags < 0)
-        return -1;
+    if (flags < 0) return -1;
 
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }

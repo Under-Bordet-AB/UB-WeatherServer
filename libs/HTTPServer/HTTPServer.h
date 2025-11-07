@@ -1,4 +1,3 @@
-
 #ifndef __HTTPServer_h_
 #define __HTTPServer_h_
 
@@ -8,13 +7,10 @@
 
 typedef int (*HTTPServer_OnConnection)(void* _Context, HTTPServerConnection* _Connection);
 
-typedef struct
-{
+typedef struct {
     HTTPServer_OnConnection onConnection;
-
     TCPServer tcpServer;
     smw_task* task;
-
 } HTTPServer;
 
 int HTTPServer_Initiate(HTTPServer* _Server, HTTPServer_OnConnection _OnConnection);

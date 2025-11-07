@@ -24,12 +24,10 @@ int HTTPServerConnection_Initiate(HTTPServerConnection* _Connection, int _FD) {
 }
 
 int HTTPServerConnection_InitiatePtr(int _FD, HTTPServerConnection** _ConnectionPtr) {
-    if (_ConnectionPtr == NULL)
-        return -1;
+    if (_ConnectionPtr == NULL) return -1;
 
     HTTPServerConnection* _Connection = (HTTPServerConnection*)malloc(sizeof(HTTPServerConnection));
-    if (_Connection == NULL)
-        return -2;
+    if (_Connection == NULL) return -2;
 
     int result = HTTPServerConnection_Initiate(_Connection, _FD);
     if (result != 0) {
@@ -49,7 +47,7 @@ void HTTPServerConnection_SetCallback(HTTPServerConnection* _Connection, void* _
 
 void HTTPServerConnection_TaskWork(void* _Context, uint64_t _MonTime) {
     HTTPServerConnection* _Connection = (HTTPServerConnection*)_Context;
-
+    // NOTE HÄR PARSAR VI
     if (_Connection->state != HTTPServerConnection_State_Init && _MonTime - _Connection->startTime >= HTTPSERVER_TIMEOUT_MS) {
         printf("Connection timed out\n");
         HTTPServerConnection_Dispose(_Connection);
@@ -72,9 +70,7 @@ void HTTPServerConnection_TaskWork(void* _Context, uint64_t _MonTime) {
         }
 
         char* ret = strstr(_Connection->readBuffer, "\r\n\r\n");
-        if (ret != NULL) {
-            _Connection->state = HTTPServerConnection_State_Parsing;
-        }
+        if (ret != NULL) { _Connection->state = HTTPServerConnection_State_Parsing; }
 
         break;
     }
@@ -98,9 +94,7 @@ void HTTPServerConnection_TaskWork(void* _Context, uint64_t _MonTime) {
         break;
     }
     case HTTPServerConnection_State_Done: {
-        if (strcmp(_Connection->method, "GET") == 0) {
-            _Connection->onRequest(_Connection->context);
-        }
+        if (strcmp(_Connection->method, "GET") == 0) { _Connection->onRequest(_Connection->context); }
         // Ska den verkligen disposea här?
         _Connection->state = HTTPServerConnection_State_Dispose;
         break;
@@ -129,8 +123,7 @@ void HTTPServerConnection_Dispose(HTTPServerConnection* _Connection) {
 }
 
 void HTTPServerConnection_DisposePtr(HTTPServerConnection** _ConnectionPtr) {
-    if (_ConnectionPtr == NULL || *(_ConnectionPtr) == NULL)
-        return;
+    if (_ConnectionPtr == NULL || *(_ConnectionPtr) == NULL) return;
 
     HTTPServerConnection_Dispose(*(_ConnectionPtr));
     free(*(_ConnectionPtr));

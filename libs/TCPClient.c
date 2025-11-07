@@ -1,5 +1,3 @@
-
-
 #include "TCPClient.h"
 
 int TCPClient_Initiate(TCPClient* c, int fd) {
@@ -8,8 +6,7 @@ int TCPClient_Initiate(TCPClient* c, int fd) {
 }
 
 int TCPClient_Connect(TCPClient* c, const char* host, const char* port) {
-    if (c->fd >= 0)
-        return -1;
+    if (c->fd >= 0) return -1;
 
     struct addrinfo hints = {0};
     struct addrinfo* res = NULL;
@@ -18,8 +15,7 @@ int TCPClient_Connect(TCPClient* c, const char* host, const char* port) {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
 
-    if (getaddrinfo(host, port, &hints, &res) != 0)
-        return -1;
+    if (getaddrinfo(host, port, &hints, &res) != 0) return -1;
 
     /*
     Funktionen getaddrinfo() kan ge en länkad lista av adressförslag för samma värd och port.
@@ -33,19 +29,16 @@ int TCPClient_Connect(TCPClient* c, const char* host, const char* port) {
     for (struct addrinfo* rp = res; rp; rp = rp->ai_next) {
         fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
 
-        if (fd < 0)
-            continue;
+        if (fd < 0) continue;
 
-        if (connect(fd, rp->ai_addr, rp->ai_addrlen) == 0)
-            break;
+        if (connect(fd, rp->ai_addr, rp->ai_addrlen) == 0) break;
 
         close(fd);
         fd = -1;
     }
 
     freeaddrinfo(res);
-    if (fd < 0)
-        return -1;
+    if (fd < 0) return -1;
 
     c->fd = fd;
     return 0;
@@ -60,8 +53,7 @@ int TCPClient_Read(TCPClient* c, uint8_t* buf, int len) {
 }
 
 void TCPClient_Disconnect(TCPClient* c) {
-    if (c->fd >= 0)
-        close(c->fd);
+    if (c->fd >= 0) close(c->fd);
 
     c->fd = -1;
 }
