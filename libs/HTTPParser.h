@@ -4,7 +4,8 @@
 #define HTTP_VERSION "HTTP/1.1"
 #define MAX_URL_LEN 256
 
-#define COMPILE_DEPRECATED_HTTPREQUEST
+#define INCLUDE_DEPRECATED_HTTPREQUEST
+// #define SILENCE_DEPRECATION
 
 #include "linked_list.h"
 
@@ -74,7 +75,7 @@ typedef enum {
 } ResponseCode;
 
 // Serverside functions
-#ifdef COMPILE_DEPRECATED_HTTPREQUEST
+#ifdef INCLUDE_DEPRECATED_HTTPREQUEST
 typedef struct {
     int valid; // If false (0), then the request could not be parsed. Panic!
     InvalidReason reason;
@@ -99,7 +100,7 @@ typedef struct {
 
 const char* RequestMethod_tostring(RequestMethod method);
 
-#ifdef COMPILE_DEPRECATED_HTTPREQUEST
+#ifdef INCLUDE_DEPRECATED_HTTPREQUEST
 HTTPRequest* HTTPRequest_new(RequestMethod method, const char* URL);
 int HTTPRequest_add_header(HTTPRequest* response, const char* name, const char* value);
 const char* HTTPRequest_tostring(HTTPRequest* request);
