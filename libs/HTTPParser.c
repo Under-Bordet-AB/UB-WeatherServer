@@ -27,13 +27,18 @@ char* strfind(const char* str, const char* match) {
 }
 */
 
-#define strfind strstr
+//#define strfind strstr
 
 RequestMethod Enum_Method(const char* method) {
     if (!method) return Method_Unknown;
 
     if (strcmp(method, "GET") == 0) return GET;
     if (strcmp(method, "POST") == 0) return POST;
+    if (strcmp(method, "PUT") == 0) return PUT;
+    if (strcmp(method, "DELETE") == 0) return DELETE;
+    if (strcmp(method, "PATCH") == 0) return PATCH;
+    if (strcmp(method, "OPTIONS") == 0) return OPTIONS;
+    if (strcmp(method, "HEAD") == 0) return HEAD;
 
     return Method_Unknown;
 }
@@ -105,11 +110,7 @@ int parseInt(const char* str) {
     return (int)val;
 }
 
-#ifdef INCLUDE_DEPRECATED_HTTPREQUEST
 HTTPRequest* HTTPRequest_new(RequestMethod method, const char* URL) {
-#ifndef SILENCE_DEPRECATION
-    printf("[HTTPRequest_new] HTTPRequest is deprecated and will be removed in the future. Migrate to HTTPRequestSM.\n");
-#endif
     HTTPRequest* request = calloc(1, sizeof(HTTPRequest));
     request->method = method;
     request->URL = strdup(URL);
@@ -119,9 +120,6 @@ HTTPRequest* HTTPRequest_new(RequestMethod method, const char* URL) {
 }
 
 int HTTPRequest_add_header(HTTPRequest* request, const char* name, const char* value) {
-#ifndef SILENCE_DEPRECATION
-    printf("[HTTPRequest_add_header] HTTPRequest is deprecated and will be removed in the future. Migrate to HTTPRequestSM.\n");
-#endif
     if (request->headers == NULL) return 0;
     HTTPHeader* header = calloc(1, sizeof(HTTPHeader));
     if (header == NULL) return 0;
@@ -133,9 +131,6 @@ int HTTPRequest_add_header(HTTPRequest* request, const char* name, const char* v
 }
 
 const char* HTTPRequest_tostring(HTTPRequest* request) {
-#ifndef SILENCE_DEPRECATION
-    printf("[HTTPRequest_tostring] HTTPRequest is deprecated and will be removed in the future. Migrate to HTTPRequestSM.\n");
-#endif
     const char* method = RequestMethod_tostring(request->method);
     int messageSize = 2 + strlen(method) + strlen(HTTP_VERSION) + strlen(request->URL);
     if (request->headers != NULL) {
@@ -160,9 +155,10 @@ const char* HTTPRequest_tostring(HTTPRequest* request) {
 }
 
 // Parse a request from Client -> Server
+#ifdef INCLUDE_DEPRECATED_HTTPREQUEST_PARSER
 HTTPRequest* HTTPRequest_fromstring(const char* message) {
 #ifndef SILENCE_DEPRECATION
-    printf("[HTTPRequest_fromstring] HTTPRequest is deprecated and will be removed in the future. Migrate to HTTPRequestSM.\n");
+    printf("[HTTPParser] HTTPRequest_fromstring is deprecated and will be removed in the future. Consider switching to HTTPRequestParser functions.\n");
 #endif
     HTTPRequest* request = calloc(1, sizeof(HTTPRequest));
     request->reason = Malformed;
@@ -244,7 +240,7 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
             request->reason = NotInvalid;
             state = 1; // jump to header parsing
         } else {
-            const char* sep = strfind(current_line, ": ");
+            const char* sep = strstr(current_line, ": ");
             if (!sep) {
                 printf("INVALID: Header is malformed.\n\n");
                 free(current_line);
@@ -276,6 +272,7 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
 
     return request;
 }
+#endif
 
 // Properly dispose a HTTPRequest struct
 void HTTPRequest_Dispose(HTTPRequest** req) {
@@ -287,7 +284,6 @@ void HTTPRequest_Dispose(HTTPRequest** req) {
         *req = NULL;
     }
 }
-#endif
 
 HTTPResponse* HTTPResponse_new(ResponseCode code, const char* body) {
     HTTPResponse* response = calloc(1, sizeof(HTTPResponse));
@@ -411,7 +407,7 @@ HTTPResponse* HTTPResponse_fromstring(const char* message) {
             response->reason = NotInvalid;
             state = 1;
         } else {
-            const char* sep = strfind(current_line, ": ");
+            const char* sep = strstr(current_line, ": ");
             if (!sep) {
                 printf("INVALID: Header is malformed.\n\n");
                 free(current_line);
