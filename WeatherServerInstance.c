@@ -47,20 +47,6 @@ int WeatherServerInstance_OnRequest(void *_Context) {
 
 void WeatherServerInstance_Work(WeatherServerInstance *_Server,
                                 uint64_t _MonTime) {
-  // Select function to run in the weather API
-  //_Server->connection->readBuffer;
-  //_Server->connection->method;
-
-  // _Server.state = WORKING
-  // State machine
-  /* If /get
-   * If /weather
-   * 		do A
-   * 		get_weather("citname");
-   * else if /surprise
-   * 		do B
-   *  WRITE(****)
-   */
   switch (_Server->state) {
   case WeatherServerInstance_State_Waiting: {
     // Wait for something to happen
@@ -73,20 +59,19 @@ void WeatherServerInstance_Work(WeatherServerInstance *_Server,
     break;
   }
   case WeatherServerInstance_State_Work: {
-    // Do the work
-    // Process request
-    // If /getweather
-    // Call weather API
-    // Else if /surprise
-    // Do something else
-    if (strcmp(_Server->connection->url, "/health") == 0) {
-      HTTPServerConnection_SendResponse(_Server->connection, 200, "");
-    } else if (strcmp(_Server->connection->url, "/secret") == 0) {
-      HTTPServerConnection_SendResponse(_Server->connection, 501, "");
-    } else {
-      HTTPServerConnection_SendResponse(_Server->connection, 404, "");
+    if (strcmp(_Server->connection->url, "/GetCities") == 0) {
+      // TODO:
+      // void getcities(context);
+    } else if (strcmp(_Server->connection->url, "/GetWeather") == 0) {
+      // TODO:
+      // void getweather(void context*, const char* cityname);
     }
+
     _Server->state = WeatherServerInstance_State_Done;
+    break;
+  }
+  case WeatherServerInstance_State_Chilling: {
+    // Wait for data from backend to be ready for sending to client.
     break;
   }
   case WeatherServerInstance_State_Done: {
