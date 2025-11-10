@@ -279,7 +279,6 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
 
 // Properly dispose a HTTPRequest struct
 void HTTPRequest_Dispose(HTTPRequest** req) {
-    printf("[HTTPParser] HTTPRequest_Dispose is deprecated and will be removed in the future. Migrate to HTTPRequestSM.\n");
     if (req && *req) {
         HTTPRequest* request = *req;
         free((void*)request->URL);
