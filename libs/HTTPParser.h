@@ -2,9 +2,17 @@
 #define HTTPPARSER_H
 
 #define HTTP_VERSION "HTTP/1.1"
-#define MAX_URL_LEN 256
+#define STRICT_PARSE 1 // Will abort parsing and set an error state when anything malformed is read, like unrecognized method/protocol, malformed header and so on.
 
-#define INCLUDE_DEPRECATED_HTTPREQUEST
+// Chunked parser safeguards
+#define MAX_METHOD_LEN 7 // Longest common name is OPTIONS, we may need to support it for CORS.
+#define MAX_URL_LEN 256
+#define MAX_PROTOCOL_LEN 8 // HTTP/1.1 : 8 characters
+
+#define MAX_HEADER_LINE_LEN 256 // nginx default is 4096 but excessive for general browser requests 
+
+
+#define INCLUDE_DEPRECATED_HTTPREQUEST_PARSER
 // #define SILENCE_DEPRECATION
 
 #include "linked_list.h"
@@ -26,6 +34,11 @@ typedef enum {
 
     GET = 1,
     POST = 2,
+    PUT = 3,
+    DELETE = 4,
+    PATCH = 5,
+    OPTIONS = 6,
+    HEAD = 7
 } RequestMethod;
 
 typedef enum {
@@ -65,6 +78,7 @@ typedef enum {
     Content_Too_Large = 413,
     URI_Too_Long = 414,
     Too_Many_Requests = 429,
+    Request_Header_Fields_Too_Large = 431,
 
     Internal_Server_Error = 500,
     Not_Implemented = 501,
@@ -74,8 +88,6 @@ typedef enum {
     HTTP_Version_Not_Supported = 505,
 } ResponseCode;
 
-// Serverside functions
-#ifdef INCLUDE_DEPRECATED_HTTPREQUEST
 typedef struct {
     int valid; // If false (0), then the request could not be parsed. Panic!
     InvalidReason reason;
@@ -86,7 +98,6 @@ typedef struct {
 
     LinkedList* headers;
 } HTTPRequest;
-#endif
 
 typedef struct {
     int valid; // If false (0), then the request could not be parsed. Panic!
@@ -100,14 +111,14 @@ typedef struct {
 
 const char* RequestMethod_tostring(RequestMethod method);
 
-#ifdef INCLUDE_DEPRECATED_HTTPREQUEST
 HTTPRequest* HTTPRequest_new(RequestMethod method, const char* URL);
 int HTTPRequest_add_header(HTTPRequest* response, const char* name, const char* value);
 const char* HTTPRequest_tostring(HTTPRequest* request);
 
+#ifdef INCLUDE_DEPRECATED_HTTPREQUEST_PARSER
 HTTPRequest* HTTPRequest_fromstring(const char* request);
-void HTTPRequest_Dispose(HTTPRequest** request);
 #endif
+void HTTPRequest_Dispose(HTTPRequest** request);
 
 HTTPResponse* HTTPResponse_new(ResponseCode code, const char* body);
 int HTTPResponse_add_header(HTTPResponse* response, const char* name, const char* value);
