@@ -59,15 +59,34 @@ void WeatherServerInstance_Work(WeatherServerInstance *_Server,
     break;
   }
   case WeatherServerInstance_State_Work: {
-    if (strcmp(_Server->connection->url, "/GetCities") == 0) {
-      // TODO:
-      // void getcities(context);
-    } else if (strcmp(_Server->connection->url, "/GetWeather") == 0) {
-      // TODO:
-      // void getweather(void context*, const char* cityname);
+    // Do the work
+    // Process request
+    // If /getweather
+    // Call weather API
+    // Else if /surprise
+    // Do something else
+
+    HTTPQuery* query = HTTPQuery_fromstring(_Server->connection->url);
+    printf("Received URL without query: %s\n", query->Path);
+    printf("Parameters:");
+    LinkedList_foreach(query->Query, node) {
+      HTTPQueryParameter* param = (HTTPQueryParameter*)node->item;
+      printf("\n%s: %s",param->Name,param->Value);
+    }
+    printf("\n\n");
+
+    if (strcmp(query->Path, "/health") == 0) {
+      HTTPServerConnection_SendResponse(_Server->connection, 200, "");
+    } else if (strcmp(query->Path, "/secret") == 0) {
+      HTTPServerConnection_SendResponse(_Server->connection, 501, "");
+    } else {
+      HTTPServerConnection_SendResponse(_Server->connection, 404, "");
     }
 
     _Server->state = WeatherServerInstance_State_Done;
+
+    HTTPQuery_Dispose(&query);
+
     break;
   }
   case WeatherServerInstance_State_Chilling: {

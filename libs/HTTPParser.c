@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
 char* substr(const char* start, const char* end) {
     if (!start || !end || end < start) return NULL;
     size_t len = end - start;
@@ -13,6 +14,13 @@ char* substr(const char* start, const char* end) {
     memcpy(out, start, len);
     out[len] = '\0';
     return out;
+}
+*/
+
+// strndup wrapper for old parsers that relied on manual substringing
+char* substr(const char* start, const char* end)
+{
+    return strndup(start, end-start);
 }
 
 /*
@@ -28,6 +36,59 @@ char* strfind(const char* str, const char* match) {
 */
 
 //#define strfind strstr
+
+HTTPQuery* HTTPQuery_fromstring(const char* URL)
+{
+    HTTPQuery* query = calloc(1, sizeof(HTTPQuery));
+    query->Query = LinkedList_create();
+    const char* begin = strchr(URL, '?');
+    if(begin == NULL)
+    {
+        // No query detected
+        query->Path = strdup(URL);
+        return query;
+    }
+    query->Path = substr(URL, begin);
+
+    const char* pos = begin+1;
+    while(*pos)
+    {
+        const char* amp = strchr(pos, '&');
+        const char* end = amp ? amp : (URL + strlen(URL));
+
+        const char* eq = memchr(pos, '=', end - pos);
+        HTTPQueryParameter* param = calloc(1, sizeof(HTTPQueryParameter));
+        if (eq) {
+            param->Name = strndup(pos, eq - pos);
+            param->Value = strndup(eq + 1, end - eq - 1);
+        } else {
+            param->Name = strndup(pos, end - pos);
+            param->Value = NULL;
+        }
+
+        LinkedList_append(query->Query, param);
+
+        if (!amp) break;
+        pos = amp + 1;
+    }
+
+    return query;
+}
+
+void free_query(void* item)
+{
+    HTTPQueryParameter* param = (HTTPQueryParameter*)item;
+    free((void*)param->Name);
+    free((void*)param->Value);
+    free(param);
+}
+void HTTPQuery_Dispose(HTTPQuery** pointer) {
+    HTTPQuery* query = *pointer;
+    free((void*)query->Path);
+    LinkedList_dispose(&query->Query, free_query);
+    free(query);
+    *pointer = NULL;
+}
 
 RequestMethod Enum_Method(const char* method) {
     if (!method) return Method_Unknown;
@@ -59,6 +120,7 @@ void free_header(void* context) {
     HTTPHeader* hdr = (HTTPHeader*)context;
     free((void*)hdr->Name);
     free((void*)hdr->Value);
+    free(hdr);
 }
 
 const char* RequestMethod_tostring(RequestMethod method) {
@@ -153,6 +215,8 @@ const char* HTTPRequest_tostring(HTTPRequest* request) {
     snprintf(&status[curPos], messageSize - curPos, "\r\n\r\n");
     return status;
 }
+
+// HTTPRequestParser, parses a request from Client -> Server while data is being read.
 
 // Parse a request from Client -> Server
 #ifdef INCLUDE_DEPRECATED_HTTPREQUEST_PARSER
@@ -294,6 +358,8 @@ HTTPResponse* HTTPResponse_new(ResponseCode code, const char* body) {
     char lenStr[32];
     snprintf(lenStr, sizeof(lenStr), "%zu", strlen(body));
     HTTPResponse_add_header(response, "Content-Length", lenStr);
+    if(CLOSE_CONNECTIONS)
+        HTTPResponse_add_header(response, "Connection", "close");
 
     return response;
 }
