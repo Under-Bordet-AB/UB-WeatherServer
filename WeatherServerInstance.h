@@ -3,6 +3,7 @@
 #define __WeatherServerInstance_h_
 
 #include "HTTPServer/HTTPServerConnection.h"
+#include "libs/smw.h"
 #include "smw.h"
 
 typedef enum {
@@ -17,6 +18,7 @@ typedef enum {
 typedef struct {
     HTTPServerConnection* connection;
     WeatherServerInstance_State state;
+    smw_task *task;
 } WeatherServerInstance;
 
 int WeatherServerInstance_Initiate(WeatherServerInstance* _Instance, HTTPServerConnection* _Connection);

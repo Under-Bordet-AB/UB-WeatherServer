@@ -1,15 +1,20 @@
 #include "WeatherServerInstance.h"
+#include "libs/HTTPServer/HTTPServerConnection.h"
+#include "libs/smw.h"
 #include <stdlib.h>
 
 //-----------------Internal Functions-----------------
 
 int WeatherServerInstance_OnRequest(void *_Context);
+void WeatherServerInstance_TaskWork(void *_Context, uint64_t _MonTime);
 
 //----------------------------------------------------
 
 int WeatherServerInstance_Initiate(WeatherServerInstance *_Instance,
                                    HTTPServerConnection *_Connection) {
   _Instance->connection = _Connection;
+  // Now adds itself to smw-slavework list
+  _Instance->task       = smw_createTask(_Instance, WeatherServerInstance_TaskWork);
 
   HTTPServerConnection_SetCallback(_Instance->connection, _Instance,
                                    WeatherServerInstance_OnRequest);
@@ -45,29 +50,32 @@ int WeatherServerInstance_OnRequest(void *_Context) {
   return 0;
 }
 
-void WeatherServerInstance_Work(WeatherServerInstance *_Server,
-                                uint64_t _MonTime) {
-  switch (_Server->state) {
+// REDONE TO MATCH FUNCTION CALL SIGNATURE
+void WeatherServerInstance_TaskWork(void *_Context, uint64_t _MonTime) 
+{
+  WeatherServerInstance *_Instance = (WeatherServerInstance*)_Context;
+
+  switch (_Instance->state) {
   case WeatherServerInstance_State_Waiting: {
     // Wait for something to happen
     break;
   }
   case WeatherServerInstance_State_Init: {
     // Initialize stuff
-    _Server->state = WeatherServerInstance_State_Work;
+    _Instance->state = WeatherServerInstance_State_Work;
     // Initialize weather API
     break;
   }
   case WeatherServerInstance_State_Work: {
-    if (strcmp(_Server->connection->url, "/GetCities") == 0) {
-      // TODO:
-      // void getcities(context);
-    } else if (strcmp(_Server->connection->url, "/GetWeather") == 0) {
+    if (strcmp(_Instance->connection->url, "/health") == 0) {
+        // FOR CHECKING
+        HTTPServerConnection_SendResponse(_Instance->connection, 200, "{JSON:SHIT}");
+    } else if (strcmp(_Instance->connection->url, "/GetWeather") == 0) {
       // TODO:
       // void getweather(void context*, const char* cityname);
     }
 
-    _Server->state = WeatherServerInstance_State_Done;
+    _Instance->state = WeatherServerInstance_State_Done;
     break;
   }
   case WeatherServerInstance_State_Chilling: {
@@ -76,7 +84,7 @@ void WeatherServerInstance_Work(WeatherServerInstance *_Server,
   }
   case WeatherServerInstance_State_Done: {
     // Finish up
-    _Server->state = WeatherServerInstance_State_Dispose;
+    _Instance->state = WeatherServerInstance_State_Dispose;
     break;
   }
   case WeatherServerInstance_State_Dispose: {
@@ -89,7 +97,7 @@ void WeatherServerInstance_Work(WeatherServerInstance *_Server,
   }
   }
 
-  _Server->state = WeatherServerInstance_State_Done;
+  _Instance->state = WeatherServerInstance_State_Done;
 }
 
 void WeatherServerInstance_Dispose(WeatherServerInstance *_Instance) {}

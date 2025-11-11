@@ -12,10 +12,8 @@ int WeatherServer_Initiate(WeatherServer* _Server)
 {
 	HTTPServer_Initiate(&_Server->httpServer, WeatherServer_OnHTTPConnection);
 
-	_Server->instances = LinkedList_create();
-
+	//_Server->instances = LinkedList_create();
 	_Server->task = smw_createTask(_Server, WeatherServer_TaskWork);
-
 	return 0;
 }
 
@@ -42,7 +40,8 @@ int WeatherServer_InitiatePtr(WeatherServer** _ServerPtr)
 
 int WeatherServer_OnHTTPConnection(void* _Context, HTTPServerConnection* _Connection)
 {
-	WeatherServer* _Server = (WeatherServer*)_Context;
+    // WE DON'T NEED THIS ANYMORE
+	//WeatherServer* _Server = (WeatherServer*)_Context;
 
 	WeatherServerInstance* instance = NULL;
 	int result = WeatherServerInstance_InitiatePtr(_Connection, &instance);
@@ -51,21 +50,22 @@ int WeatherServer_OnHTTPConnection(void* _Context, HTTPServerConnection* _Connec
 		printf("WeatherServer_OnHTTPConnection: Failed to initiate instance\n");
 		return -1;
 	}
-
-	LinkedList_append(_Server->instances, instance);
+    // WE DON'T NEED THIS ANYMORE
+	//LinkedList_append(_Server->instances, instance);
 
 	return 0;
 }
 
 void WeatherServer_TaskWork(void* _Context, uint64_t _MonTime)
 {
-	WeatherServer* _Server = (WeatherServer*)_Context;
+    // WE DON'T NEED THIS ANYMORE
+	/*WeatherServer* _Server = (WeatherServer*)_Context;
 
 	LinkedList_foreach(_Server->instances, node)
 	{
 		WeatherServerInstance* instance = (WeatherServerInstance*)node->item;
 		WeatherServerInstance_Work(instance, _MonTime);
-	}
+	}*/ 
 	
 }
 

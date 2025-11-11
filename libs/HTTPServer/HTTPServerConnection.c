@@ -19,8 +19,7 @@ int HTTPServerConnection_Initiate(HTTPServerConnection *_Connection, int _FD) {
   _Connection->writeBuffer = NULL;
   _Connection->bytesSent = 0;
 
-  _Connection->task =
-      smw_createTask(_Connection, HTTPServerConnection_TaskWork);
+  _Connection->task = smw_createTask(_Connection, HTTPServerConnection_TaskWork);
 
   return 0;
 }

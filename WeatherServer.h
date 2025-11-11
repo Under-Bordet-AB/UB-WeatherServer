@@ -3,7 +3,7 @@
 #define __WeatherServer_h_
 
 #include "smw.h"
-#include "linked_list.h"
+//#include "linked_list.h" WE DON'T NEED THIS LIST ANYMORE
 #include "HTTPServer/HTTPServer.h"
 
 #include "WeatherServerInstance.h"
@@ -11,9 +11,7 @@
 typedef struct
 {
 	HTTPServer httpServer;
-
-	LinkedList* instances;
-
+	//LinkedList* instances; WE DON'T NEED THIS LIST ANYMORE
 	smw_task* task;
 
 } WeatherServer;
