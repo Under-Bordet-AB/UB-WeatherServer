@@ -1,22 +1,54 @@
 #ifndef HTTPPARSER_H
 #define HTTPPARSER_H
 
-#define HTTP_VERSION "HTTP/1.1"
-#define STRICT_PARSE 1 // Will abort parsing and set an error state when anything malformed is read, like unrecognized method/protocol, malformed header and so on.
+/*
+LIBRARY CONFIG
+Important defines that control the behavior of the HTTPParser library.
+For most use cases, the default values should work perfectly fine.
+*/
 
-// Chunked parser safeguards
+#define HTTP_VERSION "HTTP/1.1" // The protocol used with all HTTP responses.
+#define STRICT_PARSE 1 // Will abort parsing and set an error state when anything invalid is read, like unrecognized method/protocol, malformed header and so on.
+#define CLOSE_CONNECTIONS 1 // Auto-add `Connection: close` header to all HTTPResponse structs. Tells clients to disconnect after receiving a response.
+#define LOWERCASE_HEADERS 1 // Makes HTTPRequest header names lowercase to avoid issues checking due to case sensitivity.
+#define LOWERCASE_QUERY 1 // Makes query parameter names lowercase to avoid issues checking due to case sensitivity.
+
+#define INCLUDE_DEPRECATED_HTTPREQUEST_PARSER // Exposes the old deprecated HTTPRequest_fromstring function, superseded by HTTPRequestParser.
+// #define SILENCE_DEPRECATION
+
+// Chunked parser length limits, first 3 options will influence how much data is read for the first line. Keep URL length limit to a minimum.
+
 #define MAX_METHOD_LEN 7 // Longest common name is OPTIONS, we may need to support it for CORS.
 #define MAX_URL_LEN 256
 #define MAX_PROTOCOL_LEN 8 // HTTP/1.1 : 8 characters
+#define MAX_HEADER_LINE_LEN 256 // nginx default is 4096 but excessive for general browser requests.
 
-#define MAX_HEADER_LINE_LEN 256 // nginx default is 4096 but excessive for general browser requests 
+// FIRSTREAD controls how many bytes are read first time around, typically to try and fetch only the first line of the HTTP request.
+// NEXT will control how many bytes are read after the first time.
+#define CHUNKSIZE_FIRSTREAD MAX_METHOD_LEN+MAX_URL_LEN+MAX_PROTOCOL_LEN+4 // +4 to account for the two spaces and \r\n
+#define CHUNKSIZE_NEXT 4096
 
-
-#define INCLUDE_DEPRECATED_HTTPREQUEST_PARSER
-// #define SILENCE_DEPRECATION
+/*
+          BEGIN LIBRARY CODE
+*/
 
 #include "linked_list.h"
 
+// HTTPQuery - Path & query separator for URLs
+
+typedef struct {
+    const char* Name;
+    const char* Value;
+} HTTPQueryParameter;
+typedef struct {
+    const char* Path;
+    LinkedList* Query;
+} HTTPQuery;
+
+HTTPQuery* HTTPQuery_fromstring(const char* URL);
+void HTTPQuery_Dispose(HTTPQuery** query);
+
+// HTTPRequest/HTTPResponse - HTTP message serializer/deserializer functions
 // A HTTPRequest struct should only be disposed by HTTPRequest_Dispose
 
 // If a HTTPRequest is not valid, why?
@@ -88,6 +120,14 @@ typedef enum {
     HTTP_Version_Not_Supported = 505,
 } ResponseCode;
 
+typedef enum {
+    HTTPRequestParser_State_ParsingStart = 1
+} HTTPRequestParser_State;
+
+typedef struct {
+    int DesiredChunkSize;
+} HTTPRequestParser;
+
 typedef struct {
     int valid; // If false (0), then the request could not be parsed. Panic!
     InvalidReason reason;
@@ -116,8 +156,11 @@ int HTTPRequest_add_header(HTTPRequest* response, const char* name, const char* 
 const char* HTTPRequest_tostring(HTTPRequest* request);
 
 #ifdef INCLUDE_DEPRECATED_HTTPREQUEST_PARSER
-HTTPRequest* HTTPRequest_fromstring(const char* request);
+HTTPRequest* HTTPRequest_fromstring(const char* request); // DEPRECATED: USE HTTPRequestParser
 #endif
+
+HTTPRequestParser* HTTPRequestParser_init();
+
 void HTTPRequest_Dispose(HTTPRequest** request);
 
 HTTPResponse* HTTPResponse_new(ResponseCode code, const char* body);
