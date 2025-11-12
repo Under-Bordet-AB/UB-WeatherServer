@@ -6,10 +6,8 @@
 #include "smw.h"
 
 typedef enum {
-    WeatherServerInstance_State_Waiting,
     WeatherServerInstance_State_Init,
     WeatherServerInstance_State_Work,
-    WeatherServerInstance_State_Chilling,
     WeatherServerInstance_State_Done,
     WeatherServerInstance_State_Dispose
 } WeatherServerInstance_State;
@@ -17,6 +15,13 @@ typedef enum {
 typedef struct {
     HTTPServerConnection* connection;
     WeatherServerInstance_State state;
+
+    char* buffer;
+    void* weatherbackend_struct;
+    void (*weatherbackend_work)(void** weatherbackend_struct);
+    char* (*weatherbackend_buffer)(void** weatherbackend_struct);
+    void (*weatherbackend_dispose)(void** weatherbackend_struct);
+
 } WeatherServerInstance;
 
 int WeatherServerInstance_Initiate(WeatherServerInstance* _Instance, HTTPServerConnection* _Connection);
