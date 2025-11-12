@@ -67,20 +67,23 @@ void WeatherServerInstance_Work(WeatherServerInstance *_Server,
     // Do something else
 
     HTTPQuery* query = HTTPQuery_fromstring(_Server->connection->url);
-    printf("Received URL without query: %s\n", query->Path);
-    printf("Parameters:");
-    LinkedList_foreach(query->Query, node) {
-      HTTPQueryParameter* param = (HTTPQueryParameter*)node->item;
-      printf("\n%s: %s",param->Name,param->Value);
+    printf("WeatherServerInstance received URL request: %s\n", query->Path);
+    if(query->Query->size > 0)
+    {
+      printf("Parameters (%zu):",query->Query->size);
+      LinkedList_foreach(query->Query, node) {
+        HTTPQueryParameter* param = (HTTPQueryParameter*)node->item;
+        printf("\n%s: %s",param->Name,param->Value);
+      }
+      printf("\n\n");
     }
-    printf("\n\n");
 
     if (strcmp(query->Path, "/health") == 0) {
-      HTTPServerConnection_SendResponse(_Server->connection, 200, "");
+      HTTPServerConnection_SendResponse(_Server->connection, 200, "{\"status\":\"ok\"}", "application/json");
     } else if (strcmp(query->Path, "/secret") == 0) {
-      HTTPServerConnection_SendResponse(_Server->connection, 501, "");
+      HTTPServerConnection_SendResponse(_Server->connection, 501, "", NULL);
     } else {
-      HTTPServerConnection_SendResponse(_Server->connection, 404, "");
+      HTTPServerConnection_SendResponse(_Server->connection, 404, "Not Found", "text/plain");
     }
 
     _Server->state = WeatherServerInstance_State_Done;

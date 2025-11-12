@@ -56,11 +56,16 @@ void HTTPServerConnection_SetCallback(
 }
 
 void HTTPServerConnection_SendResponse(HTTPServerConnection *_Connection,
-                                       int _responseCode, char *_responseBody) {
+                                       int _responseCode, char *_responseBody, char *_contentType) {
 
   if (_Connection->state != HTTPServerConnection_State_Wait)
     return;
-  HTTPResponse *resp = HTTPResponse_new(_responseCode, _responseBody);
+  int isRedirect = (_responseCode == 301 || _responseCode == 302);
+  HTTPResponse *resp = HTTPResponse_new(_responseCode, isRedirect ? "" : _responseBody);
+  if(_contentType != NULL)
+    HTTPResponse_add_header(resp, "Content-Type", _contentType);
+  if(isRedirect)
+    HTTPResponse_add_header(resp, "Location", _responseBody);
   char *message = (char *)HTTPResponse_tostring(resp);
   _Connection->writeBuffer = (uint8_t *)message;
   _Connection->writeBufferSize = strlen(message);
@@ -104,15 +109,21 @@ void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {
   case HTTPServerConnection_State_Parsing: {
     HTTPRequest *request = HTTPRequest_fromstring(_Connection->readBuffer);
 
-    _Connection->url = strdup(request->URL);
-    _Connection->method = strdup(RequestMethod_tostring(request->method));
-
-    HTTPRequest_Dispose(&request);
-
-    _Connection->state = HTTPServerConnection_State_Wait;
-
-    if (strcmp(_Connection->method, "GET") == 0) {
-      _Connection->onRequest(_Connection->context);
+    if(request->valid)
+    {
+      _Connection->url = strdup(request->URL);
+      _Connection->method = strdup(RequestMethod_tostring(request->method));
+      HTTPRequest_Dispose(&request);
+      _Connection->state = HTTPServerConnection_State_Wait;
+      if (strcmp(_Connection->method, "GET") == 0) {
+        _Connection->onRequest(_Connection->context);
+      } else {
+        HTTPServerConnection_SendResponse(_Connection, 405, "Method unsupported", "text/plain");
+      }
+    } else {
+      HTTPRequest_Dispose(&request);
+      _Connection->state = HTTPServerConnection_State_Wait;
+      HTTPServerConnection_SendResponse(_Connection, 400, "Invalid request received", "text/plain");
     }
 
     break;
@@ -131,7 +142,7 @@ void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {
     }
 
     if (_Connection->bytesSent == _Connection->writeBufferSize) {
-      _Connection->state = HTTPServerConnection_State_Wait;
+      _Connection->state = HTTPServerConnection_State_Dispose; // Formerly set to Wait
     }
     break;
   }
