@@ -82,6 +82,12 @@ void WeatherServerInstance_Work(WeatherServerInstance *_Server,
       HTTPServerConnection_SendResponse(_Server->connection, 200, "{\"status\":\"ok\"}", "application/json");
     } else if (strcmp(query->Path, "/secret") == 0) {
       HTTPServerConnection_SendResponse(_Server->connection, 501, "", NULL);
+    } else if (strcmp(_Server->connection->url, "/GetCities") == 0) {
+      // TODO:
+      // void getcities(context);
+    } else if (strcmp(_Server->connection->url, "/GetWeather") == 0) {
+      // TODO:
+      // void getweather(void context*, const char* cityname);
     } else {
       HTTPServerConnection_SendResponse(_Server->connection, 404, "Not Found", "text/plain");
     }

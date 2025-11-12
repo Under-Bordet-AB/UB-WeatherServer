@@ -102,14 +102,6 @@ typedef enum {
     HTTP_Version_Not_Supported = 505,
 } ResponseCode;
 
-typedef enum {
-    HTTPRequestParser_State_ParsingStart = 1
-} HTTPRequestParser_State;
-
-typedef struct {
-    int DesiredChunkSize;
-} HTTPRequestParser;
-
 typedef struct {
     int valid; // If false (0), then the request could not be parsed. Panic!
     InvalidReason reason;
