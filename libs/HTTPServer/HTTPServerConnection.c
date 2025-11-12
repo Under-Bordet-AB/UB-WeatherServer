@@ -55,22 +55,32 @@ void HTTPServerConnection_SetCallback(
   _Connection->onRequest = _OnRequest;
 }
 
+void HTTPServerConnection_SendResponse_Binary(HTTPServerConnection *_Connection,
+                                       int _responseCode, uint8_t *_responseBody, size_t _responseBodySize, char *_contentType) {
+
+  if (_Connection->state != HTTPServerConnection_State_Wait)
+    return;
+  int isRedirect = (_responseCode == 301 || _responseCode == 302);
+  HTTPResponse *resp = HTTPResponse_new_binary(_responseCode, isRedirect ? NULL : _responseBody, isRedirect ? 0 : _responseBodySize);
+  if(_contentType != NULL)
+    HTTPResponse_add_header(resp, "Content-Type", _contentType);
+  if(isRedirect)
+    HTTPResponse_add_header(resp, "Location", (const char*)_responseBody);
+  size_t messageSize = 0;
+  char *message = (char*)HTTPResponse_tostring(resp, &messageSize);
+  _Connection->writeBuffer = (uint8_t *)message;
+  _Connection->writeBufferSize = messageSize;
+  HTTPResponse_Dispose(&resp);
+  _Connection->state = HTTPServerConnection_State_Send;
+}
+
 void HTTPServerConnection_SendResponse(HTTPServerConnection *_Connection,
                                        int _responseCode, char *_responseBody, char *_contentType) {
 
   if (_Connection->state != HTTPServerConnection_State_Wait)
     return;
-  int isRedirect = (_responseCode == 301 || _responseCode == 302);
-  HTTPResponse *resp = HTTPResponse_new(_responseCode, isRedirect ? "" : _responseBody);
-  if(_contentType != NULL)
-    HTTPResponse_add_header(resp, "Content-Type", _contentType);
-  if(isRedirect)
-    HTTPResponse_add_header(resp, "Location", _responseBody);
-  char *message = (char *)HTTPResponse_tostring(resp);
-  _Connection->writeBuffer = (uint8_t *)message;
-  _Connection->writeBufferSize = strlen(message);
-  HTTPResponse_Dispose(&resp);
-  _Connection->state = HTTPServerConnection_State_Send;
+
+  HTTPServerConnection_SendResponse_Binary(_Connection, _responseCode, (uint8_t*)_responseBody, strlen(_responseBody), _contentType);
 }
 
 void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {

@@ -16,6 +16,7 @@ For most use cases, the default values should work perfectly fine.
 */
 
 #include "linked_list.h"
+#include <stdint.h>
 
 // HTTPQuery - Path & query separator for URLs
 
@@ -120,7 +121,9 @@ typedef struct {
     ResponseCode responseCode;
     ProtocolVersion protocol;
     LinkedList* headers;
-    const char* body;
+
+    uint8_t* body;
+    size_t bodySize;
 } HTTPResponse;
 
 const char* RequestMethod_tostring(RequestMethod method);
@@ -132,8 +135,9 @@ HTTPRequest* HTTPRequest_fromstring(const char* request); // DEPRECATED: USE HTT
 void HTTPRequest_Dispose(HTTPRequest** request);
 
 HTTPResponse* HTTPResponse_new(ResponseCode code, const char* body);
+HTTPResponse* HTTPResponse_new_binary(ResponseCode code, uint8_t* body, size_t bodyLength);
 int HTTPResponse_add_header(HTTPResponse* response, const char* name, const char* value);
-const char* HTTPResponse_tostring(HTTPResponse* response);
+const char* HTTPResponse_tostring(HTTPResponse* response, size_t* outSize);
 HTTPResponse* HTTPResponse_fromstring(const char* response);
 void HTTPResponse_Dispose(HTTPResponse** response);
 

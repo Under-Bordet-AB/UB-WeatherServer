@@ -321,11 +321,34 @@ void HTTPRequest_Dispose(HTTPRequest** req) {
 HTTPResponse* HTTPResponse_new(ResponseCode code, const char* body) {
     HTTPResponse* response = calloc(1, sizeof(HTTPResponse));
     response->responseCode = code;
-    response->body = strdup(body);
+    response->body = (uint8_t*)strdup(body);
+    response->bodySize = strlen(body);
     response->headers = LinkedList_create();
 
     char lenStr[32];
-    snprintf(lenStr, sizeof(lenStr), "%zu", strlen(body));
+    snprintf(lenStr, sizeof(lenStr), "%zu", response->bodySize);
+    HTTPResponse_add_header(response, "Content-Length", lenStr);
+    if(CLOSE_CONNECTIONS)
+        HTTPResponse_add_header(response, "Connection", "close");
+
+    return response;
+}
+
+HTTPResponse* HTTPResponse_new_binary(ResponseCode code, uint8_t* body, size_t bodyLength) {
+    HTTPResponse* response = calloc(1, sizeof(HTTPResponse));
+    response->responseCode = code;
+    if(body != NULL)
+    {
+        response->body = (uint8_t*)malloc(bodyLength * sizeof(uint8_t));
+        memcpy(response->body, body, bodyLength);
+        response->bodySize = bodyLength;
+    } else {
+        response->bodySize = 0;
+    }
+    response->headers = LinkedList_create();
+
+    char lenStr[32];
+    snprintf(lenStr, sizeof(lenStr), "%zu", response->bodySize);
     HTTPResponse_add_header(response, "Content-Length", lenStr);
     if(CLOSE_CONNECTIONS)
         HTTPResponse_add_header(response, "Connection", "close");
@@ -344,7 +367,7 @@ int HTTPResponse_add_header(HTTPResponse* response, const char* name, const char
     return LinkedList_append(response->headers, header);
 }
 
-const char* HTTPResponse_tostring(HTTPResponse* response) {
+const char* HTTPResponse_tostring(HTTPResponse* response, size_t* outSize) {
     const char* message = CommonResponseMessages(response->responseCode);
     // Count size of everything before allocating
     // 5 = 2 spaces + response code (3 digits) + null term
@@ -355,7 +378,7 @@ const char* HTTPResponse_tostring(HTTPResponse* response) {
             messageSize += 4 + strlen(hdr->Name) + strlen(hdr->Value); // 4 = \r\n and symbols between name & value
         }
     }
-    messageSize += 4 + strlen(response->body); // 4 = \r\n\r\n
+    messageSize += 4 + response->bodySize; // 4 = \r\n\r\n
     // printf("We have to allocate %i bytes.\n",messageSize);
     char* status = malloc(messageSize);
     // write first line
@@ -367,7 +390,12 @@ const char* HTTPResponse_tostring(HTTPResponse* response) {
         curPos += written;
     }
     // write body
-    snprintf(&status[curPos], messageSize - curPos, "\r\n\r\n%s", response->body);
+    const uint8_t separator[] = {'\r', '\n', '\r', '\n'};
+    memcpy(&status[curPos], separator, sizeof(separator));
+    curPos += sizeof(separator);
+    if(response->body != NULL)
+        memcpy(&status[curPos], response->body, messageSize - curPos);
+    *outSize = messageSize;
     return status;
 }
 
@@ -391,7 +419,7 @@ HTTPResponse* HTTPResponse_fromstring(const char* message) {
         int length = end - start;
         if (length < 2) {
             // printf("Reached end of response.\n");
-            response->body = substr(start + 2, message + messageLen);
+            response->body = (uint8_t*)substr(start + 2, message + messageLen);
             break;
         }
         char* current_line = substr(start, end);
@@ -478,7 +506,7 @@ HTTPResponse* HTTPResponse_fromstring(const char* message) {
 void HTTPResponse_Dispose(HTTPResponse** resp) {
     if (resp && *resp) {
         HTTPResponse* response = *resp;
-        free((void*)response->body);
+        free(response->body);
         LinkedList_dispose(&response->headers, free_header);
         free(response);
         *resp = NULL;

@@ -1,5 +1,6 @@
 #include "WeatherServerInstance.h"
 #include <stdlib.h>
+#include "utils.h"
 
 //-----------------Internal Functions-----------------
 
@@ -80,8 +81,10 @@ void WeatherServerInstance_Work(WeatherServerInstance *_Server,
 
     if (strcmp(query->Path, "/health") == 0) {
       HTTPServerConnection_SendResponse(_Server->connection, 200, "{\"status\":\"ok\"}", "application/json");
-    } else if (strcmp(query->Path, "/secret") == 0) {
-      HTTPServerConnection_SendResponse(_Server->connection, 501, "", NULL);
+    //} else if (strcmp(query->Path, "/secret2") == 0) {
+    //  size_t fileSize = 0;
+    //  uint8_t* file = readFileToBuffer("notmyproblem.png",&fileSize);
+    //  HTTPServerConnection_SendResponse_Binary(_Server->connection, 200, file, fileSize, "image/png");
     } else if (strcmp(_Server->connection->url, "/GetCities") == 0) {
       // TODO:
       // void getcities(context);
