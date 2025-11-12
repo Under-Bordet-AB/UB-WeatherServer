@@ -52,39 +52,44 @@ int WeatherServerInstance_OnDone(void* _Context) {
 }
 
 void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTime) {
+    WeatherServerBackend* backend = &_Server->backend;
+    char* url = _Server->connection->url;
+    void** backend_t = backend->backend_struct;
+
     switch (_Server->state) {
     case WeatherServerInstance_State_Init: {
-        char* url = _Server->connection->url;
         if (strcmp(url, "/GetCities") == 0) {
-            // cities_init(weatherbackend_struct);
-            // weatherbackend_work = cities_work(weatherbackend_struct);
-            // weatherbackend_buffer = cities_buffer(weatherbackend_struct);
-            // weatherbackend_dispose = cities_dispose(weatherbackend_struct);
+            cities_init(backend_t, WeatherServerInstance_OnDone);
+            backend->answer_get_buffer = cities_get_buffer;
+            backend->answer_work = cities_work;
+            backend->answer_dispose = cities_dispose;
         } else if (strcmp(url, "/GetWeather") == 0) {
-            // weather_init(weatherbackend_struct);
-            // weatherbackend_work = weather_work(weatherbackend_struct);
-            // weatherbackend_buffer = weather_buffer(weatherbackend_struct);
-            // weatherbackend_dispose = weather_dispose(weatherbackend_struct);
+            // weather_init(backend_t, WeatherServerInstance_OnDone);
+            // backend->answer_get_buffer = weather_get_buffer;
+            // backend->answer_work = weather_work;
+            // backend->answer_dispose = weather_dispose;
         } else if (strcmp(url, "/GetSurprise") == 0) {
-            // surprise_init(weatherbackend_struct);
-            // weatherbackend_work = surprise_work(weatherbackend_struct);
-            // weatherbackend_buffer = surprise_buffer(weatherbackend_struct);
-            // weatherbackend_dispose = surprise_dispose(weatherbackend_struct);
+            // surprise_init(backend_t, WeatherServerInstance_OnDone);
+            // backend->answer_get_buffer = surprise_get_buffer;
+            // backend->answer_work = surprise_work;
+            // backend->answer_dispose = surprise_dispose;
         }
         _Server->state = WeatherServerInstance_State_Work;
         break;
     }
     case WeatherServerInstance_State_Work: {
-        // _Server->backend_work(_Server->backend_struct);
+        backend->answer_work(backend_t);
         break;
     }
     case WeatherServerInstance_State_Done: {
+        char* buffer;
+        backend->answer_get_buffer(backend_t, &buffer);
         // SendResponse(buffer);
-        //_Server->state = WeatherServerInstance_State_Dispose;
+        _Server->state = WeatherServerInstance_State_Dispose;
         break;
     }
     case WeatherServerInstance_State_Dispose: {
-        //_Server->backend_dispose(_Server->backend_struct);
+        backend->answer_dispose(backend_t);
         break;
     }
     default: {

@@ -13,14 +13,17 @@ typedef enum {
 } WeatherServerInstance_State;
 
 typedef struct {
+    void* backend_struct;
+    int (*answer_get_buffer)(void** weatherbackend_struct, char** buffer);
+    int (*answer_work)(void** weatherbackend_struct);
+    int (*answer_dispose)(void** weatherbackend_struct);
+} WeatherServerBackend;
+
+typedef struct {
     HTTPServerConnection* connection;
     WeatherServerInstance_State state;
 
-    char* buffer;
-    void* weatherbackend_struct;
-    void (*weatherbackend_work)(void** weatherbackend_struct);
-    char* (*weatherbackend_buffer)(void** weatherbackend_struct);
-    void (*weatherbackend_dispose)(void** weatherbackend_struct);
+    WeatherServerBackend backend;
 
 } WeatherServerInstance;
 

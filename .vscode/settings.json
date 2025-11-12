@@ -11,6 +11,7 @@
     "files.associations": {
         ".clang-format": "yaml",
         "smw.h": "c",
-        "httpserverconnection.h": "c"
+        "httpserverconnection.h": "c",
+        "cities_new.h": "c"
     }
 }

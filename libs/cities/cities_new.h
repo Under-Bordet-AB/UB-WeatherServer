@@ -10,17 +10,15 @@ typedef enum {
 } cities_state;
 
 typedef struct cities_t {
-    // linkedlist cities_l;
-    // void* context;
     cities_state state;
     char* buffer;
     int bytesread;
     void(*on_done);
 } cities_t;
 
-int cities_init(void** context);
-int cities_work();
-char* cities_get_buffer();
-int cities_dispose();
+int cities_init(void** ctx, void(*ondone));
+int cities_get_buffer(void** ctx, char** buffer);
+int cities_work(void** ctx);
+int cities_dispose(void** ctx);
 
 #endif
