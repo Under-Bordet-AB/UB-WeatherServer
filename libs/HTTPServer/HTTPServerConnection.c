@@ -68,6 +68,33 @@ void HTTPServerConnection_SendResponse(HTTPServerConnection *_Connection,
   _Connection->state = HTTPServerConnection_State_Send;
 }
 
+void HTTPServerConnection_SendBinary(HTTPServerConnection *_Connection,
+                                     int _responseCode, uint8_t *_responseBody,
+                                     int _responseSize) {
+  if (_Connection->state != HTTPServerConnection_State_Wait)
+    return;
+  HTTPResponse *resp = HTTPResponse_new(_responseCode, "");
+  char len_str[20];
+  snprintf(len_str, 20, "%d", _responseSize);
+  HTTPResponse_add_header(resp, "Content-Length", len_str);
+  // HTTPResponse_add_header(resp, "Content-Type", "application/octet-stream");
+
+  char *header = (char *)HTTPResponse_tostring(resp);
+  int message_size = strlen(header) + _responseSize;
+
+  _Connection->writeBuffer = (uint8_t *)realloc(header, message_size);
+  if (!_Connection->writeBuffer) {
+    free(header);
+    return;
+  }
+
+  memcpy(_Connection->writeBuffer + strlen((char *)_Connection->writeBuffer),
+         _responseBody, _responseSize);
+  _Connection->writeBufferSize = message_size;
+  HTTPResponse_Dispose(&resp);
+  _Connection->state = HTTPServerConnection_State_Send;
+}
+
 void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {
   HTTPServerConnection *_Connection = (HTTPServerConnection *)_Context;
 

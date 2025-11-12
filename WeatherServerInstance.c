@@ -1,4 +1,5 @@
 #include "WeatherServerInstance.h"
+#include "surprise.h"
 #include <stdlib.h>
 
 //-----------------Internal Functions-----------------
@@ -81,8 +82,16 @@ void WeatherServerInstance_Work(WeatherServerInstance *_Server,
     // Do something else
     if (strcmp(_Server->connection->url, "/health") == 0) {
       HTTPServerConnection_SendResponse(_Server->connection, 200, "");
-    } else if (strcmp(_Server->connection->url, "/secret") == 0) {
-      HTTPServerConnection_SendResponse(_Server->connection, 501, "");
+    } else if (strcmp(_Server->connection->url, "/surprise") == 0) {
+      uint8_t *buf;
+      int size = surprise_get_file(&buf, "surprise.png");
+      if (size < 0) {
+        printf("err: %d\n", size);
+        HTTPServerConnection_SendResponse(_Server->connection, 404, "");
+      } else {
+        HTTPServerConnection_SendBinary(_Server->connection, 200, buf, size);
+        free(buf);
+      }
     } else {
       HTTPServerConnection_SendResponse(_Server->connection, 404, "");
     }
