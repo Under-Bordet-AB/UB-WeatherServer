@@ -12,25 +12,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-/* ----------------------------------------------------------------------
- *      Opaque struct for server, lives for entire program
- * ---------------------------------------------------------------------- */
-typedef struct w_server {
-    // Sheduler for all state machines
-    mj_scheduler* scheduler;
-
-    // Network
-    int listen_fd;
-    char address[46]; // IPv6 max length (INET6_ADDRSTRLEN)
-    char port[6];     // Port string (max 65535)
-
-    // Metrics
-    size_t active_count;
-
-    // Last error
-    w_server_error last_error;
-} w_server;
-
 // Public API
 
 /*  Initialise fields from config

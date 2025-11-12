@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Create and initialize the weather server
-    w_server server;
+    w_server server; // TODO would be nice to make type opaque
     if (w_server_create(scheduler, &server, &config) != 0) {
         fprintf(stderr, "Failed to create weather server\n");
         mj_scheduler_destroy(&scheduler);
