@@ -5,6 +5,7 @@
    ------------------------------------------------------------------------------------- */
 
 #include "w_server.h"
+#include "w_client.h"
 #include <netdb.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,7 +13,25 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-// Public API
+/* ----------------------------------------------------------------------
+ *      PRIVATE FUNCTIONS
+ * ---------------------------------------------------------------------- */
+
+/*  Task function that gets added to the scheduler.
+        It listens on the servers listening socket and creates new clients
+        and adds these clients to the scheduler.
+--------------------------------------------------------------- */
+void w_server_accept_clients_func(mj_scheduler* scheduler, void* state) {
+    int* listen_fd = (int*)state;
+
+    // Lyssna på socketen
+
+    // Malloca en client
+    w_client* w_client;
+
+    // lägg till klientens state machine till schedulern,
+    mj_scheduler_task_add(scheduler, CLIENT_TASK_FN, w_client);
+}
 
 /*  Initialise fields from config
 --------------------------------------------------------------- */

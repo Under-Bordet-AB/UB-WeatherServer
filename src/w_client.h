@@ -61,3 +61,8 @@ typedef struct w_client {
     struct timespec connect_time;
     w_client_error error_code;
 } w_client;
+
+// Private functions
+int w_server_client_state_machine_func(mj_scheduler* scheduler, void* state);
+
+// Public functions

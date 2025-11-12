@@ -50,8 +50,6 @@ int main(int argc, char* argv[]) {
     ////////////////////////////////////////////
     //////// PROGRAM STARTS HERE
 
-    // Add listening task to scheduler
-
     // Run the cooperative scheduler (blocks here until shutdown)
     int result = mj_scheduler_run(scheduler);
     if (result != 0) {

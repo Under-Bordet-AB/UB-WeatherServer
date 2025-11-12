@@ -31,6 +31,7 @@ typedef struct w_server_config {
 typedef struct w_server {
     // Sheduler for all state machines
     mj_scheduler* scheduler;
+    mj_task* w_server_accept_clients_func;
 
     // Network
     int listen_fd;
