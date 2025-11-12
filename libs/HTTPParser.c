@@ -193,11 +193,7 @@ const char* HTTPRequest_tostring(HTTPRequest* request) {
 // HTTPRequestParser, parses a request from Client -> Server while data is being read.
 
 // Parse a request from Client -> Server
-#ifdef INCLUDE_DEPRECATED_HTTPREQUEST_PARSER
 HTTPRequest* HTTPRequest_fromstring(const char* message) {
-#ifndef SILENCE_DEPRECATION
-    printf("[HTTPParser] HTTPRequest_fromstring is deprecated and will be removed in the future. Consider switching to HTTPRequestParser functions.\n");
-#endif
     HTTPRequest* request = calloc(1, sizeof(HTTPRequest));
     request->reason = Malformed;
     request->headers = LinkedList_create();
@@ -310,7 +306,6 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
 
     return request;
 }
-#endif
 
 // Properly dispose a HTTPRequest struct
 void HTTPRequest_Dispose(HTTPRequest** req) {
