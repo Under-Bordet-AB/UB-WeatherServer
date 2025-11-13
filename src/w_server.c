@@ -33,6 +33,41 @@ void w_server_accept_clients_func(mj_scheduler* scheduler, void* state) {
     mj_scheduler_task_add(scheduler, CLIENT_TASK_FN, w_client);
 }
 
+//////////////////////////////////////////////////////////////////////////
+// FRÅN AI INNE I DENNA
+
+// State: Always in "ACCEPTING" state
+void w_server_accept_clients_func(mj_scheduler* scheduler, void* state) {
+    int* listen_fd = (int*)state;
+
+    // Try to accept (non-blocking)
+    struct sockaddr_storage client_addr;
+    socklen_t addr_len = sizeof(client_addr);
+    int client_fd = accept(*listen_fd, (struct sockaddr*)&client_addr, &addr_len);
+
+    if (client_fd < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // No clients waiting - that's OK, just return
+            return;
+        }
+        // Real error - handle it
+        return;
+    }
+
+    // Got a client! Make it non-blocking too
+    fcntl(client_fd, F_SETFL, O_NONBLOCK);
+
+    // Create client state machine
+    w_client* client = malloc(sizeof(w_client));
+    client->fd = client_fd;
+    client->state = CLIENT_STATE_READ_REQUEST;
+    // ... initialize other fields
+
+    // Add client's state machine to scheduler
+    mj_scheduler_task_add(scheduler, w_client_task_func, client);
+}
+//////////////////////////////////////////////////////////////////////////
+
 /*  Initialise fields from config
 --------------------------------------------------------------- */
 static int init_from_config(w_server* srv, const w_server_config* cfg) {
