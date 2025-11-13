@@ -1,6 +1,7 @@
 #include "WeatherServerInstance.h"
 #include "surprise.h"
 #include <stdlib.h>
+#include "utils.h"
 
 //-----------------Internal Functions-----------------
 
@@ -11,6 +12,7 @@ int WeatherServerInstance_OnRequest(void *_Context);
 int WeatherServerInstance_Initiate(WeatherServerInstance *_Instance,
                                    HTTPServerConnection *_Connection) {
   _Instance->connection = _Connection;
+  _Instance->state = WeatherServerInstance_State_Init;
 
   HTTPServerConnection_SetCallback(_Instance->connection, _Instance,
                                    WeatherServerInstance_OnRequest);
@@ -48,20 +50,6 @@ int WeatherServerInstance_OnRequest(void *_Context) {
 
 void WeatherServerInstance_Work(WeatherServerInstance *_Server,
                                 uint64_t _MonTime) {
-  // Select function to run in the weather API
-  //_Server->connection->readBuffer;
-  //_Server->connection->method;
-
-  // _Server.state = WORKING
-  // State machine
-  /* If /get
-   * If /weather
-   * 		do A
-   * 		get_weather("citname");
-   * else if /surprise
-   * 		do B
-   *  WRITE(****)
-   */
   switch (_Server->state) {
   case WeatherServerInstance_State_Waiting: {
     // Wait for something to happen
@@ -80,22 +68,48 @@ void WeatherServerInstance_Work(WeatherServerInstance *_Server,
     // Call weather API
     // Else if /surprise
     // Do something else
-    if (strcmp(_Server->connection->url, "/health") == 0) {
-      HTTPServerConnection_SendResponse(_Server->connection, 200, "");
-    } else if (strcmp(_Server->connection->url, "/surprise") == 0) {
+
+    HTTPQuery* query = HTTPQuery_fromstring(_Server->connection->url);
+    printf("WeatherServerInstance received URL request: %s\n", query->Path);
+    if(query->Query->size > 0)
+    {
+      printf("Parameters (%zu):",query->Query->size);
+      LinkedList_foreach(query->Query, node) {
+        HTTPQueryParameter* param = (HTTPQueryParameter*)node->item;
+        printf("\n%s: %s",param->Name,param->Value);
+      }
+      printf("\n\n");
+    }
+
+    if (strcmp(query->Path, "/health") == 0) {
+      HTTPServerConnection_SendResponse(_Server->connection, 200, "{\"status\":\"ok\"}", "application/json");
+    } else if (strcmp(_Server->connection->url, "/GetCities") == 0) {
+      // TODO:
+      // void getcities(context);
+    } else if (strcmp(_Server->connection->url, "/GetWeather") == 0) {
+      // TODO:
+      // void getweather(void context*, const char* cityname);
+    }  else if (strcmp(query->Path, "/surprise") == 0) {
       uint8_t *buf;
-      int size = surprise_get_file(&buf, "surprise.png");
-      if (size < 0) {
-        printf("err: %d\n", size);
-        HTTPServerConnection_SendResponse(_Server->connection, 404, "");
+      int buf_len = surprise_get_file(&buf, "surprise.png");
+      if (buf_len < 0){
+        HTTPServerConnection_SendResponse(_Server->connection, 404, "", "text/plain");
       } else {
-        HTTPServerConnection_SendBinary(_Server->connection, 200, buf, size);
+        HTTPServerConnection_SendResponse_Binary(_Server->connection, 200, buf, buf_len, "application/octet-stream");
         free(buf);
       }
     } else {
-      HTTPServerConnection_SendResponse(_Server->connection, 404, "");
+      HTTPServerConnection_SendResponse(_Server->connection, 404, "Not Found", "text/plain");
     }
+
     _Server->state = WeatherServerInstance_State_Done;
+
+    HTTPQuery_Dispose(&query);
+
+    break;
+  }
+  case WeatherServerInstance_State_Chilling: {
+    // Wait for data from backend to be ready for sending to client.
     break;
   }
   case WeatherServerInstance_State_Done: {

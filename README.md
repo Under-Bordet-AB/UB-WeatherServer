@@ -1,4 +1,58 @@
-# 🌦️Documentation
+# 🌦️ UB-WeatherServer
+
+Simple HTTP weather API server using cooperative multitasking.
+
+## 📚 Documentation
+
+- **[Architecture Analysis](ARCHITECTURE_ANALYSIS.md)** — comprehensive design pattern analysis, bugs, and improvement roadmap
+- **[Quick Task Checklist](QUICK_TASK_CHECKLIST.md)** — actionable todo list with priorities
+- **[V2 Scaffold README](V2/README_V2.md)** — next-generation architecture proposal
+
+## 🚀 Quick Start
+
+```bash
+# Build (release mode)
+make
+
+# Build (debug mode)
+make MODE=debug
+
+# Run server
+./server
+
+# Test endpoints
+curl http://localhost:8080/health
+curl http://localhost:8080/cities
+curl http://localhost:8080/weather/Stockholm
+```
+
+## 🔧 Development
+
+```bash
+# Format all code
+git ls-files '*.c' '*.h' | xargs -r clang-format -i
+
+# Check for memory leaks
+make MODE=debug
+valgrind --leak-check=full ./server
+
+# Clean build artifacts
+make clean
+```
+
+## 📋 Current Status
+
+**Critical issues identified (see ARCHITECTURE_ANALYSIS.md):**
+- ⚠️ Memory leaks in connection lifecycle
+- ⚠️ CPU waste from busy-loop polling
+- ⚠️ State machine bugs
+
+**Priority fixes in progress:**
+1. Fix memory leaks
+2. Add epoll-based event loop
+3. Improve error handling
+
+## 🌐 API Documentation
 ## Retrieve list of available locations.
 *   **Method:** `GET`
 *   **Path:** `/cities`

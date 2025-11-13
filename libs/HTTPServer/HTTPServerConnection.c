@@ -55,44 +55,32 @@ void HTTPServerConnection_SetCallback(
   _Connection->onRequest = _OnRequest;
 }
 
-void HTTPServerConnection_SendResponse(HTTPServerConnection *_Connection,
-                                       int _responseCode, char *_responseBody) {
+void HTTPServerConnection_SendResponse_Binary(HTTPServerConnection *_Connection,
+                                       int _responseCode, uint8_t *_responseBody, size_t _responseBodySize, char *_contentType) {
 
   if (_Connection->state != HTTPServerConnection_State_Wait)
     return;
-  HTTPResponse *resp = HTTPResponse_new(_responseCode, _responseBody);
-  char *message = (char *)HTTPResponse_tostring(resp);
+  int isRedirect = (_responseCode == 301 || _responseCode == 302);
+  HTTPResponse *resp = HTTPResponse_new_binary(_responseCode, isRedirect ? NULL : _responseBody, isRedirect ? 0 : _responseBodySize);
+  if(_contentType != NULL)
+    HTTPResponse_add_header(resp, "Content-Type", _contentType);
+  if(isRedirect)
+    HTTPResponse_add_header(resp, "Location", (const char*)_responseBody);
+  size_t messageSize = 0;
+  char *message = (char*)HTTPResponse_tostring(resp, &messageSize);
   _Connection->writeBuffer = (uint8_t *)message;
-  _Connection->writeBufferSize = strlen(message);
+  _Connection->writeBufferSize = messageSize;
   HTTPResponse_Dispose(&resp);
   _Connection->state = HTTPServerConnection_State_Send;
 }
 
-void HTTPServerConnection_SendBinary(HTTPServerConnection *_Connection,
-                                     int _responseCode, uint8_t *_responseBody,
-                                     int _responseSize) {
+void HTTPServerConnection_SendResponse(HTTPServerConnection *_Connection,
+                                       int _responseCode, char *_responseBody, char *_contentType) {
+
   if (_Connection->state != HTTPServerConnection_State_Wait)
     return;
-  HTTPResponse *resp = HTTPResponse_new(_responseCode, "");
-  char len_str[20];
-  snprintf(len_str, 20, "%d", _responseSize);
-  HTTPResponse_add_header(resp, "Content-Length", len_str);
-  // HTTPResponse_add_header(resp, "Content-Type", "application/octet-stream");
 
-  char *header = (char *)HTTPResponse_tostring(resp);
-  int message_size = strlen(header) + _responseSize;
-
-  _Connection->writeBuffer = (uint8_t *)realloc(header, message_size);
-  if (!_Connection->writeBuffer) {
-    free(header);
-    return;
-  }
-
-  memcpy(_Connection->writeBuffer + strlen((char *)_Connection->writeBuffer),
-         _responseBody, _responseSize);
-  _Connection->writeBufferSize = message_size;
-  HTTPResponse_Dispose(&resp);
-  _Connection->state = HTTPServerConnection_State_Send;
+  HTTPServerConnection_SendResponse_Binary(_Connection, _responseCode, (uint8_t*)_responseBody, strlen(_responseBody), _contentType);
 }
 
 void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {
@@ -131,15 +119,21 @@ void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {
   case HTTPServerConnection_State_Parsing: {
     HTTPRequest *request = HTTPRequest_fromstring(_Connection->readBuffer);
 
-    _Connection->url = strdup(request->URL);
-    _Connection->method = strdup(RequestMethod_tostring(request->method));
-
-    HTTPRequest_Dispose(&request);
-
-    _Connection->state = HTTPServerConnection_State_Wait;
-
-    if (strcmp(_Connection->method, "GET") == 0) {
-      _Connection->onRequest(_Connection->context);
+    if(request->valid)
+    {
+      _Connection->url = strdup(request->URL);
+      _Connection->method = strdup(RequestMethod_tostring(request->method));
+      HTTPRequest_Dispose(&request);
+      _Connection->state = HTTPServerConnection_State_Wait;
+      if (strcmp(_Connection->method, "GET") == 0) {
+        _Connection->onRequest(_Connection->context);
+      } else {
+        HTTPServerConnection_SendResponse(_Connection, 405, "Method unsupported", "text/plain");
+      }
+    } else {
+      HTTPRequest_Dispose(&request);
+      _Connection->state = HTTPServerConnection_State_Wait;
+      HTTPServerConnection_SendResponse(_Connection, 400, "Invalid request received", "text/plain");
     }
 
     break;
@@ -158,7 +152,7 @@ void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {
     }
 
     if (_Connection->bytesSent == _Connection->writeBufferSize) {
-      _Connection->state = HTTPServerConnection_State_Wait;
+      _Connection->state = HTTPServerConnection_State_Dispose; // Formerly set to Wait
     }
     break;
   }

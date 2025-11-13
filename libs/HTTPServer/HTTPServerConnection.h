@@ -51,10 +51,9 @@ void HTTPServerConnection_SetCallback(
     HTTPServerConnection *_Connection, void *_Context,
     HTTPServerConnection_OnRequest _OnRequest);
 void HTTPServerConnection_SendResponse(HTTPServerConnection *_Connection,
-                                       int _responseCode, char *_responseBody);
-void HTTPServerConnection_SendBinary(HTTPServerConnection *_Connection,
-                                     int _responseCode, uint8_t *_responseBody,
-                                     int _responseSize);
+                                       int _responseCode, char *_responseBody, char *_contentType);
+void HTTPServerConnection_SendResponse_Binary(HTTPServerConnection *_Connection,
+                                       int _responseCode, uint8_t *_responseBody, size_t _responseBodySize, char *_contentType);
 
 void HTTPServerConnection_Dispose(HTTPServerConnection *_Connection);
 void HTTPServerConnection_DisposePtr(HTTPServerConnection **_ConnectionPtr);
