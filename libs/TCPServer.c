@@ -50,8 +50,6 @@ int TCPServer_Initiate(TCPServer* _Server, const char* _Port, TCPServer_OnAccept
 	
 	_Server->listen_fd = fd;
 
-	printf("Server listening on port %s\n", _Port);
-
 	_Server->task = smw_createTask(_Server, TCPServer_TaskWork);
 
 	return 0;
@@ -120,3 +118,4 @@ void TCPServer_DisposePtr(TCPServer** _ServerPtr)
 	free(*(_ServerPtr));
 	*(_ServerPtr) = NULL;
 }
+
