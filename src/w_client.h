@@ -31,12 +31,13 @@ typedef enum {
     W_CLIENT_FETCHING,
     W_CLIENT_SENDING,
     W_CLIENT_DONE
-} w_client_state;
+} w_client_current_state;
 
 // CLIENT, one per active client
 typedef struct w_client {
     // State machine management
-    w_client_state state;
+    mj_task* task;
+    w_client_current_state current_state;
 
     // Network
     int client_fd;
@@ -52,7 +53,7 @@ typedef struct w_client {
     void* parsed_request;
     size_t request_body_len;
 
-    // Response
+    // Response (if these are not NULL we are ready to send)
     char* response_data;
     size_t response_len;
     size_t response_sent;

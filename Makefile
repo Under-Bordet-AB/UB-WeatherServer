@@ -1,87 +1,51 @@
-# Variables
-CC=gcc
-OPTIMIZE=-ffunction-sections -fdata-sections -O2 -flto -Wno-unused-result -fno-strict-aliasing
-DEBUG_FLAGS=-g -O0 -Wfatal-errors -Werror
-#LIBS=-lcurl -pthread -lm
-INCLUDES = 
+# This makefile builds a debug build with ASAN and debug flags
 
-#   -DWALLOCATOR_DEBUG -DWALLOCATOR_DEBUG_BORDERCHECK
-# -fsanitize=address -fno-omit-frame-pointer
+CC := gcc
+CFLAGS := -D_POSIX_C_SOURCE=200809L -g -Wall -Wextra -std=c99 \
+          -Iinclude -Isrc/libs -Isrc/ -I. \
+          -MMD -MP -Wno-unused-parameter -Wno-unused-function -Wno-format-truncation -fsanitize=address
+LFLAGS :=
 
-# Build mode: release (default) or debug
-MODE ?= debug
+# --- Configuration ---
+BUILD_DIR := build
+BIN := server
 
-# Base warnings/defs
-CFLAGS_BASE=-Wall -Wno-psabi -Wfatal-errors -Werror -Ilibs
+# --- Application Source Discovery (recursive) ---
+SRC := $(shell find src -name '*.c')
+OBJ := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(SRC))
 
-# Select flags per mode (OPTIMIZE goes into CFLAGS in release; LTO linked only in release)
-ifeq ($(MODE),debug)
-  CFLAGS=$(CFLAGS_BASE) $(DEBUG_FLAGS)
-  LDFLAGS=
-else
-  CFLAGS=$(CFLAGS_BASE) #$(OPTIMIZE)
-  LDFLAGS=
-endif
+# --- Dependency Files ---
+DEP := $(OBJ:.o=.d)
 
-# Directories
-SRC_DIR=.
-BUILD_DIR=build
+.PHONY: all run clean
 
-# Find all .c files (following symlinks)
-SOURCES=$(shell find -L $(SRC_DIR) -type f -name '*.c')
+all: $(BIN)
 
-# Per-target object lists in separate dirs
-SERVER_OBJECTS=$(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/server/%.o,$(SOURCES))
-CLIENT_OBJECTS=$(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/client/%.o,$(SOURCES))
+# ====================================================================
+# APPLICATION BUILD RULES
+# ====================================================================
 
-# Executables
-EXECUTABLES=server client
+$(BIN): $(OBJ)
+	@mkdir -p $(@D)
+	@echo "LINKING all object files into $@"
+	$(CC) $(CFLAGS) $^ -o $@ $(LFLAGS)
 
-# Default target
-all: $(EXECUTABLES)
-	@echo "Build complete ($(MODE))."
+# Match any .c file in any subdirectory of src/
+$(BUILD_DIR)/%.o: src/%.c
+	@mkdir -p $(@D)
+	@echo "COMPILING $<"
+	$(CC) $(CFLAGS) -c $< -o $@
 
-# Debug helpers
-debug-server:
-	@$(MAKE) MODE=debug --no-print-directory clean server
-	@-rm -f WADEBUG.txt
-	# gdb server -ex run
+# ====================================================================
+# UTILITY TARGETS
+# ====================================================================
 
-debug-client:
-	@$(MAKE) MODE=debug --no-print-directory clean client
-	@-rm -f WADEBUG.txt
-	# gdb client -ex run
+run: $(BIN)
+	./$(BIN)
 
-# Link rules
-server: $(SERVER_OBJECTS)
-	@echo "Linking $@..."
-	@$(CC) $(LDFLAGS) $^ -o $@ $(LIBS)
-
-client: $(CLIENT_OBJECTS)
-	@echo "Linking $@..."
-	@$(CC) $(LDFLAGS) $^ -o $@ $(LIBS)
-
-# Compile rules with per-target defines
-$(BUILD_DIR)/server/%.o: $(SRC_DIR)/%.c
-	@echo "Compiling (server) $<..."
-	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) $(INCLUDES) -DTCPSERVER -c $< -o $@
-
-$(BUILD_DIR)/client/%.o: $(SRC_DIR)/%.c
-	@echo "Compiling (client) $<..."
-	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) $(INCLUDES) -DTCPCLIENT -c $< -o $@
-
-# Specific file compilation (kept; builds into server tree by default)
-FILE=
-compile:
-	@echo "Compiling $(FILE) (server defs)..."
-	@mkdir -p $(BUILD_DIR)/server/$(dir $(FILE))
-	$(CC) $(CFLAGS) $(INCLUDES) -DTCPSERVER -c $(FILE) -o $(BUILD_DIR)/server/$(FILE:.c=.o)
-
-# Clean
 clean:
-	@echo "Cleaning up..."
-	@rm -rf $(BUILD_DIR) $(EXECUTABLES)
+	@echo "CLEANING $(BUILD_DIR) and $(BIN)"
+	$(RM) -rf $(BUILD_DIR) $(BIN)
 
-.PHONY: all clean compile debug-server debug-client
+# Include automatically generated dependency files
+-include $(DEP)

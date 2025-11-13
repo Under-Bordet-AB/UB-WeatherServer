@@ -7,35 +7,16 @@
 #include "w_server.h"
 #include "w_client.h"
 #include <netdb.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-/* ----------------------------------------------------------------------
- *      PRIVATE FUNCTIONS
- * ---------------------------------------------------------------------- */
-
-/*  Task function that gets added to the scheduler.
-        It listens on the servers listening socket and creates new clients
-        and adds these clients to the scheduler.
---------------------------------------------------------------- */
-void w_server_accept_clients_func(mj_scheduler* scheduler, void* state) {
-    int* listen_fd = (int*)state;
-
-    // Lyssna på socketen
-
-    // Malloca en client
-    w_client* w_client;
-
-    // lägg till klientens state machine till schedulern,
-    mj_scheduler_task_add(scheduler, CLIENT_TASK_FN, w_client);
-}
-
 //////////////////////////////////////////////////////////////////////////
 // FRÅN AI INNE I DENNA
-
+/*
 // State: Always in "ACCEPTING" state
 void w_server_accept_clients_func(mj_scheduler* scheduler, void* state) {
     int* listen_fd = (int*)state;
@@ -66,49 +47,51 @@ void w_server_accept_clients_func(mj_scheduler* scheduler, void* state) {
     // Add client's state machine to scheduler
     mj_scheduler_task_add(scheduler, w_client_task_func, client);
 }
+*/
 //////////////////////////////////////////////////////////////////////////
 
-/*  Initialise fields from config
---------------------------------------------------------------- */
-static int init_from_config(w_server* srv, const w_server_config* cfg) {
-    if (!srv || !cfg)
+// Listen for new clients. This is the function that gets added to the scheduler for running
+void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* user_data) {
+    printf("Listening...\n");
+}
+
+void w_server_listen_TCP_nonblocking_destroy(mj_scheduler* scheduler, void* user_data) {
+    printf("Stopping listening and unbinding listening socket...\n");
+}
+
+static int init_from_config(w_server* server, const w_server_config* cfg) {
+    if (!server || !cfg)
         return W_SERVER_ERROR_INVALID_PORT;
 
     /* address string – keep as‑is (may be empty for INADDR_ANY) */
     if (cfg->address && cfg->address[0] != '\0') {
-        strncpy(srv->address, cfg->address, sizeof(srv->address) - 1);
-        srv->address[sizeof(srv->address) - 1] = '\0';
+        strncpy(server->address, cfg->address, sizeof(server->address) - 1);
+        server->address[sizeof(server->address) - 1] = '\0';
     } else {
-        srv->address[0] = '\0'; /* empty → bind() will use INADDR_ANY */
+        server->address[0] = '\0'; /* empty → bind() will use INADDR_ANY */
     }
 
     /* port string – required for getaddrinfo() */
     if (cfg->port && cfg->port[0] != '\0') {
-        strncpy(srv->port, cfg->port, sizeof(srv->port) - 1);
-        srv->port[sizeof(srv->port) - 1] = '\0';
+        strncpy(server->port, cfg->port, sizeof(server->port) - 1);
+        server->port[sizeof(server->port) - 1] = '\0';
     } else {
         return W_SERVER_ERROR_INVALID_PORT;
     }
 
     /* initialise counters */
-    srv->active_count = 0;
-    srv->last_error = W_SERVER_ERROR_NONE;
+    server->active_count = 0;
+    server->last_error = W_SERVER_ERROR_NONE;
 
     return W_SERVER_ERROR_NONE;
 }
 
-/* ----------------------------------------------------------------------
- *      PUBLIC API
- * ---------------------------------------------------------------------- */
-
-/*  Create – open socket and bind it
- --------------------------------------------------------------- */
-int w_server_create(mj_scheduler* scheduler, w_server* server, const w_server_config* config) {
-    if (!scheduler || !server || !config) {
+// Open a listening socket
+int w_server_create(w_server* server, w_server_config* config) {
+    if (!server || !config) {
         return W_SERVER_ERROR_INVALID_PORT; /* generic error for bad args */
     }
 
-    server->scheduler = scheduler;
     int rc = init_from_config(server, config);
     if (rc != W_SERVER_ERROR_NONE) {
         server->last_error = rc;
@@ -152,6 +135,19 @@ int w_server_create(mj_scheduler* scheduler, w_server* server, const w_server_co
         server->last_error = W_SERVER_ERROR_SOCKET_BIND;
         return W_SERVER_ERROR_SOCKET_BIND;
     }
+    mj_task* task = calloc(1, sizeof(*task));
+    if (!task) {
+        server->last_error = W_SERVER_ERROR_MEMORY_ALLOCATION;
+        return W_SERVER_ERROR_MEMORY_ALLOCATION;
+    }
+
+    // Set functions for scheduler
+    task->create = NULL;
+    task->run = w_server_listen_TCP_nonblocking;
+    task->destroy = w_server_listen_TCP_nonblocking_destroy;
+    task->user_data = NULL;
+
+    server->w_server_listen_tasks = task;
 
     /* Success – the socket is bound but not listening yet. */
     server->last_error = W_SERVER_ERROR_NONE;

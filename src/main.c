@@ -1,6 +1,5 @@
 #include "majjen.h"
 #include "w_server.h"
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -28,10 +27,6 @@ int main(int argc, char* argv[]) {
                              // "ss -tlpn '( sport = :80 )'" shows backlog
     };
 
-    printf("Starting server...\n");
-    printf("Port: %s\n", port);
-    printf("Address: %s\n", address);
-
     // Create the cooperative scheduler
     mj_scheduler* scheduler = mj_scheduler_create();
     if (!scheduler) {
@@ -40,17 +35,24 @@ int main(int argc, char* argv[]) {
     }
 
     // Create and initialize the weather server
-    w_server server; // TODO would be nice to make type opaque
-    if (w_server_create(scheduler, &server, &config) != 0) {
+    w_server server;
+    if (w_server_create(&server, &config) != 0) {
         fprintf(stderr, "Failed to create weather server\n");
         mj_scheduler_destroy(&scheduler);
         return 1;
     }
 
+    // Add listening task to scheduler (This task has access to the entire server obj)
+    mj_scheduler_task_add(scheduler, (&server)->w_server_listen_tasks, &server);
+
     ////////////////////////////////////////////
     //////// PROGRAM STARTS HERE
 
-    // Run the cooperative scheduler (blocks here until shutdown)
+    printf("Starting server...\n");
+    printf("Port: %s\n", port);
+    printf("Address: %s\n", address);
+
+    // Start the cooperative scheduler (blocks here until shutdown)
     int result = mj_scheduler_run(scheduler);
     if (result != 0) {
         fprintf(stderr, "Scheduler exited with error: %d\n", result);
@@ -62,7 +64,6 @@ int main(int argc, char* argv[]) {
     // Cleanup
     printf("Shutting down server...\n");
     mj_scheduler_destroy(&scheduler);
-    w_server_destroy(&server);
 
     printf("Server stopped cleanly.\n");
     return 0;

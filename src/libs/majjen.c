@@ -4,11 +4,6 @@
 #include <time.h>
 #include <unistd.h>
 
-typedef struct mj_task {
-    mj_task_fn* task;
-    void* state;
-} mj_task;
-
 typedef struct mj_scheduler {
     mj_task* task_list[MAX_TASKS];
     mj_task** current_task; // double pointer, so we dont have to search array to remove task
@@ -28,16 +23,11 @@ int mj_scheduler_run(mj_scheduler* scheduler) {
                 continue;
             }
 
-            // Get function and state
-            mj_task* t = scheduler->task_list[i];
-            mj_task_fn* task = t->task;
-            void* state = t->state;
-
             // Keep track of what function is running
             scheduler->current_task = &scheduler->task_list[i];
 
-            // Call user function with user state
-            task(scheduler, state);
+            // Call user function with user user_data
+            scheduler->task_list[i]->run(scheduler, scheduler->task_list[i]->user_data);
 
             // Reset current function since it should only be availible from the task that just ran
             scheduler->current_task = NULL;
@@ -62,7 +52,7 @@ mj_scheduler* mj_scheduler_create(void) {
     return scheduler;
 }
 
-int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task, void* state) {
+int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task* task, void* user_data) {
     if (scheduler == NULL || task == NULL) {
         errno = EINVAL;
         return -1;
@@ -78,8 +68,10 @@ int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task, void* state
         errno = ENOMEM;
         return -1;
     }
-    new_task->task = task;
-    new_task->state = state;
+    new_task->create = task->create;
+    new_task->run = task->run;
+    new_task->destroy = task->destroy;
+    new_task->user_data = task->user_data;
     // Add task in empty spot in task_list[] (must loop entire array since list will be fragmented, implement min-heap
     // to fix)
     for (int i = 0; i < MAX_TASKS; i++) {
@@ -95,6 +87,7 @@ int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task, void* state
     return -1;
 }
 
+// TODO i think i must pass in a destructor / remove funciton also?
 int mj_scheduler_task_remove_current(mj_scheduler* scheduler) {
     if (scheduler == NULL || scheduler->current_task == NULL || *scheduler->current_task == NULL) {
         errno = EINVAL;
@@ -103,11 +96,11 @@ int mj_scheduler_task_remove_current(mj_scheduler* scheduler) {
 
     mj_task* task = *scheduler->current_task;
 
-    // Free state first (the state comes from the callbacks instance,
+    // Free user_data first (the user_data comes from the callbacks instance,
     // this is OK since the instance scope is lost after task is done)
-    if (task->state) {
-        free(task->state);
-        task->state = NULL;
+    if (task->user_data) {
+        free(task->user_data);
+        task->user_data = NULL;
     }
 
     // Free the task struct itself
