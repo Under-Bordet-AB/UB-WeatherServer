@@ -118,4 +118,3 @@ void TCPServer_DisposePtr(TCPServer** _ServerPtr)
 	free(*(_ServerPtr));
 	*(_ServerPtr) = NULL;
 }
-
