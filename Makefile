@@ -1,7 +1,7 @@
 # Variables
 CC=gcc
 OPTIMIZE=-ffunction-sections -fdata-sections -O2 -flto -Wno-unused-result -fno-strict-aliasing
-DEBUG_FLAGS=-g -O0 -Wfatal-errors -Werror
+DEBUG_FLAGS=-g -O0 -Wfatal-errors -Werror -Wno-unused-function -Wno-format-truncation
 #LIBS=-lcurl -pthread -lm
 INCLUDES = 
 

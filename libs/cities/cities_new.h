@@ -1,6 +1,8 @@
 #ifndef _CITIES_H
 #define _CITIES_H
 
+#include "linked_list.h"
+
 typedef enum {
     Cities_State_Init,
     Cities_State_ReadFiles,
@@ -10,11 +12,18 @@ typedef enum {
 } cities_state;
 
 typedef struct cities_t {
+    LinkedList cities_list;
     cities_state state;
     char* buffer;
     int bytesread;
     void(*on_done);
 } cities_t;
+
+typedef struct city_t {
+    char* name;
+    float latitude;
+    float longitude;
+} city_t;
 
 int cities_init(void** ctx, void(*ondone));
 int cities_get_buffer(void** ctx, char** buffer);

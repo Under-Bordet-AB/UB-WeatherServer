@@ -52,19 +52,21 @@ int WeatherServerInstance_OnDone(void* _Context) {
 }
 
 void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTime) {
-    WeatherServerBackend* backend = &_Server->backend;
     char* url = _Server->connection->url;
-    void** backend_t = backend->backend_struct;
+
+    if (url == NULL) { return; }
+
+    WeatherServerBackend* backend = &_Server->backend;
 
     switch (_Server->state) {
     case WeatherServerInstance_State_Init: {
         if (strcmp(url, "/GetCities") == 0) {
-            cities_init(backend_t, WeatherServerInstance_OnDone);
+            cities_init(&backend->backend_struct, WeatherServerInstance_OnDone);
             backend->answer_get_buffer = cities_get_buffer;
             backend->answer_work = cities_work;
             backend->answer_dispose = cities_dispose;
         } else if (strcmp(url, "/GetWeather") == 0) {
-            // weather_init(backend_t, WeatherServerInstance_OnDone);
+            // weather_init(backend_tp, WeatherServerInstance_OnDone);
             // backend->answer_get_buffer = weather_get_buffer;
             // backend->answer_work = weather_work;
             // backend->answer_dispose = weather_dispose;
@@ -78,26 +80,25 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
         break;
     }
     case WeatherServerInstance_State_Work: {
-        backend->answer_work(backend_t);
+        backend->answer_work(&backend->backend_struct);
+        _Server->state = WeatherServerInstance_State_Done;
         break;
     }
     case WeatherServerInstance_State_Done: {
         char* buffer;
-        backend->answer_get_buffer(backend_t, &buffer);
-        // SendResponse(buffer);
+        backend->answer_get_buffer(&backend->backend_struct, &buffer);
+        HTTPServerConnection_SendResponse(_Server->connection, 200, buffer);
         _Server->state = WeatherServerInstance_State_Dispose;
         break;
     }
     case WeatherServerInstance_State_Dispose: {
-        backend->answer_dispose(backend_t);
+        backend->answer_dispose(&backend->backend_struct);
         break;
     }
     default: {
         break;
     }
     }
-
-    _Server->state = WeatherServerInstance_State_Done;
 }
 
 void WeatherServerInstance_Dispose(WeatherServerInstance* _Instance) {

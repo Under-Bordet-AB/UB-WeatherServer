@@ -11,7 +11,7 @@ int HTTPServer_OnAccept(int _FD, void* _Context);
 int HTTPServer_Initiate(HTTPServer* _Server, HTTPServer_OnConnection _OnConnection) {
     _Server->onConnection = _OnConnection;
 
-    TCPServer_Initiate(&_Server->tcpServer, "10480", HTTPServer_OnAccept, _Server);
+    TCPServer_Initiate(&_Server->tcpServer, "8080", HTTPServer_OnAccept, _Server);
 
     _Server->task = smw_createTask(_Server, HTTPServer_TaskWork);
 
