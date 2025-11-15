@@ -35,22 +35,24 @@ int cities_add_city(cities_t* cities, city_t* city);
 
 int cities_load_from_disk(cities_t* cities);
 int cities_read_from_string_list(cities_t* cities);
+int cities_save_to_disk(cities_t* cities);
 
 int cities_convert_to_char_json_buffer(cities_t* cities);
 
 // Function implementations
 
-int cities_init(void** ctx, void(*ondone)) {
+int cities_init(void** ctx, void** ctx_struct, void (*ondone)(void* context)) {
     cities_t* cities = (cities_t*)malloc(sizeof(cities_t));
     if (!cities) {
         return -1; // Memory allocation failed
     }
     memset(&cities->cities_list, 0, sizeof(LinkedList));
+    cities->ctx = ctx;
     cities->state = Cities_State_Init;
     cities->buffer = NULL;
     cities->bytesread = 0;
     cities->on_done = ondone;
-    *ctx = (void*)cities;
+    *ctx_struct = (void*)cities;
 
     return 0;
 }
@@ -76,9 +78,9 @@ int city_init(const char* _Name, const char* _Latitude, const char* _Longitude, 
     }
 
     if (_Longitude != NULL) {
-        _city->latitude = atof(_Longitude);
+        _city->longitude = atof(_Longitude);
     } else {
-        _city->latitude = 0.0f;
+        _city->longitude = 0.0f;
     }
 
     *(_CityPtr) = _city;
@@ -208,6 +210,34 @@ int cities_read_from_string_list(cities_t* cities) {
     return 0;
 }
 
+int cities_save_to_disk(cities_t* cities) {
+    if (!cities) return -1;
+
+    Node* node = cities->cities_list.head;
+    while (node) {
+        city_t* city = (city_t*)node->item;
+        if (city && city->name) {
+            char filepath[256];
+            snprintf(filepath, sizeof(filepath), "cities_cache/%s.json", city->name);
+            FILE* file = fopen(filepath, "w");
+            if (file) {
+                json_t* city_json = json_object();
+                json_object_set_new(city_json, "name", json_string(city->name));
+                json_object_set_new(city_json, "latitude", json_real(city->latitude));
+                json_object_set_new(city_json, "longitude", json_real(city->longitude));
+                char* json_str = json_dumps(city_json, JSON_INDENT(4));
+                fprintf(file, "%s", json_str);
+                free(json_str);
+                json_decref(city_json);
+                fclose(file);
+            }
+        }
+        node = node->front;
+    }
+
+    return 0;
+}
+
 int cities_work(void** ctx) {
     cities_t* cities = (cities_t*)(*ctx);
     if (!cities) {
@@ -218,23 +248,33 @@ int cities_work(void** ctx) {
     case Cities_State_Init:
         create_folder(CACHE_DIR);
         cities->state = Cities_State_ReadFiles;
+        printf("Cities: Initialized\n");
         break;
     case Cities_State_ReadFiles:
         cities_load_from_disk(cities);
         cities->state = Cities_State_ReadString;
+        printf("Cities: Loaded from disk\n");
         break;
     case Cities_State_ReadString:
         cities_read_from_string_list(cities);
         cities->state = Cities_State_Convert;
+        printf("Cities: Loaded from string list\n");
+        break;
+    case Cities_State_SaveToDisk:
+        cities_save_to_disk(cities);
+        cities->state = Cities_State_Convert;
+        printf("Cities: Saved to disk\n");
         break;
     case Cities_State_Convert:
+        cities_convert_to_char_json_buffer(cities);
+        cities->state = Cities_State_Done;
+        printf("Cities: Converted to JSON buffer\n");
         break;
     case Cities_State_Done:
+        cities->on_done(cities->ctx);
+        printf("Cities: Done\n");
         break;
     }
-
-    cities->buffer = "HELLO GARFALD!";
-    cities->bytesread = strlen(cities->buffer);
 
     return 0;
 }

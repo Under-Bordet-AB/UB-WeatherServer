@@ -14,9 +14,9 @@ typedef enum {
 
 typedef struct {
     void* backend_struct;
-    int (*answer_get_buffer)(void** weatherbackend_struct, char** buffer);
-    int (*answer_work)(void** weatherbackend_struct);
-    int (*answer_dispose)(void** weatherbackend_struct);
+    int (*backend_get_buffer)(void** weatherbackend_struct, char** buffer);
+    int (*backend_work)(void** weatherbackend_struct);
+    int (*backend_dispose)(void** weatherbackend_struct);
 } WeatherServerBackend;
 
 typedef struct {
