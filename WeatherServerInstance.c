@@ -1,4 +1,5 @@
 #include "WeatherServerInstance.h"
+#include "surprise.h"
 #include <stdlib.h>
 #include "utils.h"
 
@@ -11,6 +12,7 @@ int WeatherServerInstance_OnRequest(void *_Context);
 int WeatherServerInstance_Initiate(WeatherServerInstance *_Instance,
                                    HTTPServerConnection *_Connection) {
   _Instance->connection = _Connection;
+  _Instance->state = WeatherServerInstance_State_Init;
 
   HTTPServerConnection_SetCallback(_Instance->connection, _Instance,
                                    WeatherServerInstance_OnRequest);
@@ -81,16 +83,21 @@ void WeatherServerInstance_Work(WeatherServerInstance *_Server,
 
     if (strcmp(query->Path, "/health") == 0) {
       HTTPServerConnection_SendResponse(_Server->connection, 200, "{\"status\":\"ok\"}", "application/json");
-    //} else if (strcmp(query->Path, "/secret2") == 0) {
-    //  size_t fileSize = 0;
-    //  uint8_t* file = readFileToBuffer("notmyproblem.png",&fileSize);
-    //  HTTPServerConnection_SendResponse_Binary(_Server->connection, 200, file, fileSize, "image/png");
     } else if (strcmp(_Server->connection->url, "/GetCities") == 0) {
       // TODO:
       // void getcities(context);
     } else if (strcmp(_Server->connection->url, "/GetWeather") == 0) {
       // TODO:
       // void getweather(void context*, const char* cityname);
+    }  else if (strcmp(query->Path, "/surprise") == 0) {
+      uint8_t *buf;
+      int buf_len = surprise_get_file(&buf, "surprise.png");
+      if (buf_len < 0){
+        HTTPServerConnection_SendResponse(_Server->connection, 404, "", "text/plain");
+      } else {
+        HTTPServerConnection_SendResponse_Binary(_Server->connection, 200, buf, buf_len, "application/octet-stream");
+        free(buf);
+      }
     } else {
       HTTPServerConnection_SendResponse(_Server->connection, 404, "Not Found", "text/plain");
     }
