@@ -34,16 +34,16 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Create and initialize the weather server
-    w_server server;
-    if (w_server_create(&server, &config) != 0) {
+    // Create the weather server
+    w_server* server = w_server_create(&config);
+    if (server == NULL) {
         fprintf(stderr, "Failed to create weather server\n");
         mj_scheduler_destroy(&scheduler);
         return 1;
     }
 
-    // Add listening task to scheduler (This task has access to the entire server obj)
-    mj_scheduler_task_add(scheduler, (&server)->w_server_listen_tasks, &server);
+    // Add the servers tasks to the scheduler
+    mj_scheduler_task_add(scheduler, server->w_server_listen_tasks, &server);
 
     ////////////////////////////////////////////
     //////// PROGRAM STARTS HERE

@@ -11,10 +11,13 @@ typedef enum {
     W_SERVER_ERROR_SOCKET_LISTEN,
     W_SERVER_ERROR_GETADDRINFO,
     W_SERVER_ERROR_MEMORY_ALLOCATION,
+    W_SERVER_ERROR_NO_CONFIG,
+    W_SERVER_ERROR_INVALID_CONFIG,
     W_SERVER_ERROR_SCHEDULER_FULL,
     W_SERVER_ERROR_INVALID_PORT,
     W_SERVER_ERROR_INVALID_ADDRESS,
-    W_SERVER_ERROR_INTERNAL
+    W_SERVER_ERROR_INTERNAL,
+    W_SERVER_ERROR
 } w_server_error;
 
 typedef struct w_server_config {
@@ -38,7 +41,7 @@ typedef struct w_server {
     w_server_error last_error;
 } w_server;
 
-int w_server_create(w_server* server, w_server_config* config);
+w_server* w_server_create(w_server_config* config);
 void w_server_destroy(w_server* server);
 
 ///////////////////////////////////////////////////////////////////////////////

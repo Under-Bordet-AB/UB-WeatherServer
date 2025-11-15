@@ -61,7 +61,7 @@ void w_server_listen_TCP_nonblocking_destroy(mj_scheduler* scheduler, void* user
 
 static int init_from_config(w_server* server, const w_server_config* cfg) {
     if (!server || !cfg)
-        return W_SERVER_ERROR_INVALID_PORT;
+        return W_SERVER_ERROR_INVALID_CONFIG;
 
     /* address string – keep as‑is (may be empty for INADDR_ANY) */
     if (cfg->address && cfg->address[0] != '\0') {
@@ -86,16 +86,33 @@ static int init_from_config(w_server* server, const w_server_config* cfg) {
     return W_SERVER_ERROR_NONE;
 }
 
-// Open a listening socket
-int w_server_create(w_server* server, w_server_config* config) {
-    if (!server || !config) {
-        return W_SERVER_ERROR_INVALID_PORT; /* generic error for bad args */
+/* TODO server init function
+    - Should we only return a server on no errors? Then we can use "goto cleanup" pattern for errors.
+    - Since server can fail we should check errors back in main.
+        int error= 0
+        pointer*  server =  init_server(&cfg, &error)
+        if (error !=0 || server == NULL)
+            print(error)
+
+*/
+
+// Creates the server and opens its listening socket
+w_server* w_server_create(w_server_config* config) {
+    if (!config) {
+        fprintf(stderr, "Init failed: W_SERVER_ERROR_NO_CONFIG\n");
+        return NULL;
+    }
+    w_server* server = calloc(1, sizeof(*server));
+    if (server == NULL) {
+        fprintf(stderr, "Init failed: W_SERVER_ERROR_MEMORY_ALLOCATION\n");
+        return NULL;
     }
 
-    int rc = init_from_config(server, config);
-    if (rc != W_SERVER_ERROR_NONE) {
-        server->last_error = rc;
-        return rc;
+    int result = init_from_config(server, config);
+    if (result != W_SERVER_ERROR_NONE) {
+        fprintf(stderr, "Init failed: W_SERVER_ERROR_INVALID_CONFIG\n");
+        free(server);
+        return NULL;
     }
 
     /* Resolve the address/port with getaddrinfo() */
@@ -108,7 +125,9 @@ int w_server_create(w_server* server, w_server_config* config) {
     int gai_err = getaddrinfo(server->address[0] ? server->address : NULL, server->port, &hints, &res);
     if (gai_err != 0) {
         server->last_error = W_SERVER_ERROR_GETADDRINFO;
-        return W_SERVER_ERROR_GETADDRINFO;
+        fprintf(stderr, "Init failed: W_SERVER_ERROR_GETADDRINFO\n");
+        free(server);
+        return NULL;
     }
 
     /* Try each returned address until we succeed */
@@ -133,12 +152,16 @@ int w_server_create(w_server* server, w_server_config* config) {
 
     if (server->listen_fd == -1) {
         server->last_error = W_SERVER_ERROR_SOCKET_BIND;
-        return W_SERVER_ERROR_SOCKET_BIND;
+        fprintf(stderr, "Init failed: W_SERVER_ERROR_SOCKET_BIND\n");
+        free(server);
+        return NULL;
     }
     mj_task* task = calloc(1, sizeof(*task));
-    if (!task) {
+    if (task == NULL) {
         server->last_error = W_SERVER_ERROR_MEMORY_ALLOCATION;
-        return W_SERVER_ERROR_MEMORY_ALLOCATION;
+        fprintf(stderr, "Init failed: W_SERVER_ERROR_MEMORY_ALLOCATION\n");
+        free(server);
+        return NULL;
     }
 
     // Set functions for scheduler
@@ -149,9 +172,15 @@ int w_server_create(w_server* server, w_server_config* config) {
 
     server->w_server_listen_tasks = task;
 
-    /* Success – the socket is bound but not listening yet. */
-    server->last_error = W_SERVER_ERROR_NONE;
-    return 0; /* conventionally 0 = success */
+    // Success – the socket is bound and server is ready to start listening
+    if (server->last_error == W_SERVER_ERROR_NONE) {
+        return server;
+    }
+    // Unknown error
+    fprintf(stderr, "Init failed: W_SERVER_ERROR\n");
+    free(task);
+    free(server);
+    return NULL;
 }
 
 /*  Destroy – close the socket
