@@ -11,6 +11,8 @@
 // Client error codes
 typedef enum {
     W_CLIENT_ERROR_NONE = 0,
+    W_CLIENT_ERROR_INIT_SOCKET,
+    W_CLIENT_ERROR_INIT_MEMORY,
     W_CLIENT_ERROR_SOCKET_READ,
     W_CLIENT_ERROR_SOCKET_WRITE,
     W_CLIENT_ERROR_SOCKET_CLOSED,
@@ -28,20 +30,18 @@ typedef enum {
 typedef enum {
     W_CLIENT_READING,
     W_CLIENT_PARSING,
-    W_CLIENT_FETCHING,
+    W_CLIENT_PROCESSING,
     W_CLIENT_SENDING,
     W_CLIENT_DONE
-} w_client_current_state;
+} w_client_state;
 
-// CLIENT, one per active client
+// CLIENT context, one per active client
 typedef struct w_client {
     // State machine management
-    mj_task* task;
-    w_client_current_state current_state;
+    w_client_state state;
 
     // Network
-    int client_fd;
-    w_server* server;
+    int fd;
 
     // HTTP parsing
     char read_buffer[W_CLIENT_READ_BUFFER_SIZE];
@@ -50,8 +50,8 @@ typedef struct w_client {
     // Request
     char* request_body;
     uint8_t* request_body_raw;
-    void* parsed_request;
     size_t request_body_len;
+    void* parsed_request;
 
     // Response (if these are not NULL we are ready to send)
     char* response_data;
@@ -63,7 +63,4 @@ typedef struct w_client {
     w_client_error error_code;
 } w_client;
 
-// Private functions
-int w_server_client_state_machine_func(mj_scheduler* scheduler, void* state);
-
-// Public functions
+mj_task* w_client_create_task(int client_fd);

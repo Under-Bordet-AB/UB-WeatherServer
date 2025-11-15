@@ -27,7 +27,7 @@ typedef struct w_server_config {
 } w_server_config;
 
 typedef struct w_server {
-    mj_task* w_server_listen_tasks;
+    mj_task* w_server_listen_task;
 
     // Network
     int listen_fd;
@@ -42,37 +42,4 @@ typedef struct w_server {
 } w_server;
 
 w_server* w_server_create(w_server_config* config);
-void w_server_destroy(w_server* server);
-
-///////////////////////////////////////////////////////////////////////////////
-// Från AI nedanför
-/*
-typedef enum {
-    CLIENT_STATE_READ_REQUEST,    // Reading HTTP request
-    CLIENT_STATE_PARSE_REQUEST,   // Parsing what we read
-    CLIENT_STATE_PROCESS,         // Business logic (look up weather, etc.)
-    CLIENT_STATE_WRITE_RESPONSE,  // Writing HTTP response
-    CLIENT_STATE_DONE            // Cleanup and remove
-} client_state_t;
-
-typedef struct {
-    int fd;
-    client_state_t state;
-
-    // Buffers for reading/writing
-    char read_buffer[4096];
-    size_t read_pos;
-
-    char write_buffer[4096];
-    size_t write_pos;
-    size_t write_total;
-
-    // Parsed request data
-    char method[16];
-    char path[256];
-
-    // Response data
-    char* response_body;
-    size_t response_len;
-} w_client;
- */
+void w_server_cleanup(w_server* server);

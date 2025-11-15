@@ -1,11 +1,16 @@
 /* ----------------------------------------------------------------------------------------
-   w_server.c – Init the server, set up listening socket. Does not start listening.
+   w_server.c
+        - Init the server
+        - Sets up listening socket and marks it as listening
+        - add client accept funciton to the scheduler ( w_server_listen_TCP_nonblocking() )
 
-   The server does no work. Its just holds  global data used by connections
+   The server does no work. Its just starts the listening task and holds global data
    ------------------------------------------------------------------------------------- */
 
 #include "w_server.h"
 #include "w_client.h"
+#include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,49 +19,47 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-//////////////////////////////////////////////////////////////////////////
-// FRÅN AI INNE I DENNA
-/*
-// State: Always in "ACCEPTING" state
-void w_server_accept_clients_func(mj_scheduler* scheduler, void* state) {
-    int* listen_fd = (int*)state;
+// TODO w_server_listen_TCP_nonblocking() gets added as a task (along with a cleanup function) to the scheduler.
+// Therfore it should be a separate module that plugs into the server. Since we can listen on sockets in many ways.
+// Each of these ways gets its own funciton.
+
+// Listen for new clients non-blocking. This is the function that gets added to the scheduler for accepting new clients
+void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
+    w_server* server = (w_server*)ctx;
+    int listen_fd = server->listen_fd;
 
     // Try to accept (non-blocking)
     struct sockaddr_storage client_addr;
     socklen_t addr_len = sizeof(client_addr);
-    int client_fd = accept(*listen_fd, (struct sockaddr*)&client_addr, &addr_len);
+    int client_fd = accept(listen_fd, (struct sockaddr*)&client_addr, &addr_len);
 
     if (client_fd < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            // No clients waiting - that's OK, just return
+            // No clients waiting, just return
             return;
         }
-        // Real error - handle it
+        fprintf(stderr, "Init of client failed: W_SERVER_ERROR_SOCKET_LISTEN\n");
         return;
     }
 
-    // Got a client! Make it non-blocking too
-    fcntl(client_fd, F_SETFL, O_NONBLOCK);
+    printf("Client connected on fd %d...\n", client_fd);
 
-    // Create client state machine
-    w_client* client = malloc(sizeof(w_client));
-    client->fd = client_fd;
-    client->state = CLIENT_STATE_READ_REQUEST;
-    // ... initialize other fields
+    // Got a client! Make it non-blocking
+    int flags = fcntl(client_fd, F_GETFL, 0);
+    fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
+
+    // Create client task
+    mj_task* new_task = w_client_create_task(client_fd);
 
     // Add client's state machine to scheduler
-    mj_scheduler_task_add(scheduler, w_client_task_func, client);
-}
-*/
-//////////////////////////////////////////////////////////////////////////
-
-// Listen for new clients. This is the function that gets added to the scheduler for running
-void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* user_data) {
-    printf("Listening...\n");
+    mj_scheduler_task_add(scheduler, new_task);
 }
 
-void w_server_listen_TCP_nonblocking_destroy(mj_scheduler* scheduler, void* user_data) {
-    printf("Stopping listening and unbinding listening socket...\n");
+// TODO finish clean up function
+void w_server_listen_TCP_nonblocking_cleanup(mj_scheduler* scheduler, void* ctx) {
+    w_server* server = (w_server*)ctx;
+
+    printf("Listening stopped on socket %d\n", server->listen_fd);
 }
 
 static int init_from_config(w_server* server, const w_server_config* cfg) {
@@ -86,18 +89,17 @@ static int init_from_config(w_server* server, const w_server_config* cfg) {
     return W_SERVER_ERROR_NONE;
 }
 
-/* TODO server init function
+// Creates the server and opens its listening socket
+w_server* w_server_create(w_server_config* config) {
+    /* TODO server init function, error handling:
     - Should we only return a server on no errors? Then we can use "goto cleanup" pattern for errors.
     - Since server can fail we should check errors back in main.
         int error= 0
         pointer*  server =  init_server(&cfg, &error)
         if (error !=0 || server == NULL)
             print(error)
-
+    - standardize error handling from getaddrinfo to align with rest of setup
 */
-
-// Creates the server and opens its listening socket
-w_server* w_server_create(w_server_config* config) {
     if (!config) {
         fprintf(stderr, "Init failed: W_SERVER_ERROR_NO_CONFIG\n");
         return NULL;
@@ -133,29 +135,42 @@ w_server* w_server_create(w_server_config* config) {
     /* Try each returned address until we succeed */
     for (p = res; p != NULL; p = p->ai_next) {
         server->listen_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (server->listen_fd == -1)
+        if (server->listen_fd == -1) {
             continue;
-
-        /* Quick port reuse after program exit */
-        int opt = 1;
-        setsockopt(server->listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        }
 
         if (bind(server->listen_fd, p->ai_addr, p->ai_addrlen) == -1) {
             close(server->listen_fd);
             server->listen_fd = -1;
             continue; /* try next */
         }
-
         break; /* success */
     }
     freeaddrinfo(res);
 
+    // Did we mange to bind to an address?
     if (server->listen_fd == -1) {
         server->last_error = W_SERVER_ERROR_SOCKET_BIND;
         fprintf(stderr, "Init failed: W_SERVER_ERROR_SOCKET_BIND\n");
         free(server);
         return NULL;
     }
+
+    //// Set listening socket options
+    // Set non-blocking
+    int flags = fcntl(server->listen_fd, F_GETFL, 0);
+    fcntl(server->listen_fd, F_SETFL, flags | O_NONBLOCK);
+    // Quick port reuse after program exit
+    int opt = 1;
+    setsockopt(server->listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    // Mark socket as listening in the OS
+    if (listen(server->listen_fd, SOMAXCONN) < 0) {
+        perror("listen");
+        free(server);
+        return NULL;
+    }
+
+    // Create a new task for the listening task
     mj_task* task = calloc(1, sizeof(*task));
     if (task == NULL) {
         server->last_error = W_SERVER_ERROR_MEMORY_ALLOCATION;
@@ -164,15 +179,18 @@ w_server* w_server_create(w_server_config* config) {
         return NULL;
     }
 
-    // Set functions for scheduler
+    // Configure task
     task->create = NULL;
     task->run = w_server_listen_TCP_nonblocking;
-    task->destroy = w_server_listen_TCP_nonblocking_destroy;
-    task->user_data = NULL;
+    task->cleanup = w_server_listen_TCP_nonblocking_cleanup;
+    task->ctx = server; // The listening task needs access to the whole server struct. FD, active clients etc,
 
-    server->w_server_listen_tasks = task;
+    // Set servers listening task
+    server->w_server_listen_task = task;
 
-    // Success – the socket is bound and server is ready to start listening
+    // Start to listen
+
+    // All done, return the surver address
     if (server->last_error == W_SERVER_ERROR_NONE) {
         return server;
     }
@@ -185,7 +203,7 @@ w_server* w_server_create(w_server_config* config) {
 
 /*  Destroy – close the socket
 --------------------------------------------------------------- */
-void w_server_destroy(w_server* server) {
+void w_server_cleanup(w_server* server) {
     if (!server)
         return;
 
