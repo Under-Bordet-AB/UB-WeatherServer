@@ -91,7 +91,7 @@ void WeatherServerInstance_Work(WeatherServerInstance *_Server,
       // void getweather(void context*, const char* cityname);
     }  else if (strcmp(query->Path, "/surprise") == 0) {
       uint8_t *buf;
-      int buf_len = surprise_get_file(&buf, "surprise.png");
+      int buf_len = surprise_get_random(&buf);
       if (buf_len < 0){
         HTTPServerConnection_SendResponse(_Server->connection, 404, "", "text/plain");
       } else {
