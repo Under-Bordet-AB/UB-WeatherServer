@@ -1,11 +1,14 @@
 #include "w_client.h"
 #include "majjen.h"
+#include "sleep_ms.h"
 #include "string.h"
 #include "w_server.h"
 #include <errno.h>
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
+
+#define DEBUG_SLEEP_MS 10
 
 // State machine for clients
 void w_client_run(mj_scheduler* scheduler, void* ctx) {
@@ -16,26 +19,33 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
     w_client* client = (w_client*)ctx;
 
     switch (client->state) {
-
     case W_CLIENT_READING:
-        printf("[Client %d] READING\n", client->fd);
+        // printf("[Client %d] READING\n", client->fd);
         // TODO: Read message
+        printf("Client %d: CONNECTED\n", client->fd);
+        sleep_ms(DEBUG_SLEEP_MS);
         client->state = W_CLIENT_PARSING;
         break;
 
     case W_CLIENT_PARSING:
-        printf("[Client %d] PARSING\n", client->fd);
+        //  printf("[Client %d] PARSING\n", client->fd);
         // TODO: Prase message
+        sleep_ms(DEBUG_SLEEP_MS);
+
         client->state = W_CLIENT_PROCESSING;
         break;
 
     case W_CLIENT_PROCESSING:
-        printf("[Client %d] PROCESSING\n", client->fd);
+        //   printf("[Client %d] PROCESSING\n", client->fd);
         // TODO: Handle the request, e.g., GET /weather?city=Stockholm
+        printf("Client %d: PROCESSING\n", client->fd);
+
+        sleep_ms(DEBUG_SLEEP_MS * 10);
+
         client->state = W_CLIENT_SENDING;
         break;
 
-    case W_CLIENT_SENDING: {
+    case W_CLIENT_SENDING:
         // reply with payload or error
 
         // ALLT I DET HÄR CASET ÄR BRA FÖR ATT TESTA
@@ -69,20 +79,24 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         }
 
         // Check if full response sent
+        sleep_ms(DEBUG_SLEEP_MS);
+
         if (client->response_sent >= client->response_len) {
             client->state = W_CLIENT_DONE;
         }
         break;
-    }
 
     case W_CLIENT_DONE:
         // Close connection, free resources and remove task
-        printf("[Client %d]DONE\n", client->fd);
-
-        shutdown(client->fd, SHUT_WR);
+        // printf("[Client %d]DONE\n", client->fd);
 
         // Clean up client, remove task from scheduler
+        sleep_ms(DEBUG_SLEEP_MS);
+
+        printf("Client %d: DONE, REMOVING\n", client->fd);
+        shutdown(client->fd, SHUT_WR);
         mj_scheduler_task_remove_current(scheduler); // This also invokes w_client_cleanup()
+
         break;
 
     default:
@@ -105,7 +119,7 @@ void w_client_cleanup(mj_scheduler* scheduler, void* ctx) {
 }
 
 // Create a client
-mj_task* w_client_create_task(int client_fd) {
+mj_task* w_client_create(int client_fd) {
     if (client_fd < 0) {
         fprintf(stderr, " ERROR: [%s:%d %s]\n", __FILE__, __LINE__, __func__);
         return NULL;

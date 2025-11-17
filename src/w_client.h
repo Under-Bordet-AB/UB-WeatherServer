@@ -63,4 +63,4 @@ typedef struct w_client {
     w_client_error error_code;
 } w_client;
 
-mj_task* w_client_create_task(int client_fd);
+mj_task* w_client_create(int client_fd);

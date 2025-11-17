@@ -23,7 +23,8 @@
 // Therfore it should be a separate module that plugs into the server. Since we can listen on sockets in many ways.
 // Each of these ways gets its own funciton.
 
-// Listen for new clients non-blocking. This is the function that gets added to the scheduler for accepting new clients
+// Listen for new clients non-blocking. This is the function that gets added to the scheduler for accepting new
+// clients
 void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
     w_server* server = (w_server*)ctx;
     int listen_fd = server->listen_fd;
@@ -42,14 +43,14 @@ void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
         return;
     }
 
-    printf("Client connected on fd %d...\n", client_fd);
+    // printf("Client connected on fd %d...\n", client_fd);
 
     // Got a client! Make it non-blocking
     int flags = fcntl(client_fd, F_GETFL, 0);
     fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
 
     // Create client task
-    mj_task* new_task = w_client_create_task(client_fd);
+    mj_task* new_task = w_client_create(client_fd);
 
     // Add client's state machine to scheduler
     mj_scheduler_task_add(scheduler, new_task);
