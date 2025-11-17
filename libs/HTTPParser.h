@@ -1,16 +1,41 @@
 #ifndef HTTPPARSER_H
 #define HTTPPARSER_H
 
-#define HTTP_VERSION "HTTP/1.1"
+/*
+LIBRARY CONFIG
+Important defines that control the behavior of the HTTPParser library.
+For most use cases, the default values should work perfectly fine.
+*/
+
+#define HTTP_VERSION "HTTP/1.1" // The protocol used with all HTTP responses.
+#define CLOSE_CONNECTIONS 1 // Auto-add `Connection: close` header to all HTTPResponse structs. Tells clients to disconnect after receiving a response.
 #define MAX_URL_LEN 256
 
+/*
+          BEGIN LIBRARY CODE
+*/
+
 #include "linked_list.h"
+#include <stdint.h>
+
+// HTTPQuery - Path & query separator for URLs
+
+typedef struct {
+    const char* Name;
+    const char* Value;
+} HTTPQueryParameter;
+typedef struct {
+    const char* Path;
+    LinkedList* Query;
+} HTTPQuery;
+
+HTTPQuery* HTTPQuery_fromstring(const char* URL);
+void HTTPQuery_Dispose(HTTPQuery** query);
 
 // A HTTPRequest struct should only be disposed by HTTPRequest_Dispose
 
 // If a HTTPRequest is not valid, why?
-typedef enum
-{
+typedef enum {
     Unknown = 0,
     NotInvalid = 1,
 
@@ -19,17 +44,19 @@ typedef enum
     URLTooLong = 4 // Originally existed because the URL was fixed size in the struct, but kept for extra safety
 } InvalidReason;
 
-
-typedef enum
-{
+typedef enum {
     Method_Unknown = 0,
 
     GET = 1,
     POST = 2,
+    PUT = 3,
+    DELETE = 4,
+    PATCH = 5,
+    OPTIONS = 6,
+    HEAD = 7
 } RequestMethod;
 
-typedef enum
-{
+typedef enum {
     Protocol_Unknown = 0,
 
     HTTP_0_9 = 1,
@@ -44,8 +71,7 @@ typedef struct {
     const char* Value;
 } HTTPHeader;
 
-typedef enum
-{
+typedef enum {
     ResponseCode_Unknown = 0,
 
     OK = 200,
@@ -67,6 +93,7 @@ typedef enum
     Content_Too_Large = 413,
     URI_Too_Long = 414,
     Too_Many_Requests = 429,
+    Request_Header_Fields_Too_Large = 431,
 
     Internal_Server_Error = 500,
     Not_Implemented = 501,
@@ -76,7 +103,6 @@ typedef enum
     HTTP_Version_Not_Supported = 505,
 } ResponseCode;
 
-// Serverside functions
 typedef struct {
     int valid; // If false (0), then the request could not be parsed. Panic!
     InvalidReason reason;
@@ -95,7 +121,9 @@ typedef struct {
     ResponseCode responseCode;
     ProtocolVersion protocol;
     LinkedList* headers;
-    const char* body;
+
+    uint8_t* body;
+    size_t bodySize;
 } HTTPResponse;
 
 const char* RequestMethod_tostring(RequestMethod method);
@@ -103,15 +131,13 @@ const char* RequestMethod_tostring(RequestMethod method);
 HTTPRequest* HTTPRequest_new(RequestMethod method, const char* URL);
 int HTTPRequest_add_header(HTTPRequest* response, const char* name, const char* value);
 const char* HTTPRequest_tostring(HTTPRequest* request);
-
-HTTPRequest* HTTPRequest_fromstring(const char* request);
+HTTPRequest* HTTPRequest_fromstring(const char* request); // DEPRECATED: USE HTTPRequestParser
 void HTTPRequest_Dispose(HTTPRequest** request);
 
-
 HTTPResponse* HTTPResponse_new(ResponseCode code, const char* body);
+HTTPResponse* HTTPResponse_new_binary(ResponseCode code, uint8_t* body, size_t bodyLength);
 int HTTPResponse_add_header(HTTPResponse* response, const char* name, const char* value);
-const char* HTTPResponse_tostring(HTTPResponse* response);
-
+const char* HTTPResponse_tostring(HTTPResponse* response, size_t* outSize);
 HTTPResponse* HTTPResponse_fromstring(const char* response);
 void HTTPResponse_Dispose(HTTPResponse** response);
 

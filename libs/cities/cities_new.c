@@ -257,7 +257,7 @@ int cities_work(void** ctx) {
         break;
     case Cities_State_ReadString:
         cities_read_from_string_list(cities);
-        cities->state = Cities_State_Convert;
+        cities->state = Cities_State_SaveToDisk;
         printf("Cities: Loaded from string list\n");
         break;
     case Cities_State_SaveToDisk:
