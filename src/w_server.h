@@ -28,15 +28,12 @@ typedef struct w_server_config {
 
 typedef struct w_server {
     mj_task* w_server_listen_task;
-
     // Network
     int listen_fd;
     char address[46]; // IPv6 max length (INET6_ADDRSTRLEN)
     char port[6];     // Port string (max 65535)
-
     // Metrics
     size_t active_count;
-
     // Last error
     w_server_error last_error;
 } w_server;

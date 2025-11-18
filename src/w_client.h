@@ -39,25 +39,20 @@ typedef enum {
 typedef struct w_client {
     // State machine management
     w_client_state state;
-
     // Network
     int fd;
-
     // HTTP parsing
     char read_buffer[W_CLIENT_READ_BUFFER_SIZE];
     size_t bytes_read;
-
     // Request
     char* request_body;
     uint8_t* request_body_raw;
     size_t request_body_len;
     void* parsed_request;
-
     // Response (if these are not NULL we are ready to send)
     char* response_data;
     size_t response_len;
     size_t response_sent;
-
     // Metrics
     struct timespec connect_time;
     w_client_error error_code;
