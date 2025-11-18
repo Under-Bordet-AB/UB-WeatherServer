@@ -16,6 +16,13 @@ void WeatherServerInstance_OnDone(void* _Context);
 int WeatherServerInstance_Initiate(WeatherServerInstance* _Instance, HTTPServerConnection* _Connection) {
     _Instance->connection = _Connection;
     _Instance->state = WeatherServerInstance_State_Waiting;
+    // Initialize backend to safe defaults
+    _Instance->backend.backend_struct = NULL;
+    _Instance->backend.backend_get_buffer = NULL;
+    _Instance->backend.backend_get_buffer_size = NULL;
+    _Instance->backend.backend_work = NULL;
+    _Instance->backend.backend_dispose = NULL;
+    _Instance->backend.binary_mode = 0;
 
     HTTPServerConnection_SetCallback(_Instance->connection, _Instance, WeatherServerInstance_OnRequest);
 
@@ -56,6 +63,12 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
     if (_Server->connection->url == NULL) { return; }
 
     HTTPQuery* query = HTTPQuery_fromstring(_Server->connection->url);
+    if (!query || !query->Path) {
+        if (_Server->connection) { HTTPServerConnection_SendResponse(_Server->connection, 400, "Bad Request: malformed URL\n", "text/plain"); }
+        if (query) HTTPQuery_Dispose(&query);
+        _Server->state = WeatherServerInstance_State_Dispose;
+        return;
+    }
 
     WeatherServerBackend* backend = &_Server->backend;
 
@@ -96,7 +109,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
             backend->backend_dispose = surprise_dispose;
             backend->binary_mode = 1;
         } else {
-            HTTPServerConnection_SendResponse(_Server->connection, 404, "Not Found", "text/plain");
+            HTTPServerConnection_SendResponse(_Server->connection, 404, "Not Found\n", "text/plain");
             _Server->state = WeatherServerInstance_State_Dispose;
             break;
         }
@@ -140,7 +153,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
         break;
     }
     case WeatherServerInstance_State_Dispose: {
-        if (backend->backend_struct != NULL && backend->backend_dispose) { backend->backend_dispose(&backend->backend_struct); }
+        if (backend->backend_struct != NULL && backend->backend_dispose != NULL) { backend->backend_dispose(&backend->backend_struct); }
         break;
     }
     default: {
@@ -148,7 +161,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
     }
     }
 
-    HTTPQuery_Dispose(&query);
+    if (query) HTTPQuery_Dispose(&query);
 }
 
 void WeatherServerInstance_Dispose(WeatherServerInstance* _Instance) {
