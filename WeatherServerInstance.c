@@ -80,7 +80,6 @@ void WeatherServerInstance_Work(WeatherServerInstance *_Server,
       }
       printf("\n\n");
     }
-    //printf("City value: %s\n",HTTPQuery_getParameter(query, "city"));
 
     if (strcmp(query->Path, "/health") == 0) {
       HTTPServerConnection_SendResponse(_Server->connection, 200, "{\"status\":\"ok\"}", "application/json");
@@ -141,3 +140,4 @@ void WeatherServerInstance_DisposePtr(WeatherServerInstance **_InstancePtr) {
   free(*(_InstancePtr));
   *(_InstancePtr) = NULL;
 }
+
