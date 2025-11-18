@@ -317,6 +317,17 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
     return request;
 }
 
+const char* HTTPQuery_getParameter(HTTPQuery* query, const char* name)
+{
+    LinkedList_foreach(query->Query, node)
+    {
+        HTTPQueryParameter* param = (HTTPQueryParameter*)node->item;
+        if(strcmp(param->Name, name)==0)
+            return param->Value;
+    };
+    return NULL;
+}
+
 // Properly dispose a HTTPRequest struct
 void HTTPRequest_Dispose(HTTPRequest** req) {
     if (req && *req) {

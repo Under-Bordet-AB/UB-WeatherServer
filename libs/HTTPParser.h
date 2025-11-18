@@ -36,6 +36,7 @@ typedef struct {
 } HTTPQuery;
 
 HTTPQuery* HTTPQuery_fromstring(const char* URL);
+const char* HTTPQuery_getParameter(HTTPQuery* query, const char* name); // Returns GET parameter value if name found, NULL if not found
 void HTTPQuery_Dispose(HTTPQuery** query);
 
 // A HTTPRequest struct should only be disposed by HTTPRequest_Dispose
