@@ -64,6 +64,25 @@ void HTTPQuery_Dispose(HTTPQuery** pointer) {
     *pointer = NULL;
 }
 
+const char* InvalidReason_tostring(InvalidReason reason) {
+    switch (reason) {
+        case NotInvalid:
+            return "The request is not invalid.";
+        case Malformed:
+            return "The first line was malformed.";
+        case OutOfMemory:
+            return "The parser ran out of memory.";
+        case URLTooLong:
+            return "The requested URL is too long.";
+        case InvalidMethod:
+            return "The request method was not recognized.";
+        case InvalidProtocol:
+            return "The request protocol was not recognized.";
+        default:
+            return "Unknown reason.";
+    }
+}
+
 RequestMethod Enum_Method(const char* method) {
     if (!method) return Method_Unknown;
 
@@ -111,8 +130,10 @@ const char* RequestMethod_tostring(RequestMethod method) {
         return "DELETE";
     case OPTIONS:
         return "OPTIONS";
+    case HEAD:
+        return "HEAD";
     default:
-        return "GET";
+        return "-unknown-";
     }
 }
 
@@ -138,6 +159,8 @@ const char* CommonResponseMessages(ResponseCode code) {
         return "Not Found";
     case 405:
         return "Method Not Allowed";
+    case 413:
+        return "Content Too Large";
     case 500:
         return "Internal Server Error";
     case 501:
@@ -239,7 +262,7 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
                 if (*scan == ' ') count++;
             }
             if (count != 2) {
-                printf("INVALID: Request is not formatted with 2 spaces.\n\n");
+                //printf("INVALID: Request is not formatted with 2 spaces.\n\n");
                 free(current_line);
                 break;
             }
@@ -248,7 +271,7 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
             const char* space2 = strchr(space1 + 1, ' ');
 
             if (space2 - (space1 + 1) >= MAX_URL_LEN) {
-                printf("INVALID: Request URL is too long\n\n");
+                //printf("INVALID: Request URL is too long\n\n");
                 request->reason = URLTooLong;
                 free(current_line);
                 break;
@@ -274,7 +297,19 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
             }
 
             request->method = Enum_Method(method);
+            if(STRICT_VALIDATION && request->method == Method_Unknown)
+            {
+                free(current_line);
+                request->reason = InvalidMethod;
+                break;
+            }
             request->protocol = Enum_Protocol(protocol);
+            if(STRICT_VALIDATION && request->protocol == Protocol_Unknown)
+            {
+                free(current_line);
+                request->reason = InvalidProtocol;
+                break;
+            }
             request->URL = path;
 
             free(method);
@@ -286,7 +321,7 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
         } else {
             const char* sep = strstr(current_line, ": ");
             if (!sep) {
-                printf("INVALID: Header is malformed.\n\n");
+                //printf("INVALID: Header is malformed.\n\n");
                 free(current_line);
                 break;
             }
