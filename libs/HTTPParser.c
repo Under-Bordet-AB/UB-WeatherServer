@@ -78,6 +78,8 @@ const char* InvalidReason_tostring(InvalidReason reason) {
             return "The request method was not recognized.";
         case InvalidProtocol:
             return "The request protocol was not recognized.";
+        case InvalidURL:
+            return "The request URL was invalid.";
         default:
             return "Unknown reason.";
     }
@@ -276,6 +278,12 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
                 free(current_line);
                 break;
             }
+            if(space1 == space2)
+            {
+                request->reason = Malformed;
+                free(current_line);
+                break;
+            }
 
             char* method = substr(current_line, space1);
             if (!method) {
@@ -285,12 +293,14 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
             }
             char* path = substr(space1 + 1, space2);
             if (!path) {
+                free(method);
                 free(current_line);
                 request->reason = OutOfMemory;
                 break;
             }
             char* protocol = substr(space2 + 1, current_line + length);
             if (!protocol) {
+                free(method); free(path);
                 free(current_line);
                 request->reason = OutOfMemory;
                 break;
@@ -299,6 +309,7 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
             request->method = Enum_Method(method);
             if(STRICT_VALIDATION && request->method == Method_Unknown)
             {
+                free(method); free(path); free(protocol);
                 free(current_line);
                 request->reason = InvalidMethod;
                 break;
@@ -306,11 +317,19 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
             request->protocol = Enum_Protocol(protocol);
             if(STRICT_VALIDATION && request->protocol == Protocol_Unknown)
             {
+                free(method); free(path); free(protocol);
                 free(current_line);
                 request->reason = InvalidProtocol;
                 break;
             }
             request->URL = path;
+            if(STRICT_VALIDATION && path[0] != '/')
+            {
+                free(method); free(protocol);
+                free(current_line);
+                request->reason = InvalidURL;
+                break;
+            }
 
             free(method);
             free(protocol);
@@ -367,7 +386,8 @@ const char* HTTPQuery_getParameter(HTTPQuery* query, const char* name)
 void HTTPRequest_Dispose(HTTPRequest** req) {
     if (req && *req) {
         HTTPRequest* request = *req;
-        free((void*)request->URL);
+        if(request->URL != NULL)
+            free((void*)request->URL);
         LinkedList_dispose(&request->headers, free_header);
         free(request);
         *req = NULL;

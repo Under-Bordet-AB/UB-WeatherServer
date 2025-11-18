@@ -51,7 +51,8 @@ typedef enum {
     OutOfMemory = 3,
     URLTooLong = 4, // Originally existed because the URL was fixed size in the struct, but kept for extra safety
     InvalidMethod = 5, // only for STRICT_VALIDATION
-    InvalidProtocol = 6 // only for STRICT_VALIDATION
+    InvalidProtocol = 6, // only for STRICT_VALIDATION
+    InvalidURL = 7 // URLs must begin with a slash
 } InvalidReason;
 
 const char* InvalidReason_tostring(InvalidReason method);
