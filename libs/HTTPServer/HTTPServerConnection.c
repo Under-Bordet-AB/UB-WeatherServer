@@ -118,8 +118,14 @@ void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {
     if (ret != NULL) {
       _Connection->state = HTTPServerConnection_State_Parsing;
     } else if(read == 0) {
-      printf("Request overflows readBuffer, dropping.\n");
-      HTTPServerConnection_SendResponse(_Connection, 413, "", NULL);
+      if(_Connection->bytesRead + 1 >= READBUFFER_SIZE)
+      {
+        printf("Request overflows readBuffer, dropping.\n");
+        HTTPServerConnection_SendResponse(_Connection, 413, "", NULL);
+      } else {
+        printf("Request is incomplete, dropping.\n");
+        HTTPServerConnection_SendResponse(_Connection, 400, "", NULL);
+      }
       _Connection->state = HTTPServerConnection_State_Dispose;
     }
 
