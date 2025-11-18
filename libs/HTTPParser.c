@@ -6,27 +6,23 @@
 #include <string.h>
 
 // strndup wrapper for old parsers that relied on manual substringing
-char* substr(const char* start, const char* end)
-{
-    return strndup(start, end-start);
+char* substr(const char* start, const char* end) {
+    return strndup(start, end - start);
 }
 
-HTTPQuery* HTTPQuery_fromstring(const char* URL)
-{
+HTTPQuery* HTTPQuery_fromstring(const char* URL) {
     HTTPQuery* query = calloc(1, sizeof(HTTPQuery));
     query->Query = LinkedList_create();
     const char* begin = strchr(URL, '?');
-    if(begin == NULL)
-    {
+    if (begin == NULL) {
         // No query detected
         query->Path = strdup(URL);
         return query;
     }
     query->Path = substr(URL, begin);
 
-    const char* pos = begin+1;
-    while(*pos)
-    {
+    const char* pos = begin + 1;
+    while (*pos) {
         const char* amp = strchr(pos, '&');
         const char* end = amp ? amp : (URL + strlen(URL));
 
@@ -49,8 +45,7 @@ HTTPQuery* HTTPQuery_fromstring(const char* URL)
     return query;
 }
 
-void free_query(void* item)
-{
+void free_query(void* item) {
     HTTPQueryParameter* param = (HTTPQueryParameter*)item;
     free((void*)param->Name);
     free((void*)param->Value);
@@ -103,6 +98,14 @@ const char* RequestMethod_tostring(RequestMethod method) {
         return "GET";
     case POST:
         return "POST";
+    case PATCH:
+        return "PATCH";
+    case PUT:
+        return "PUT";
+    case DELETE:
+        return "DELETE";
+    case OPTIONS:
+        return "OPTIONS";
     default:
         return "GET";
     }
@@ -112,6 +115,8 @@ const char* CommonResponseMessages(ResponseCode code) {
     switch (code) {
     case 200:
         return "OK";
+    case 204:
+        return "No Content";
     case 301:
         return "Moved Permanently";
     case 302:
@@ -307,6 +312,14 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
     return request;
 }
 
+const char* HTTPQuery_getParameter(HTTPQuery* query, const char* name) {
+    LinkedList_foreach(query->Query, node) {
+        HTTPQueryParameter* param = (HTTPQueryParameter*)node->item;
+        if (strcmp(param->Name, name) == 0) return param->Value;
+    };
+    return NULL;
+}
+
 // Properly dispose a HTTPRequest struct
 void HTTPRequest_Dispose(HTTPRequest** req) {
     if (req && *req) {
@@ -318,27 +331,10 @@ void HTTPRequest_Dispose(HTTPRequest** req) {
     }
 }
 
-HTTPResponse* HTTPResponse_new(ResponseCode code, const char* body) {
+HTTPResponse* HTTPResponse_new(ResponseCode code, uint8_t* body, size_t bodyLength) {
     HTTPResponse* response = calloc(1, sizeof(HTTPResponse));
     response->responseCode = code;
-    response->body = (uint8_t*)strdup(body);
-    response->bodySize = strlen(body);
-    response->headers = LinkedList_create();
-
-    char lenStr[32];
-    snprintf(lenStr, sizeof(lenStr), "%zu", response->bodySize);
-    HTTPResponse_add_header(response, "Content-Length", lenStr);
-    if(CLOSE_CONNECTIONS)
-        HTTPResponse_add_header(response, "Connection", "close");
-
-    return response;
-}
-
-HTTPResponse* HTTPResponse_new_binary(ResponseCode code, uint8_t* body, size_t bodyLength) {
-    HTTPResponse* response = calloc(1, sizeof(HTTPResponse));
-    response->responseCode = code;
-    if(body != NULL)
-    {
+    if (body != NULL) {
         response->body = (uint8_t*)malloc(bodyLength * sizeof(uint8_t));
         memcpy(response->body, body, bodyLength);
         response->bodySize = bodyLength;
@@ -350,8 +346,12 @@ HTTPResponse* HTTPResponse_new_binary(ResponseCode code, uint8_t* body, size_t b
     char lenStr[32];
     snprintf(lenStr, sizeof(lenStr), "%zu", response->bodySize);
     HTTPResponse_add_header(response, "Content-Length", lenStr);
-    if(CLOSE_CONNECTIONS)
-        HTTPResponse_add_header(response, "Connection", "close");
+    if (CLOSE_CONNECTIONS) HTTPResponse_add_header(response, "Connection", "close");
+
+    // CORS headers
+    if (strlen(CORS_ALLOWED_ORIGIN) > 0) HTTPResponse_add_header(response, "Access-Control-Allow-Origin", CORS_ALLOWED_ORIGIN);
+    if (strlen(CORS_ALLOWED_METHODS) > 0) HTTPResponse_add_header(response, "Access-Control-Allow-Methods", CORS_ALLOWED_METHODS);
+    if (strlen(CORS_ALLOWED_HEADERS) > 0) HTTPResponse_add_header(response, "Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS);
 
     return response;
 }
@@ -393,8 +393,7 @@ const char* HTTPResponse_tostring(HTTPResponse* response, size_t* outSize) {
     const uint8_t separator[] = {'\r', '\n', '\r', '\n'};
     memcpy(&status[curPos], separator, sizeof(separator));
     curPos += sizeof(separator);
-    if(response->body != NULL)
-        memcpy(&status[curPos], response->body, messageSize - curPos);
+    if (response->body != NULL) memcpy(&status[curPos], response->body, messageSize - curPos);
     *outSize = messageSize;
     return status;
 }

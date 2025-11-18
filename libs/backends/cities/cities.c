@@ -1,4 +1,4 @@
-#include "cities_new.h"
+#include "cities.h"
 
 #include "tinydir.h"
 #include "utils.h"
@@ -57,46 +57,46 @@ int cities_init(void** ctx, void** ctx_struct, void (*ondone)(void* context)) {
     return 0;
 }
 
-int city_init(const char* _Name, const char* _Latitude, const char* _Longitude, city_t** _CityPtr) {
-    if (_Name == NULL || _CityPtr == NULL) return -1;
+int city_init(const char* name, const char* latitude, const char* longitude, city_t** city_ptr) {
+    if (name == NULL || city_ptr == NULL) return -1;
 
-    city_t* _city = (city_t*)malloc(sizeof(city_t));
-    if (_city == NULL) return -1;
+    city_t* city = (city_t*)malloc(sizeof(city_t));
+    if (city == NULL) return -1;
 
-    memset(_city, 0, sizeof(city_t));
+    memset(city, 0, sizeof(city_t));
 
-    _city->name = strdup(_Name);
-    if (_city->name == NULL) {
-        free(_city);
+    city->name = strdup(name);
+    if (city->name == NULL) {
+        free(city);
         return -1;
     }
 
-    if (_Latitude != NULL) {
-        _city->latitude = atof(_Latitude);
+    if (latitude != NULL) {
+        city->latitude = atof(latitude);
     } else {
-        _city->latitude = 0.0f;
+        city->latitude = 0.0f;
     }
 
-    if (_Longitude != NULL) {
-        _city->longitude = atof(_Longitude);
+    if (longitude != NULL) {
+        city->longitude = atof(longitude);
     } else {
-        _city->longitude = 0.0f;
+        city->longitude = 0.0f;
     }
 
-    *(_CityPtr) = _city;
+    *(city_ptr) = city;
 
     return 0;
 }
 
-void city_dispose(city_t** _cityPtr) {
-    if (_cityPtr == NULL || *_cityPtr == NULL) return;
+void city_dispose(city_t** city_ptr) {
+    if (city_ptr == NULL || *city_ptr == NULL) return;
 
-    city_t* _city = *_cityPtr;
+    city_t* city = *city_ptr;
 
-    if (_city->name != NULL) free(_city->name);
+    if (city->name != NULL) free(city->name);
 
-    free(_city);
-    *_cityPtr = NULL;
+    free(city);
+    *city_ptr = NULL;
 }
 
 int cities_add_city(cities_t* cities, city_t* city) {

@@ -14,7 +14,7 @@ int main() {
     while (1) {
         uint64_t now = SystemMonotonicMS(); // debuggern kliver aldrig in i smw_work i vscode om vi inte gör så här
         smw_work(now);
-        // usleep(50000);
+        // usleep(10000);
     }
 
     WeatherServer_Dispose(&server);

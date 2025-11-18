@@ -10,8 +10,8 @@
     },
     "files.associations": {
         ".clang-format": "yaml",
-        "smw.h": "c",
-        "httpserverconnection.h": "c",
-        "cities_new.h": "c"
+        "stdlib.h": "c",
+        "weather.h": "c",
+        "httpserverconnection.h": "c"
     }
 }
