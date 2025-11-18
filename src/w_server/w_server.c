@@ -28,32 +28,49 @@
 void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
     w_server* server = (w_server*)ctx;
     int listen_fd = server->listen_fd;
+    const int MAX_ACCEPTS_PER_TICK = 128; // TODO magic number
+    int accepts_this_tick = 0;
+    int client_fd = -1;
 
     // Try to accept (non-blocking)
     struct sockaddr_storage client_addr;
     socklen_t addr_len = sizeof(client_addr);
-    int client_fd = accept(listen_fd, (struct sockaddr*)&client_addr, &addr_len);
 
-    if (client_fd < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            // No clients waiting, just return
+    // Accept up to N clients per tick to balance responsiveness
+    while (accepts_this_tick < MAX_ACCEPTS_PER_TICK) {
+
+        client_fd = accept(listen_fd, (struct sockaddr*)&client_addr, &addr_len);
+
+        if (client_fd < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // No clients waiting, just return
+                return;
+            }
+            fprintf(stderr, "Init of client failed: W_SERVER_ERROR_SOCKET_LISTEN\n");
             return;
         }
-        fprintf(stderr, "Init of client failed: W_SERVER_ERROR_SOCKET_LISTEN\n");
-        return;
+
+        // Got a client! Make it non-blocking
+        int flags = fcntl(client_fd, F_GETFL, 0);
+        if (flags == -1 || fcntl(client_fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+            fprintf(stderr, "Failed to set client socket non-blocking\n");
+            close(client_fd);
+            continue;
+        }
+
+        // Create client task
+        mj_task* new_task = w_client_create(client_fd);
+        if (!new_task) {
+            fprintf(stderr, "Failed to create client task\n");
+            close(client_fd);
+            continue;
+        }
+
+        // Add client's state machine to scheduler
+        mj_scheduler_task_add(scheduler, new_task);
+
+        accepts_this_tick++;
     }
-
-    // printf("Client connected on fd %d...\n", client_fd);
-
-    // Got a client! Make it non-blocking
-    int flags = fcntl(client_fd, F_GETFL, 0);
-    fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
-
-    // Create client task
-    mj_task* new_task = w_client_create(client_fd);
-
-    // Add client's state machine to scheduler
-    mj_scheduler_task_add(scheduler, new_task);
 }
 
 // TODO finish clean up function
