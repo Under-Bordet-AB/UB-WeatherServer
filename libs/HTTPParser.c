@@ -103,6 +103,14 @@ const char* RequestMethod_tostring(RequestMethod method) {
         return "GET";
     case POST:
         return "POST";
+    case PATCH:
+        return "PATCH";
+    case PUT:
+        return "PUT";
+    case DELETE:
+        return "DELETE";
+    case OPTIONS:
+        return "OPTIONS";
     default:
         return "GET";
     }
@@ -112,6 +120,8 @@ const char* CommonResponseMessages(ResponseCode code) {
     switch (code) {
     case 200:
         return "OK";
+    case 204:
+        return "No Content";
     case 301:
         return "Moved Permanently";
     case 302:
@@ -318,23 +328,7 @@ void HTTPRequest_Dispose(HTTPRequest** req) {
     }
 }
 
-HTTPResponse* HTTPResponse_new(ResponseCode code, const char* body) {
-    HTTPResponse* response = calloc(1, sizeof(HTTPResponse));
-    response->responseCode = code;
-    response->body = (uint8_t*)strdup(body);
-    response->bodySize = strlen(body);
-    response->headers = LinkedList_create();
-
-    char lenStr[32];
-    snprintf(lenStr, sizeof(lenStr), "%zu", response->bodySize);
-    HTTPResponse_add_header(response, "Content-Length", lenStr);
-    if(CLOSE_CONNECTIONS)
-        HTTPResponse_add_header(response, "Connection", "close");
-
-    return response;
-}
-
-HTTPResponse* HTTPResponse_new_binary(ResponseCode code, uint8_t* body, size_t bodyLength) {
+HTTPResponse* HTTPResponse_new(ResponseCode code, uint8_t* body, size_t bodyLength) {
     HTTPResponse* response = calloc(1, sizeof(HTTPResponse));
     response->responseCode = code;
     if(body != NULL)
@@ -352,6 +346,14 @@ HTTPResponse* HTTPResponse_new_binary(ResponseCode code, uint8_t* body, size_t b
     HTTPResponse_add_header(response, "Content-Length", lenStr);
     if(CLOSE_CONNECTIONS)
         HTTPResponse_add_header(response, "Connection", "close");
+
+    // CORS headers
+    if(strlen(CORS_ALLOWED_ORIGIN) > 0)
+        HTTPResponse_add_header(response, "Access-Control-Allow-Origin", CORS_ALLOWED_ORIGIN);
+    if(strlen(CORS_ALLOWED_METHODS) > 0)
+        HTTPResponse_add_header(response, "Access-Control-Allow-Methods", CORS_ALLOWED_METHODS);
+    if(strlen(CORS_ALLOWED_HEADERS) > 0)
+        HTTPResponse_add_header(response, "Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS);
 
     return response;
 }
