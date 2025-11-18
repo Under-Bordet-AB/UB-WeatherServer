@@ -140,4 +140,3 @@ void WeatherServerInstance_DisposePtr(WeatherServerInstance **_InstancePtr) {
   free(*(_InstancePtr));
   *(_InstancePtr) = NULL;
 }
-
