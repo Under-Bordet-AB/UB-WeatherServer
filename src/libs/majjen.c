@@ -1,4 +1,5 @@
 #include "majjen.h"
+#include "utils.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +24,10 @@ int mj_scheduler_run(mj_scheduler* scheduler) {
     mj_task* current_task = NULL;
 
     while (scheduler->task_count > 0) {
+        if (scheduler->task_count == 1) {
+            printf("Slowing down loop to wait for clients...\n");
+            utils_sleep_ms(1000);
+        }
         for (int i = 0; i < MAX_TASKS; i++) {
             current_task_slot = &scheduler->task_list[i];
             current_task = *current_task_slot;
