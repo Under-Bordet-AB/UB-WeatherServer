@@ -11,6 +11,60 @@
 
 #define CLIENT_TIMEOUT_SEC 10
 
+// ANSI color codes (48 colors ordered for maximum contrast and readability)
+#define COLOR_RESET "\033[0m"
+static const char* client_colors[] = {
+    "\033[38;5;196m", // Red
+    "\033[38;5;51m",  // Cyan
+    "\033[38;5;226m", // Yellow
+    "\033[38;5;21m",  // Blue
+    "\033[38;5;46m",  // Green
+    "\033[38;5;201m", // Magenta
+    "\033[38;5;214m", // Orange
+    "\033[38;5;87m",  // Sky Blue
+    "\033[38;5;154m", // Light Green
+    "\033[38;5;129m", // Purple
+    "\033[38;5;220m", // Gold
+    "\033[38;5;39m",  // Deep Blue
+    "\033[38;5;160m", // Dark Red
+    "\033[38;5;50m",  // Turquoise
+    "\033[38;5;190m", // Yellow-Green
+    "\033[38;5;93m",  // Purple-Blue
+    "\033[38;5;202m", // Orange-Red
+    "\033[38;5;45m",  // Bright Cyan
+    "\033[38;5;118m", // Lime
+    "\033[38;5;165m", // Magenta-Purple
+    "\033[38;5;208m", // Dark Orange
+    "\033[38;5;33m",  // Dodger Blue
+    "\033[38;5;40m",  // Bright Green
+    "\033[38;5;199m", // Hot Pink
+    "\033[38;5;184m", // Yellow-Orange
+    "\033[38;5;27m",  // Ocean Blue
+    "\033[38;5;82m",  // Spring Green
+    "\033[38;5;135m", // Violet
+    "\033[38;5;166m", // Orange Brown
+    "\033[38;5;75m",  // Steel Blue
+    "\033[38;5;34m",  // Forest Green
+    "\033[38;5;205m", // Pink
+    "\033[38;5;178m", // Gold Orange
+    "\033[38;5;63m",  // Medium Blue
+    "\033[38;5;148m", // Olive Green
+    "\033[38;5;170m", // Orchid
+    "\033[38;5;172m", // Burnt Orange
+    "\033[38;5;117m", // Light Blue
+    "\033[38;5;76m",  // Chartreuse
+    "\033[38;5;141m", // Lavender
+    "\033[38;5;209m", // Peach
+    "\033[38;5;69m",  // Cornflower Blue
+    "\033[38;5;113m", // Yellow Green
+    "\033[38;5;177m", // Plum
+    "\033[38;5;215m", // Light Orange
+    "\033[38;5;81m",  // Aqua
+    "\033[38;5;156m", // Pale Green
+    "\033[38;5;207m", // Light Magenta
+};
+#define NUM_COLORS (sizeof(client_colors) / sizeof(client_colors[0]))
+
 // State machine for clients
 void w_client_run(mj_scheduler* scheduler, void* ctx) {
     if (scheduler == NULL || ctx == NULL) {
@@ -18,6 +72,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
     }
 
     w_client* client = (w_client*)ctx;
+    const char* color = client_colors[client->client_number % NUM_COLORS];
 
     switch (client->state) {
     case W_CLIENT_READING:
@@ -27,7 +82,9 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         time_t elapsed_sec = now.tv_sec - client->connect_time.tv_sec;
         if (elapsed_sec > CLIENT_TIMEOUT_SEC ||
             (elapsed_sec == CLIENT_TIMEOUT_SEC && now.tv_nsec >= client->connect_time.tv_nsec)) {
-            fprintf(stderr, "[Client %d] Connection timed out after %d seconds\n", client->fd, CLIENT_TIMEOUT_SEC);
+            fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Connection timeout (%ds)%s\n", color,
+                    client->client_number, client->server->active_count, client->server->total_clients,
+                    CLIENT_TIMEOUT_SEC, COLOR_RESET);
             client->error_code = W_CLIENT_ERROR_TIMEOUT;
             client->state = W_CLIENT_DONE;
             return;
@@ -43,7 +100,9 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
                 return;
             }
             // Read error
-            fprintf(stderr, "[Client %d] Read error: %s\n", client->fd, strerror(errno));
+            fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Read error: %s%s\n", color,
+                    client->client_number, client->server->active_count, client->server->total_clients, strerror(errno),
+                    COLOR_RESET);
             client->error_code = W_CLIENT_ERROR_READ;
             client->state = W_CLIENT_DONE;
             return;
@@ -51,13 +110,15 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 
         // Client closed connection (FIN received)
         if (bytes == 0) {
-            fprintf(stderr, "[Client %d] Connection closed by client (bytes_read so far: %zu)\n", client->fd,
-                    client->bytes_read);
+            fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Connection closed by client%s\n", color,
+                    client->client_number, client->server->active_count, client->server->total_clients, COLOR_RESET);
             client->state = W_CLIENT_DONE;
             return;
         }
 
-        fprintf(stderr, "[Client %d] Received %zd bytes\n", client->fd, bytes);
+        fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Received %zd bytes (total: %zu)%s\n", color,
+                client->client_number, client->server->active_count, client->server->total_clients, bytes,
+                client->bytes_read + bytes, COLOR_RESET);
 
         // Update bytes read and null-terminate
         client->bytes_read += bytes;
@@ -70,22 +131,21 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             client->state = W_CLIENT_PARSING;
         } else if (client->bytes_read >= sizeof(client->read_buffer) - 1) {
             // Buffer full but no complete request
-            fprintf(stderr, "[Client %d] Request too large\n", client->fd);
+            fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Request too large (buffer full)%s\n", color,
+                    client->client_number, client->server->active_count, client->server->total_clients, COLOR_RESET);
             client->error_code = W_CLIENT_ERROR_REQUEST_TOO_LARGE;
             client->state = W_CLIENT_DONE;
         }
         break;
 
     case W_CLIENT_PARSING:
-        fprintf(stderr, "[Client %d] Parsing message:\n%s", client->fd, client->read_buffer);
-
         // Parse the complete HTTP request
         http_request* parsed = http_request_fromstring(client->read_buffer);
 
         if (!parsed || !parsed->valid) {
             // Parse error - send 400 Bad Request
-            fprintf(stderr, "[Client %d] Parse error: %d\n", client->fd,
-                    parsed ? parsed->reason : INVALID_REASON_UNKNOWN);
+            fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Failed to parse HTTP request%s\n", color,
+                    client->client_number, client->server->active_count, client->server->total_clients, COLOR_RESET);
             if (parsed)
                 http_request_dispose(&parsed);
             client->error_code = W_CLIENT_ERROR_MALFORMED_REQUEST;
@@ -96,33 +156,54 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         // Store parsed request in client context (cast to void* as per struct)
         client->parsed_request = parsed;
 
-        // Prettier logging: Show transformation from raw to structured
-        fprintf(stderr, "[Client %d] === PARSING SUCCESSFUL ===\n", client->fd);
-        fprintf(stderr, "[Client %d] Raw Input (%zu bytes):\n---\n%s\n---\n", client->fd, client->bytes_read,
-                client->read_buffer);
-        fprintf(stderr, "[Client %d] Parsed Request:\n", client->fd);
-        fprintf(stderr, "[Client %d]   Method: %s\n", client->fd, request_method_tostring(parsed->method));
-        fprintf(stderr, "[Client %d]   Protocol: HTTP/%d.%d\n", client->fd, (parsed->protocol / 10),
-                (parsed->protocol % 10));
-        fprintf(stderr, "[Client %d]   URL: %s\n", client->fd, parsed->url);
-        // Iterate over headers using LinkedList_foreach macro
-        if (parsed->headers && parsed->headers->size > 0) {
-            fprintf(stderr, "[Client %d]   Headers (%zu):\n", client->fd, parsed->headers->size);
-            LinkedList_foreach(parsed->headers, node) {
-                HTTPHeader* hdr = (HTTPHeader*)node->item;
-                fprintf(stderr, "[Client %d]     %s: %s\n", client->fd, hdr->name, hdr->value);
-            }
-        } else {
-            fprintf(stderr, "[Client %d]   Headers: (none)\n", client->fd);
-        }
-        fprintf(stderr, "[Client %d] === END PARSED REQUEST ===\n", client->fd);
+        // Log the parsed request
+        fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Request: %s %s HTTP/%d.%d%s\n", color,
+                client->client_number, client->server->active_count, client->server->total_clients,
+                request_method_tostring(parsed->method), parsed->url, parsed->protocol / 10, parsed->protocol % 10,
+                COLOR_RESET);
 
         client->state = W_CLIENT_PROCESSING;
         break;
 
-    case W_CLIENT_PROCESSING:
+    case W_CLIENT_PROCESSING: {
+        // Route request and generate response (backend not implemented yet)
+        http_request* req = (http_request*)client->parsed_request;
+        http_response* response = NULL;
+
+        fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Processing request...%s\n", color,
+                client->client_number, client->server->active_count, client->server->total_clients, COLOR_RESET);
+
+        // Simple routing based on method and URL
+        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/") == 0) {
+            response = http_response_new(RESPONSE_CODE_OK, "Hello from weather server!");
+        } else if (req->method == REQUEST_METHOD_POST && strcmp(req->url, "/data") == 0) {
+            // POST not implemented yet (no body parsing)
+            response = http_response_new(RESPONSE_CODE_NOT_IMPLEMENTED, "POST not implemented");
+        } else {
+            // 404 for all other routes
+            response = http_response_new(RESPONSE_CODE_NOT_FOUND, "Not found");
+        }
+
+        // Add standard headers
+        http_response_add_header(response, "Content-Type", "text/plain");
+        http_response_add_header(response, "Connection", "close");
+
+        // Serialize response to string
+        const char* response_str = http_response_tostring(response);
+        client->response_data = (char*)response_str; // Store for sending
+        client->response_len = strlen(response_str);
+        client->response_sent = 0; // Track how much we've sent
+
+        fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Response: %d %s (%zu bytes)%s\n", color,
+                client->client_number, client->server->active_count, client->server->total_clients, response->code,
+                response_code_tostring(response->code), client->response_len, COLOR_RESET);
+
+        // Clean up response struct (string is already copied)
+        http_response_dispose(&response);
+
         client->state = W_CLIENT_SENDING;
         break;
+    }
 
     case W_CLIENT_SENDING:
         client->state = W_CLIENT_DONE;
@@ -133,7 +214,9 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         break;
 
     default: /* defensive path */
-        fprintf(stderr, "[Client %d] UNKNOWN STATE %d! Forcing cleanup.\n", client->fd, client->state);
+        fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) ERROR: Unknown state %d, forcing cleanup%s\n", color,
+                client->client_number, client->server->active_count, client->server->total_clients, client->state,
+                COLOR_RESET);
         client->state = W_CLIENT_DONE; /* force a cleanup cycle */
         break;
     }
@@ -142,6 +225,11 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 // deallocate any internal reasources added to the context
 void w_client_cleanup(mj_scheduler* scheduler, void* ctx) {
     w_client* client = (w_client*)ctx;
+
+    // Decrement active client counter
+    if (client->server) {
+        client->server->active_count--;
+    }
 
     // close socket
     if (client->fd >= 0) {
@@ -167,9 +255,13 @@ void w_client_cleanup(mj_scheduler* scheduler, void* ctx) {
 }
 
 // Create a client
-mj_task* w_client_create(int client_fd) {
+mj_task* w_client_create(int client_fd, w_server* server) {
     if (client_fd < 0) {
         fprintf(stderr, " ERROR: [%s:%d %s]\n", __FILE__, __LINE__, __func__);
+        return NULL;
+    }
+    if (server == NULL) {
+        fprintf(stderr, " ERROR: [%s:%d %s] server is NULL\n", __FILE__, __LINE__, __func__);
         return NULL;
     }
     // create a new task
@@ -193,6 +285,8 @@ mj_task* w_client_create(int client_fd) {
     // Init all fields in the new context
     new_ctx->state = W_CLIENT_READING;
     new_ctx->fd = client_fd;
+    new_ctx->server = server;
+    new_ctx->client_number = ++server->total_clients; // Assign sequential number
 
     new_ctx->read_buffer[0] = '\0';
     new_ctx->bytes_read = 0;
@@ -214,6 +308,9 @@ mj_task* w_client_create(int client_fd) {
     new_task->run = w_client_run;
     new_task->cleanup = w_client_cleanup;
     new_task->ctx = new_ctx;
+
+    // Increment active client counter
+    server->active_count++;
 
     return new_task;
 }

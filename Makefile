@@ -77,14 +77,18 @@ profile:
 
 $(BIN): $(OBJ)
 	@mkdir -p $(@D)
-	@echo "Building $(BUILD_MODE) binary: $(BIN)"
-	$(CC) $(CFLAGS) $^ -o $@ $(LFLAGS)
-	@echo "✓ Build complete: $(BIN) ($(BUILD_MODE) mode)"
+	@$(CC) $(CFLAGS) $^ -o $@ $(LFLAGS)
+	@echo ""
+	@echo "╔══════════════════════════════════╗"
+	@echo "║         BUILD SUCCESSFUL         ║"
+	@echo "╚══════════════════════════════════╝"
+	@echo "      Binary: $(BIN)"
+	@echo "      Mode:   $(BUILD_MODE)"
+	@echo ""
 
 $(BUILD_DIR)/%.o: src/%.c
 	@mkdir -p $(dir $@)
-	@echo "Compiling $(BUILD_MODE): $<"
-	$(CC) $(CFLAGS) -c $< -o $@
+	@$(CC) $(CFLAGS) -c $< -o $@
 
 run: debug
 	./$(BIN)

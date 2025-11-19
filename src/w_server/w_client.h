@@ -41,6 +41,9 @@ typedef struct w_client {
     w_client_state state;
     // Network
     int fd;
+    size_t client_number; // Sequential client number
+    // Reference to server (for metrics)
+    w_server* server;
     // HTTP parsing
     char read_buffer[W_CLIENT_READ_BUFFER_SIZE];
     size_t bytes_read;
@@ -58,4 +61,4 @@ typedef struct w_client {
     w_client_error error_code;
 } w_client;
 
-mj_task* w_client_create(int client_fd);
+mj_task* w_client_create(int client_fd, w_server* server);

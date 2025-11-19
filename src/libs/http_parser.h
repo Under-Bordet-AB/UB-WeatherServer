@@ -95,6 +95,9 @@ typedef struct {
 // Convert request_method enum to string like "GET"
 const char* request_method_tostring(request_method method);
 
+// Convert response_code enum to string like "OK"
+const char* response_code_tostring(response_code code);
+
 // Create new request - returns heap-allocated struct, must call http_request_dispose()
 http_request* http_request_new(request_method method, const char* url);
 

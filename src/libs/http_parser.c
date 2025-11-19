@@ -83,7 +83,7 @@ const char* request_method_tostring(request_method method) {
 }
 
 // Map response code number to human-readable message
-const char* CommonResponseMessages(response_code code) {
+const char* response_code_tostring(response_code code) {
     switch (code) {
     case 200:
         return "OK";
@@ -347,7 +347,7 @@ int http_response_add_header(http_response* response, const char* name, const ch
 
 // Serialize response to string - caller must free() returned memory
 const char* http_response_tostring(http_response* response) {
-    const char* message = CommonResponseMessages(response->code);
+    const char* message = response_code_tostring(response->code);
     // Calculate total size needed
     // 5 = 2 spaces + response code (3 digits) + null term
     int message_size = 6 + strlen(HTTP_VERSION) + strlen(message);

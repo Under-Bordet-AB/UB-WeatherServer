@@ -50,7 +50,7 @@ void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
         }
 
         // Create client task
-        mj_task* new_task = w_client_create(client_fd);
+        mj_task* new_task = w_client_create(client_fd, server);
         if (!new_task) {
             fprintf(stderr, "Failed to create client task\n");
             close(client_fd);
@@ -93,6 +93,7 @@ static int init_from_config(w_server* server, const w_server_config* cfg) {
 
     /* initialise counters */
     server->active_count = 0;
+    server->total_clients = 0;
     server->last_error = W_SERVER_ERROR_NONE;
 
     return W_SERVER_ERROR_NONE;

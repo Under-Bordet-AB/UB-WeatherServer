@@ -97,6 +97,7 @@ typedef struct {
 } client_t;
 
 typedef enum {
+    MODE_TRICKLE,  // 2000ms interval (1 every 2 seconds)
     MODE_SLOW,     // 10ms interval (100/sec)
     MODE_NORMAL,   // 1ms interval (1,000/sec)
     MODE_FAST,     // 100μs interval (10,000/sec)
@@ -116,6 +117,7 @@ static inline long long get_time_us() {
 void print_usage(const char* prog) {
     printf("Usage: %s [OPTIONS]\n\n", prog);
     printf("Speed Presets:\n");
+    printf("  -trickle    2000ms interval (1 every 2 seconds)\n");
     printf("  -slow       10ms interval (~100 connections/sec)\n");
     printf("  -normal     1ms interval (~1,000 connections/sec)\n");
     printf("  -fast       100μs interval (~10,000 connections/sec)\n");
@@ -149,6 +151,9 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "-help") == 0 || strcmp(argv[i], "--help") == 0) {
             print_usage(argv[0]);
             return 0;
+        } else if (strcmp(argv[i], "-trickle") == 0) {
+            mode = MODE_TRICKLE;
+            interval_us = 2000000; // 2 seconds in microseconds
         } else if (strcmp(argv[i], "-slow") == 0) {
             mode = MODE_SLOW;
             interval_us = 10000;
