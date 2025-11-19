@@ -1,6 +1,7 @@
 #include "majjen.h"
 #include "utils.h"
 #include <errno.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +9,9 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+
+// External shutdown flag from main
+extern volatile sig_atomic_t shutdown_requested;
 
 typedef struct mj_scheduler {
     mj_task* task_list[MAX_TASKS];
@@ -24,7 +28,7 @@ int mj_scheduler_run(mj_scheduler* scheduler) {
     mj_task** current_task_slot = NULL;
     mj_task* current_task = NULL;
 
-    while (scheduler->task_count > 0 && !scheduler->stop_requested) {
+    while (scheduler->task_count > 0 && !shutdown_requested) {
         for (int i = 0; i < MAX_TASKS; i++) {
             current_task_slot = &scheduler->task_list[i];
             current_task = *current_task_slot;

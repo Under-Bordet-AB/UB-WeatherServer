@@ -11,17 +11,13 @@ struct rlimit rl = { .rlim_cur = 1000000, .rlim_max = 2000000 };
 setrlimit(RLIMIT_NOFILE, &rl);
  */
 
-// Global flag for signal handler
-static volatile sig_atomic_t shutdown_requested = 0;
-static mj_scheduler* g_scheduler = NULL;
+// Global shutdown flag (accessed by signal handler and scheduler)
+volatile sig_atomic_t shutdown_requested = 0;
 
 // Signal handler for SIGINT (Ctrl+C)
 static void sigint_handler(int signum) {
     (void)signum; // Unused parameter
     shutdown_requested = 1;
-    if (g_scheduler != NULL) {
-        mj_scheduler_stop(g_scheduler);
-    }
 }
 
 int main(int argc, char* argv[]) {
@@ -60,7 +56,6 @@ int main(int argc, char* argv[]) {
     }
 
     // Set up signal handler
-    g_scheduler = scheduler;
     struct sigaction sa;
     sa.sa_handler = sigint_handler;
     sigemptyset(&sa.sa_mask);
@@ -112,7 +107,6 @@ int main(int argc, char* argv[]) {
     // so it will be freed during this call
     mj_scheduler_cleanup_all_tasks(scheduler);
 
-    g_scheduler = NULL;
     mj_scheduler_destroy(&scheduler);
 
     printf("Server stopped cleanly.\n");
