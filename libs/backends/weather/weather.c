@@ -97,11 +97,6 @@ int save_weather_to_cache(double latitude, double longitude, const char* json_st
     return result == 0 ? 0 : -1;
 }
 
-struct memory_struct {
-    char* memory;
-    size_t size;
-};
-
 int write_memory_callback(void* contents, size_t size, size_t nmemb, void* user_p) {
     size_t real_size = size * nmemb;
 
@@ -147,6 +142,75 @@ int fetch_weather_from_openmeteo(double latitude, double longitude, char** api_r
 
     curl_easy_cleanup(curl);
     *api_response = chunk.memory;
+
+    return 0;
+}
+
+int openmeteo_init(weather_t** weather) {
+    CURLcode res = curl_global_init(CURL_GLOBAL_DEFAULT);
+    if (res != CURLE_OK) { return -1; }
+
+    (*weather)->curl_handle = curl_easy_init();
+    if (!(*weather)->curl_handle) { return -1; }
+
+    (*weather)->curl_multi_handle = curl_multi_init();
+    if (!(*weather)->curl_multi_handle) {
+        curl_easy_cleanup((*weather)->curl_handle);
+        return -1;
+    }
+
+    /* Initialize memory buffer for the multi interface and set write callback */
+    (*weather)->mem.memory = malloc(1);
+    if (!(*weather)->mem.memory) {
+        curl_multi_cleanup((*weather)->curl_multi_handle);
+        curl_easy_cleanup((*weather)->curl_handle);
+        return -1;
+    }
+    (*weather)->mem.size = 0;
+
+    curl_easy_setopt((*weather)->curl_handle, CURLOPT_WRITEFUNCTION, write_memory_callback);
+    curl_easy_setopt((*weather)->curl_handle, CURLOPT_WRITEDATA, (void*)&((*weather)->mem));
+
+    return 0;
+}
+
+int openmeteo_make_request(weather_t** weather) {
+    char url[256];
+    snprintf(url, sizeof(url), METEO_FORECAST_URL, (*weather)->latitude, (*weather)->longitude);
+    curl_easy_setopt((*weather)->curl_handle, CURLOPT_URL, url);
+    curl_multi_add_handle((*weather)->curl_multi_handle, (*weather)->curl_handle);
+
+    return 0;
+}
+
+int openmeteo_poll(weather_t** weather) {
+    CURLMcode mc = curl_multi_perform((*weather)->curl_multi_handle, &(*weather)->curl_still_running);
+    if (mc != CURLM_OK) { return -1; }
+
+    return 0;
+}
+
+int openmeteo_read_response(weather_t** weather) {
+    /* After multi perform indicates transfer complete, the data will be in weather->mem */
+    if ((*weather)->mem.memory == NULL) return -1;
+
+    (*weather)->buffer = (*weather)->mem.memory;
+    (*weather)->bytesread = (int)(*weather)->mem.size;
+
+    /* Take ownership of mem memory; prevent double-free */
+    (*weather)->mem.memory = NULL;
+    (*weather)->mem.size = 0;
+
+    /* Remove the easy handle from the multi handle now that we're done with it */
+    curl_multi_remove_handle((*weather)->curl_multi_handle, (*weather)->curl_handle);
+
+    return 0;
+}
+
+int openmeteo_cleanup(weather_t** weather) {
+    curl_easy_cleanup((*weather)->curl_handle);
+    curl_multi_cleanup((*weather)->curl_multi_handle);
+    curl_global_cleanup();
 
     return 0;
 }
@@ -485,7 +549,7 @@ int weather_work(void** ctx) {
         if (does_weather_cache_exist(weather->latitude, weather->longitude) == 0 && is_weather_cache_stale(weather->latitude, weather->longitude, 900) == 0) {
             weather->state = Weather_State_LoadFromDisk;
         } else {
-            weather->state = Weather_State_FetchFromAPI;
+            weather->state = Weather_State_FetchFromAPI_Init;
         }
         printf("Weather: Validating File\n");
         break;
@@ -499,22 +563,55 @@ int weather_work(void** ctx) {
         weather->state = Weather_State_Done;
         printf("Weather: Loading From Disk\n");
         break;
-    case Weather_State_FetchFromAPI:
-        char* api_response = NULL;
-        if (fetch_weather_from_openmeteo(weather->latitude, weather->longitude, &api_response) == 0) {
-            char* client_response = NULL;
-            if (process_openmeteo_response(api_response, &client_response) == 0) {
-                weather->buffer = client_response;
-                save_weather_to_cache(weather->latitude, weather->longitude, client_response);
-            } else {
-                weather->buffer = NULL;
-            }
-            free(api_response);
-        } else {
-            weather->buffer = NULL;
+    case Weather_State_FetchFromAPI_Init:
+        if (openmeteo_init(&weather) != 0) {
+            weather->state = Weather_State_Done;
+            break;
         }
-        weather->state = Weather_State_Done;
+        weather->state = Weather_State_FetchFromAPI_Request;
         printf("Weather: Fetching From API\n");
+        break;
+    case Weather_State_FetchFromAPI_Request:
+        if (openmeteo_make_request(&weather) != 0) {
+            weather->state = Weather_State_Done;
+            break;
+        }
+        weather->state = Weather_State_FetchFromAPI_Poll;
+        break;
+    case Weather_State_FetchFromAPI_Poll:
+        if (openmeteo_poll(&weather) != 0) {
+            weather->state = Weather_State_Done;
+            break;
+        }
+        if (weather->curl_still_running) {
+            break;
+        } else {
+            weather->state = Weather_State_FetchFromAPI_Read;
+        }
+        break;
+    case Weather_State_FetchFromAPI_Read:
+        if (openmeteo_read_response(&weather) != 0) {
+            weather->state = Weather_State_Done;
+            break;
+        }
+        openmeteo_cleanup(&weather);
+        weather->state = Weather_State_ProcessResponse;
+        break;
+    case Weather_State_ProcessResponse:
+        char* client_response = NULL;
+        if (process_openmeteo_response(weather->buffer, &client_response) != 0) {
+            weather->state = Weather_State_Done;
+            printf("Weather: Processing Response Failed\n");
+        } else {
+            free(weather->buffer);
+            weather->buffer = client_response;
+            weather->state = Weather_State_SaveToDisk;
+            printf("Weather: Processing Response Succeeded\n");
+        }
+        break;
+    case Weather_State_SaveToDisk:
+        if (save_weather_to_cache(weather->latitude, weather->longitude, weather->buffer) != 0) { printf("Weather: Saving To Disk Failed\n"); }
+        weather->state = Weather_State_Done;
         break;
     case Weather_State_Done:
         weather->on_done(weather->ctx);
@@ -529,6 +626,7 @@ int weather_dispose(void** ctx) {
     weather_t* weather = (weather_t*)(*ctx);
     if (!weather) return -1;
 
+    if (weather->mem.memory) free(weather->mem.memory);
     free(weather->buffer);
     free(weather);
     *ctx = NULL;

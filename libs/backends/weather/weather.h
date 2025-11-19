@@ -11,11 +11,21 @@
     "forecast?latitude=%f&longitude=%f&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_"   \
     "code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
 
+struct memory_struct {
+    char* memory;
+    size_t size;
+};
+
 typedef enum {
     Weather_State_Init,
     Weather_State_ValidateFile,
     Weather_State_LoadFromDisk,
-    Weather_State_FetchFromAPI,
+    Weather_State_FetchFromAPI_Init,
+    Weather_State_FetchFromAPI_Request,
+    Weather_State_FetchFromAPI_Poll,
+    Weather_State_FetchFromAPI_Read,
+    Weather_State_ProcessResponse,
+    Weather_State_SaveToDisk,
     Weather_State_Done
 } weather_state;
 
@@ -25,6 +35,11 @@ typedef struct weather_t {
 
     double latitude;
     double longitude;
+
+    CURLM* curl_multi_handle;
+    CURL* curl_handle;
+    int curl_still_running;
+    struct memory_struct mem;
 
     weather_state state;
     char* buffer;
