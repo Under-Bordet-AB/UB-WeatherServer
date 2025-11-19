@@ -9,7 +9,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define CLIENT_TIMEOUT_SEC 10
+#define CLIENT_TIMEOUT_SEC 5
 
 // ANSI color codes (48 colors ordered for maximum contrast and readability)
 #define COLOR_RESET "\033[0m"
@@ -63,6 +63,7 @@ static const char* client_colors[] = {
     "\033[38;5;156m", // Pale Green
     "\033[38;5;207m", // Light Magenta
 };
+
 #define NUM_COLORS (sizeof(client_colors) / sizeof(client_colors[0]))
 
 // State machine for clients
@@ -82,9 +83,9 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         time_t elapsed_sec = now.tv_sec - client->connect_time.tv_sec;
         if (elapsed_sec > CLIENT_TIMEOUT_SEC ||
             (elapsed_sec == CLIENT_TIMEOUT_SEC && now.tv_nsec >= client->connect_time.tv_nsec)) {
-            fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Connection timeout (%ds)%s\n", color,
-                    client->client_number, client->server->active_count, client->server->total_clients,
-                    CLIENT_TIMEOUT_SEC, COLOR_RESET);
+            // fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Connection timeout (%ds)%s\n", color,
+            //        client->client_number, client->server->active_count, client->server->total_clients,
+            //        CLIENT_TIMEOUT_SEC, COLOR_RESET);
             client->error_code = W_CLIENT_ERROR_TIMEOUT;
             client->state = W_CLIENT_DONE;
             return;
@@ -100,9 +101,10 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
                 return;
             }
             // Read error
-            fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Read error: %s%s\n", color,
-                    client->client_number, client->server->active_count, client->server->total_clients, strerror(errno),
-                    COLOR_RESET);
+            //  fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Read error: %s%s\n", color,
+            //        client->client_number, client->server->active_count, client->server->total_clients,
+            //        strerror(errno),
+            //       COLOR_RESET);
             client->error_code = W_CLIENT_ERROR_READ;
             client->state = W_CLIENT_DONE;
             return;
@@ -110,31 +112,49 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 
         // Client closed connection (FIN received)
         if (bytes == 0) {
-            fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Connection closed by client%s\n", color,
-                    client->client_number, client->server->active_count, client->server->total_clients, COLOR_RESET);
+            //   fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Connection closed by client%s\n", color,
+            //       client->client_number, client->server->active_count, client->server->total_clients, COLOR_RESET);
             client->state = W_CLIENT_DONE;
             return;
         }
 
-        fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Received %zd bytes (total: %zu)%s\n", color,
-                client->client_number, client->server->active_count, client->server->total_clients, bytes,
-                client->bytes_read + bytes, COLOR_RESET);
+        // fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Received %zd bytes (total: %zu)%s\n", color,
+        // client->client_number, client->server->active_count, client->server->total_clients, bytes,
+        // client->bytes_read + bytes, COLOR_RESET);
 
         // Update bytes read and null-terminate
         client->bytes_read += bytes;
-        client->read_buffer[client->bytes_read] = '\0';
-
-        // Check if we have a complete HTTP request (ends with \r\n\r\n).
+        client->read_buffer[client->bytes_read] =
+            '\0'; // Check if we have a complete HTTP request (ends with \r\n\r\n).
         // We must wait for completed request since current parser does not support incremental parsing.
         // NOTE, this check is "message framing" so it does not belong in parsing
         if (strstr(client->read_buffer, "\r\n\r\n") != NULL) {
             client->state = W_CLIENT_PARSING;
         } else if (client->bytes_read >= sizeof(client->read_buffer) - 1) {
             // Buffer full but no complete request
-            fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Request too large (buffer full)%s\n", color,
-                    client->client_number, client->server->active_count, client->server->total_clients, COLOR_RESET);
+            //    fprintf(stderr,
+            //           "%sClient %4zu (active: %4zu, total: %4zu) ❌ REQUEST TOO LARGE - Buffer full (%zu
+            //           bytes)%s\n", color, client->client_number, client->server->active_count,
+            //           client->server->total_clients, client->bytes_read, COLOR_RESET);
+
+            // Send 413 Content Too Large response
+            http_response* too_large = http_response_new(RESPONSE_CODE_CONTENT_TOO_LARGE, "Request too large");
+            http_response_add_header(too_large, "Content-Type", "text/plain");
+            http_response_add_header(too_large, "Connection", "close");
+            const char* response_str = http_response_tostring(too_large);
+            client->response_data = (char*)response_str;
+            client->response_len = strlen(response_str);
+            client->response_sent = 0;
+            http_response_dispose(&too_large);
+
+            fprintf(stderr,
+                    "%sClient %4zu (active: %4zu, total: %4zu) Response: 413 Request Entity Too Large (%zu "
+                    "bytes)%s\n",
+                    color, client->client_number, client->server->active_count, client->server->total_clients,
+                    client->response_len, COLOR_RESET);
+
             client->error_code = W_CLIENT_ERROR_REQUEST_TOO_LARGE;
-            client->state = W_CLIENT_DONE;
+            client->state = W_CLIENT_SENDING;
         }
         break;
 
@@ -144,12 +164,30 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 
         if (!parsed || !parsed->valid) {
             // Parse error - send 400 Bad Request
-            fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Failed to parse HTTP request%s\n", color,
-                    client->client_number, client->server->active_count, client->server->total_clients, COLOR_RESET);
+            //    fprintf(
+            //       stderr, "%sClient %4zu (active: %4zu, total: %4zu) ❌ BAD REQUEST - Failed to parse HTTP
+            //       request%s\n",
+            //      color, client->client_number, client->server->active_count, client->server->total_clients,
+            //      COLOR_RESET);
             if (parsed)
                 http_request_dispose(&parsed);
+
+            // Send 400 Bad Request response
+            http_response* bad_request = http_response_new(RESPONSE_CODE_BAD_REQUEST, "Malformed HTTP request");
+            http_response_add_header(bad_request, "Content-Type", "text/plain");
+            http_response_add_header(bad_request, "Connection", "close");
+            const char* response_str = http_response_tostring(bad_request);
+            client->response_data = (char*)response_str;
+            client->response_len = strlen(response_str);
+            client->response_sent = 0;
+            http_response_dispose(&bad_request);
+
+            /*         fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Response: 400 Bad Request (%zu
+               bytes)%s\n", color, client->client_number, client->server->active_count, client->server->total_clients,
+                            client->response_len, COLOR_RESET);
+         */
             client->error_code = W_CLIENT_ERROR_MALFORMED_REQUEST;
-            client->state = W_CLIENT_DONE;
+            client->state = W_CLIENT_SENDING;
             return;
         }
 
@@ -157,11 +195,11 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         client->parsed_request = parsed;
 
         // Log the parsed request
-        fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Request: %s %s HTTP/%d.%d%s\n", color,
-                client->client_number, client->server->active_count, client->server->total_clients,
-                request_method_tostring(parsed->method), parsed->url, parsed->protocol / 10, parsed->protocol % 10,
-                COLOR_RESET);
-
+        /*         fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Request: %s %s HTTP/%d.%d%s\n", color,
+                        client->client_number, client->server->active_count, client->server->total_clients,
+                        request_method_tostring(parsed->method), parsed->url, parsed->protocol / 10, parsed->protocol %
+           10, COLOR_RESET);
+         */
         client->state = W_CLIENT_PROCESSING;
         break;
 
@@ -169,10 +207,11 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         // Route request and generate response (backend not implemented yet)
         http_request* req = (http_request*)client->parsed_request;
         http_response* response = NULL;
-
-        fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Processing request...%s\n", color,
-                client->client_number, client->server->active_count, client->server->total_clients, COLOR_RESET);
-
+        /*
+                fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Processing request...%s\n", color,
+                        client->client_number, client->server->active_count, client->server->total_clients,
+           COLOR_RESET);
+         */
         // Simple routing based on method and URL
         if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/") == 0) {
             response = http_response_new(RESPONSE_CODE_OK, "Hello from weather server!");
@@ -193,11 +232,11 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         client->response_data = (char*)response_str; // Store for sending
         client->response_len = strlen(response_str);
         client->response_sent = 0; // Track how much we've sent
-
-        fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Response: %d %s (%zu bytes)%s\n", color,
-                client->client_number, client->server->active_count, client->server->total_clients, response->code,
-                response_code_tostring(response->code), client->response_len, COLOR_RESET);
-
+                                   /*
+                                           fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Response: %d %s (%zu bytes)%s\n", color,
+                                                   client->client_number, client->server->active_count, client->server->total_clients,
+                                      response->code,                            response_code_tostring(response->code), client->response_len, COLOR_RESET);
+                                    */
         // Clean up response struct (string is already copied)
         http_response_dispose(&response);
 
@@ -206,7 +245,43 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
     }
 
     case W_CLIENT_SENDING:
-        client->state = W_CLIENT_DONE;
+        // Send response data to client
+        if (client->response_data && client->response_sent < client->response_len) {
+            ssize_t sent = send(client->fd, client->response_data + client->response_sent,
+                                client->response_len - client->response_sent, MSG_DONTWAIT);
+
+            if (sent < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    // Socket buffer full, try again later
+                    return;
+                }
+                // Send error
+                fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Send error: %s%s\n", color,
+                        client->client_number, client->server->active_count, client->server->total_clients,
+                        strerror(errno), COLOR_RESET);
+                client->state = W_CLIENT_DONE;
+                return;
+            }
+
+            if (sent == 0) {
+                // Connection closed by peer
+                fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Connection closed during send%s\n", color,
+                        client->client_number, client->server->active_count, client->server->total_clients,
+                        COLOR_RESET);
+                client->state = W_CLIENT_DONE;
+                return;
+            }
+
+            client->response_sent += sent;
+
+            // Check if we've sent everything
+            if (client->response_sent >= client->response_len) {
+                client->state = W_CLIENT_DONE;
+            }
+        } else {
+            // No response data or already sent
+            client->state = W_CLIENT_DONE;
+        }
         break;
 
     case W_CLIENT_DONE:

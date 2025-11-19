@@ -75,6 +75,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,13 +88,19 @@
 #define DEFAULT_IP "127.0.0.1"
 #define DEFAULT_PORT 10480
 #define DEFAULT_CONN 512
-#define DEFAULT_MSG "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
+#define DEFAULT_MSG                                                                                                    \
+    "GET "                                                                                                             \
+    "/v1/"                                                                                                             \
+    "forecast?latitude=59.33&longitude=18.07&current=temperature_2m,wind_speed_10m&hourly=temperature_2m,relative_"    \
+    "humidity_2m HTTP/1.1\r\nHost: localhost\r\n\r\n"
 #define CONNECT_TIMEOUT_SEC 10
 
 typedef struct {
     int fd;
     int connected;
     struct timespec connect_start;
+    char* random_data;
+    size_t data_size;
 } client_t;
 
 typedef enum {
@@ -114,6 +121,44 @@ static inline long long get_time_us() {
     return (long long)ts.tv_sec * 1000000LL + ts.tv_nsec / 1000;
 }
 
+// Convert escape sequences in string (e.g., \r\n to actual CR LF)
+char* unescape_string(const char* input) {
+    size_t len = strlen(input);
+    char* output = malloc(len + 1);
+    if (!output)
+        return NULL;
+
+    size_t j = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (input[i] == '\\' && i + 1 < len) {
+            switch (input[i + 1]) {
+            case 'r':
+                output[j++] = '\r';
+                i++;
+                break;
+            case 'n':
+                output[j++] = '\n';
+                i++;
+                break;
+            case 't':
+                output[j++] = '\t';
+                i++;
+                break;
+            case '\\':
+                output[j++] = '\\';
+                i++;
+                break;
+            default:
+                output[j++] = input[i];
+            }
+        } else {
+            output[j++] = input[i];
+        }
+    }
+    output[j] = '\0';
+    return output;
+}
+
 void print_usage(const char* prog) {
     printf("Usage: %s [OPTIONS]\n\n", prog);
     printf("Speed Presets:\n");
@@ -130,12 +175,14 @@ void print_usage(const char* prog) {
     printf("  -port <num>     Server port (default: %d)\n", DEFAULT_PORT);
     printf("  -count <num>    Number of connections (default: %d)\n", DEFAULT_CONN);
     printf("  -msg <string>   Message to send (default: \"%s\")\n", DEFAULT_MSG);
-    printf("  -help           Show this help\n\n");
+    printf("  -random         Send random data (0-8KB) instead of message\n");
+    printf("  -h, -help       Show this help\n\n");
     printf("Examples:\n");
     printf("  %s -fast\n", prog);
     printf("  %s -insane -count 1000\n", prog);
     printf("  %s -custom 500 -ip 192.168.1.100 -port 8080\n", prog);
     printf("  %s -burst -count 10000\n", prog);
+    printf("  %s -trickle -random\n", prog);
 }
 
 int main(int argc, char** argv) {
@@ -143,12 +190,14 @@ int main(int argc, char** argv) {
     int port = DEFAULT_PORT;
     int total = DEFAULT_CONN;
     const char* msg = DEFAULT_MSG;
+    char* msg_unescaped = NULL;    // Will hold the unescaped version
     speed_mode_t mode = MODE_FAST; // Default
     int interval_us = 100;
+    int use_random = 0; // Send random data instead of message
 
     // Parse command line arguments
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-help") == 0 || strcmp(argv[i], "--help") == 0) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "-help") == 0 || strcmp(argv[i], "--help") == 0) {
             print_usage(argv[0]);
             return 0;
         } else if (strcmp(argv[i], "-trickle") == 0) {
@@ -203,9 +252,20 @@ int main(int argc, char** argv) {
                 return 1;
             }
             msg = argv[++i];
+        } else if (strcmp(argv[i], "-random") == 0) {
+            use_random = 1;
         } else {
             fprintf(stderr, "Unknown option: %s\n", argv[i]);
             print_usage(argv[0]);
+            return 1;
+        }
+    }
+
+    // Unescape the message string (convert \r\n to actual CR LF)
+    if (!use_random) {
+        msg_unescaped = unescape_string(msg);
+        if (!msg_unescaped) {
+            fprintf(stderr, "Error: failed to process message string\n");
             return 1;
         }
     }
@@ -216,22 +276,67 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // set fd to -1
-    for (int i = 0; i < total; i++) {
-        clients[i].fd = -1;
+    // Initialize clients and generate random data if requested
+    if (use_random) {
+        printf("Generating random data for %d clients...\n", total);
+        fflush(stdout);
     }
 
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    if (inet_pton(AF_INET, ip, &addr.sin_addr) <= 0) {
-        fprintf(stderr, "Invalid IP address: %s\n", ip);
+    for (int i = 0; i < total; i++) {
+        clients[i].fd = -1;
+        clients[i].random_data = NULL;
+        clients[i].data_size = 0;
+
+        if (use_random) {
+            // Generate random size between 0 and 8KB
+            clients[i].data_size = rand() % (8 * 1024 + 1);
+            if (clients[i].data_size > 0) {
+                clients[i].random_data = malloc(clients[i].data_size);
+                if (clients[i].random_data) {
+                    // Fill with random data
+                    for (size_t j = 0; j < clients[i].data_size; j++) {
+                        clients[i].random_data[j] = rand() % 256;
+                    }
+                } else {
+                    fprintf(stderr, "Warning: failed to allocate %zu bytes for client %d\n", clients[i].data_size, i);
+                    clients[i].data_size = 0;
+                }
+            }
+
+            // Progress update every 10% or every 100 clients
+            if ((i + 1) % 100 == 0 || (i + 1) % (total / 10) == 0 || i == total - 1) {
+                printf("  Generated data for %d/%d clients (%.1f%%)\r", i + 1, total, 100.0 * (i + 1) / total);
+                fflush(stdout);
+            }
+        }
+    }
+
+    if (use_random) {
+        printf("\n");
+    }
+
+    // Resolve hostname or IP address
+    struct addrinfo hints, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    char port_str[16];
+    snprintf(port_str, sizeof(port_str), "%d", port);
+
+    int ret = getaddrinfo(ip, port_str, &hints, &res);
+    if (ret != 0) {
+        fprintf(stderr, "Failed to resolve %s: %s\n", ip, gai_strerror(ret));
         free(clients);
         return 1;
     }
 
+    struct sockaddr_in addr;
+    memcpy(&addr, res->ai_addr, sizeof(addr));
+    freeaddrinfo(res);
+
     // Print configuration
-    const char* mode_names[] = {"SLOW", "NORMAL", "FAST", "VERY FAST", "INSANE", "BURST", "CUSTOM"};
+    const char* mode_names[] = {"TRICKLE", "SLOW", "NORMAL", "FAST", "VERY FAST", "INSANE", "BURST", "CUSTOM"};
     printf("=== Connection Stress Test ===\n");
     printf("Target:   %s:%d\n", ip, port);
     printf("Clients:  %d\n", total);
@@ -241,8 +346,17 @@ int main(int argc, char** argv) {
     } else {
         printf("Interval: %d microseconds (%.0f/sec)\n", interval_us, 1000000.0 / interval_us);
     }
-    printf("Message:  \"%s\"\n", msg);
+    if (use_random) {
+        size_t total_size = 0;
+        for (int i = 0; i < total; i++) {
+            total_size += clients[i].data_size;
+        }
+        printf("Data:     Random (0-8KB per client, total: %.2f KB)\n", total_size / 1024.0);
+    } else {
+        printf("Message:  \"%s\"\n", msg);
+    }
     printf("==============================\n\n");
+    printf("Starting connection phase...\n");
 
     long long start_time_us = get_time_us();
     long long last_connect_time_us = start_time_us;
@@ -398,10 +512,17 @@ int main(int argc, char** argv) {
                         clients[i].connected = 1;
                         connected_count++;
 
-                        // Send message (non-blocking, best effort)
-                        ssize_t s = send(clients[i].fd, msg, strlen(msg), MSG_DONTWAIT);
-                        if (s > 0) {
-                            sent_count++;
+                        // Send data (non-blocking, best effort)
+                        if (use_random && clients[i].random_data && clients[i].data_size > 0) {
+                            ssize_t s = send(clients[i].fd, clients[i].random_data, clients[i].data_size, MSG_DONTWAIT);
+                            if (s > 0) {
+                                sent_count++;
+                            }
+                        } else if (!use_random) {
+                            ssize_t s = send(clients[i].fd, msg_unescaped, strlen(msg_unescaped), MSG_DONTWAIT);
+                            if (s > 0) {
+                                sent_count++;
+                            }
                         }
 
                         // Progress update
@@ -443,15 +564,22 @@ int main(int argc, char** argv) {
     }
 
     // Keep connections open
-    printf("\nKeeping connections open for 2 seconds...\n");
-    sleep(2);
+    printf("\nKeeping connections open for 10 seconds...\n");
+    fflush(stdout);
+    sleep(10);
+    printf("Closing connections and cleaning up...\n");
+    fflush(stdout);
 
     // Cleanup
     for (int i = 0; i < total; i++) {
         if (clients[i].fd > 0)
             close(clients[i].fd);
+        if (clients[i].random_data)
+            free(clients[i].random_data);
     }
     free(clients);
+    if (msg_unescaped)
+        free(msg_unescaped);
 
     printf("Done!\n");
     return 0;

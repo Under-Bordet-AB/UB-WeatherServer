@@ -58,7 +58,7 @@ OBJ := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(SRC))
 # Dependency files
 DEP := $(OBJ:.o=.d)
 
-.PHONY: all debug release profile run run-release clean perf-record perf-report help
+.PHONY: all debug release profile run run-release clean perf-record perf-report stress stress-enhanced help
 
 # Default target - debug with ASAN
 all: debug
@@ -96,6 +96,16 @@ run: debug
 run-release: release
 	./$(BIN)
 
+stress: stress_test.c
+	@echo "Building stress test..."
+	@$(CC) -o stress stress_test.c -O2
+	@echo "✓ stress test built successfully"
+
+stress-enhanced: stress_test_enhanced.c
+	@echo "Building enhanced stress test..."
+	@$(CC) -o stress-enhanced stress_test_enhanced.c -O2
+	@echo "✓ enhanced stress test built successfully"
+
 perf-record: profile
 	@echo "========================================="
 	@echo "  Starting perf profiling session"
@@ -130,7 +140,7 @@ perf-report:
 
 clean:
 	@echo "Cleaning build artifacts..."
-	$(RM) -rf build $(BIN) server-profile perf.data perf.data.old
+	$(RM) -rf build $(BIN) server-profile stress stress-enhanced perf.data perf.data.old
 	@echo "✓ Clean complete"
 
 help:
@@ -147,6 +157,10 @@ help:
 	@echo "Run Targets:"
 	@echo "  make run          - Build and run debug version"
 	@echo "  make run-release  - Build and run release version"
+	@echo ""
+	@echo "Testing:"
+	@echo "  make stress          - Build basic stress test (outputs 'stress')"
+	@echo "  make stress-enhanced - Build enhanced REST API stress test"
 	@echo ""
 	@echo "Profiling Targets (Linux only):"
 	@echo "  make perf-record  - Start server with perf recording"
