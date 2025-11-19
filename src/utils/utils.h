@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <time.h>
 /**
  * Sleep for the given number of milliseconds.
@@ -33,4 +34,16 @@ static inline void utils_print_banner(const char* message) {
     printf("========================================\n");
     printf("[INFO] %s\n", message);
     printf("========================================\n");
+}
+
+/**
+ * Creates a directory if it doesn't exist.
+ * @param path The directory path to create
+ * @return 0 on success, -1 on failure
+ */
+static inline int create_folder(const char* path) {
+    if (mkdir(path, 0755) == 0 || errno == EEXIST) {
+        return 0;
+    }
+    return -1;
 }
