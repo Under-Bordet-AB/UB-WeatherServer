@@ -109,7 +109,9 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
             backend->backend_dispose = surprise_dispose;
             backend->binary_mode = 1;
         } else {
-            HTTPServerConnection_SendResponse(_Server->connection, 404, "Not Found\n", "text/plain");
+            // HTTPServerConnection_SendResponse(_Server->connection, 404, "Not Found\n", "text/plain");
+            HTTPServerConnection_SendResponse(_Server->connection, 404, (char*)query->Path, "text/plain");
+            printf("WeatherServerInstance: Unknown path requested: %s\n", query->Path);
             _Server->state = WeatherServerInstance_State_Dispose;
             break;
         }
