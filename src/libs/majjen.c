@@ -13,6 +13,7 @@ typedef struct mj_scheduler {
     mj_task* task_list[MAX_TASKS];
     mj_task** current_task; // double pointer, so we dont have to search array to remove task
     size_t task_count;
+    int stop_requested; // Flag to request scheduler shutdown
 } mj_scheduler;
 
 int mj_scheduler_run(mj_scheduler* scheduler) {
@@ -23,11 +24,7 @@ int mj_scheduler_run(mj_scheduler* scheduler) {
     mj_task** current_task_slot = NULL;
     mj_task* current_task = NULL;
 
-    while (scheduler->task_count > 0) {
-        if (scheduler->task_count == 1) {
-            printf("Slowing down loop to wait for clients...\n");
-            utils_sleep_ms(1000);
-        }
+    while (scheduler->task_count > 0 && !scheduler->stop_requested) {
         for (int i = 0; i < MAX_TASKS; i++) {
             current_task_slot = &scheduler->task_list[i];
             current_task = *current_task_slot;
@@ -63,6 +60,7 @@ mj_scheduler* mj_scheduler_create(void) {
 
     scheduler->current_task = NULL;
     scheduler->task_count = 0;
+    scheduler->stop_requested = 0;
 
     return scheduler;
 }
@@ -145,4 +143,37 @@ int mj_scheduler_destroy(mj_scheduler** scheduler) {
     *scheduler = NULL;
 
     return 0;
+}
+
+void mj_scheduler_stop(mj_scheduler* scheduler) {
+    if (scheduler != NULL) {
+        scheduler->stop_requested = 1;
+    }
+}
+
+void mj_scheduler_cleanup_all_tasks(mj_scheduler* scheduler) {
+    if (scheduler == NULL) {
+        return;
+    }
+
+    // Clean up all remaining tasks
+    for (int i = 0; i < MAX_TASKS; i++) {
+        mj_task* task = scheduler->task_list[i];
+        if (task == NULL) {
+            continue;
+        }
+
+        // Call cleanup if available
+        if (task->cleanup && task->ctx) {
+            task->cleanup(scheduler, task->ctx);
+        }
+
+        // Free context and task
+        free(task->ctx);
+        free(task);
+
+        scheduler->task_list[i] = NULL;
+    }
+
+    scheduler->task_count = 0;
 }

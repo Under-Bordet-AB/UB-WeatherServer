@@ -1,6 +1,7 @@
 #include "w_client.h"
 #include "majjen.h"
 #include "string.h"
+#include "utils.h"
 #include "w_server.h"
 #include <errno.h>
 #include <stdio.h>
@@ -17,11 +18,50 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 
     switch (client->state) {
     case W_CLIENT_READING:
-        printf("CLIENT %d: connected\n", client->fd);
-        client->state = W_CLIENT_PARSING;
+        // Try to read data from the client socket
+        ssize_t bytes = recv(client->fd, client->read_buffer + client->bytes_read,
+                             sizeof(client->read_buffer) - client->bytes_read - 1, 0);
+
+        if (bytes < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // Non-blocking socket, no data available yet
+                return;
+            }
+            // Read error
+            fprintf(stderr, "[Client %d] Read error: %s\n", client->fd, strerror(errno));
+            client->error_code = W_CLIENT_ERROR_READ;
+            client->state = W_CLIENT_DONE;
+            return;
+        }
+
+        if (bytes == 0) {
+            // Client closed connection (FIN received)
+            fprintf(stderr, "[Client %d] Connection closed by client (bytes_read so far: %zu)\n", client->fd,
+                    client->bytes_read);
+            client->state = W_CLIENT_DONE;
+            return;
+        }
+
+        fprintf(stderr, "[Client %d] Received %zd bytes\n", client->fd, bytes);
+
+        // Update bytes read and null-terminate
+        client->bytes_read += bytes;
+        client->read_buffer[client->bytes_read] = '\0';
+
+        // Check if we have a complete HTTP request (ends with \r\n\r\n)
+        if (strstr(client->read_buffer, "\r\n\r\n") != NULL) {
+            client->state = W_CLIENT_PARSING;
+        } else if (client->bytes_read >= sizeof(client->read_buffer) - 1) {
+            // Buffer full but no complete request
+            fprintf(stderr, "[Client %d] Request too large\n", client->fd);
+            client->error_code = W_CLIENT_ERROR_REQUEST_TOO_LARGE;
+            client->state = W_CLIENT_DONE;
+        }
         break;
 
     case W_CLIENT_PARSING:
+        fprintf(stderr, "[Client %d] Parsing message:\n%s", client->fd, client->read_buffer);
+
         client->state = W_CLIENT_PROCESSING;
         break;
 
@@ -34,13 +74,12 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         break;
 
     case W_CLIENT_DONE:
-        printf("CLIENT %d: done\n", client->fd);
-        mj_scheduler_task_remove_current(scheduler); // This also invokes w_client_cleanup()
+        mj_scheduler_task_remove_current(scheduler); /* invokes w_client_cleanup() */
         break;
 
-    default:
-        fprintf(stderr, "[Client %d] Unknown state %d! Forcing cleanup.\n", client->fd, client->state);
-        client->state = W_CLIENT_DONE; // force cleanup
+    default: /* defensive path */
+        fprintf(stderr, "[Client %d] UNKNOWN STATE %d! Forcing cleanup.\n", client->fd, client->state);
+        client->state = W_CLIENT_DONE; /* force a cleanup cycle */
         break;
     }
 }

@@ -1,7 +1,28 @@
 #include "majjen.h"
 #include "w_server.h"
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+/*
+// Increase fd limit for this process
+#include <sys/resource.h>
+struct rlimit rl = { .rlim_cur = 1000000, .rlim_max = 2000000 };
+setrlimit(RLIMIT_NOFILE, &rl);
+ */
+
+// Global flag for signal handler
+static volatile sig_atomic_t shutdown_requested = 0;
+static mj_scheduler* g_scheduler = NULL;
+
+// Signal handler for SIGINT (Ctrl+C)
+static void sigint_handler(int signum) {
+    (void)signum; // Unused parameter
+    shutdown_requested = 1;
+    if (g_scheduler != NULL) {
+        mj_scheduler_stop(g_scheduler);
+    }
+}
 
 int main(int argc, char* argv[]) {
     ////////////////////////////////////////////
@@ -38,6 +59,15 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Set up signal handler
+    g_scheduler = scheduler;
+    struct sigaction sa;
+    sa.sa_handler = sigint_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+
     // Create the weather server
     w_server* server = w_server_create(&config);
     if (server == NULL) {
@@ -71,7 +101,18 @@ int main(int argc, char* argv[]) {
     //////// PROGRAM ENDS HERE
 
     // Cleanup
-    printf("Shutting down server...\n");
+    if (shutdown_requested) {
+        printf("\nShutdown signal received. Cleaning up...\n");
+    } else {
+        printf("Shutting down server...\n");
+    }
+
+    // Clean up all remaining tasks in the scheduler
+    // Note: The listening task's ctx points to the server struct,
+    // so it will be freed during this call
+    mj_scheduler_cleanup_all_tasks(scheduler);
+
+    g_scheduler = NULL;
     mj_scheduler_destroy(&scheduler);
 
     printf("Server stopped cleanly.\n");

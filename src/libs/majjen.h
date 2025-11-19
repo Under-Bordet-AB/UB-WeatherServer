@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define MAX_TASKS 5
+#define MAX_TASKS 8192
 
 typedef struct mj_scheduler mj_scheduler;
 
@@ -30,5 +30,11 @@ int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task* task);
 
 // Only usable from within a task callback, removes the current task.
 int mj_scheduler_task_remove_current(mj_scheduler* scheduler);
+
+// Request the scheduler to stop running
+void mj_scheduler_stop(mj_scheduler* scheduler);
+
+// Cleanup all remaining tasks (call before destroy)
+void mj_scheduler_cleanup_all_tasks(mj_scheduler* scheduler);
 
 size_t mj_scheduler_update_highest_fd(mj_scheduler* scheduler, int fd);

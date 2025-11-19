@@ -6,7 +6,7 @@
 
    The server does no work. Its just starts the listening task and holds global data
    ------------------------------------------------------------------------------------- */
-
+#define _GNU_SOURCE /* expose accept4() and other GNU extensions */
 #include "w_server.h"
 #include "w_client.h"
 #include <errno.h>
@@ -28,7 +28,7 @@
 void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
     w_server* server = (w_server*)ctx;
     int listen_fd = server->listen_fd;
-    const int MAX_ACCEPTS_PER_TICK = 128; // TODO magic number
+    const int MAX_ACCEPTS_PER_TICK = 16; // TODO magic number
     int accepts_this_tick = 0;
     int client_fd = -1;
 
@@ -36,11 +36,10 @@ void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
     struct sockaddr_storage client_addr;
     socklen_t addr_len = sizeof(client_addr);
 
-    // Accept up to N clients per tick to balance responsiveness
+    // Accept more than one client per tick
     while (accepts_this_tick < MAX_ACCEPTS_PER_TICK) {
-
-        client_fd = accept(listen_fd, (struct sockaddr*)&client_addr, &addr_len);
-
+        // accept4 gets 4 clients at a time. Also set FDs to non blocking
+        client_fd = accept4(listen_fd, (struct sockaddr*)&client_addr, &addr_len, SOCK_NONBLOCK);
         if (client_fd < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 // No clients waiting, just return
@@ -48,14 +47,6 @@ void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
             }
             fprintf(stderr, "Init of client failed: W_SERVER_ERROR_SOCKET_LISTEN\n");
             return;
-        }
-
-        // Got a client! Make it non-blocking
-        int flags = fcntl(client_fd, F_GETFL, 0);
-        if (flags == -1 || fcntl(client_fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-            fprintf(stderr, "Failed to set client socket non-blocking\n");
-            close(client_fd);
-            continue;
         }
 
         // Create client task
@@ -157,6 +148,10 @@ w_server* w_server_create(w_server_config* config) {
             continue;
         }
 
+        // Set SO_REUSEADDR before bind() to allow quick port reuse
+        int opt = 1;
+        setsockopt(server->listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
         if (bind(server->listen_fd, p->ai_addr, p->ai_addrlen) == -1) {
             close(server->listen_fd);
             server->listen_fd = -1;
@@ -178,11 +173,8 @@ w_server* w_server_create(w_server_config* config) {
     // Set non-blocking
     int flags = fcntl(server->listen_fd, F_GETFL, 0);
     fcntl(server->listen_fd, F_SETFL, flags | O_NONBLOCK);
-    // Quick port reuse after program exit
-    int opt = 1;
-    setsockopt(server->listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     // Mark socket as listening in the OS
-    if (listen(server->listen_fd, SOMAXCONN) < 0) {
+    if (listen(server->listen_fd, 4096) < 0) { // SOMAXCONN
         perror("listen");
         free(server);
         return NULL;
