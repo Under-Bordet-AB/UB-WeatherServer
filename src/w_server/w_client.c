@@ -8,6 +8,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#define CLIENT_TIMEOUT_SEC 10
+
 // State machine for clients
 void w_client_run(mj_scheduler* scheduler, void* ctx) {
     if (scheduler == NULL || ctx == NULL) {
@@ -18,7 +20,19 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 
     switch (client->state) {
     case W_CLIENT_READING:
-        // Try to read data from the client socket
+        // Check for timeout directly (inline, no function call)
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        time_t elapsed_sec = now.tv_sec - client->connect_time.tv_sec;
+        if (elapsed_sec > CLIENT_TIMEOUT_SEC ||
+            (elapsed_sec == CLIENT_TIMEOUT_SEC && now.tv_nsec >= client->connect_time.tv_nsec)) {
+            fprintf(stderr, "[Client %d] Connection timed out after %d seconds\n", client->fd, CLIENT_TIMEOUT_SEC);
+            client->error_code = W_CLIENT_ERROR_TIMEOUT;
+            client->state = W_CLIENT_DONE;
+            return;
+        }
+
+        // Try to read data from the client socket (already set as non blocking)
         ssize_t bytes = recv(client->fd, client->read_buffer + client->bytes_read,
                              sizeof(client->read_buffer) - client->bytes_read - 1, 0);
 
@@ -34,8 +48,8 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             return;
         }
 
+        // Client closed connection (FIN received)
         if (bytes == 0) {
-            // Client closed connection (FIN received)
             fprintf(stderr, "[Client %d] Connection closed by client (bytes_read so far: %zu)\n", client->fd,
                     client->bytes_read);
             client->state = W_CLIENT_DONE;
@@ -49,6 +63,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         client->read_buffer[client->bytes_read] = '\0';
 
         // Check if we have a complete HTTP request (ends with \r\n\r\n)
+        // NOTE, this check is "message framing" so it does not belong in parsing
         if (strstr(client->read_buffer, "\r\n\r\n") != NULL) {
             client->state = W_CLIENT_PARSING;
         } else if (client->bytes_read >= sizeof(client->read_buffer) - 1) {
