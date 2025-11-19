@@ -23,7 +23,7 @@ CFLAGS_RELEASE := $(CFLAGS_COMMON) -O3 -march=native -DNDEBUG \
 # Profile flags (optimized with frame pointers for perf)
 CFLAGS_PROFILE := $(CFLAGS_COMMON) -O2 -g -fno-omit-frame-pointer -DNDEBUG
 
-LFLAGS_COMMON :=
+LFLAGS_COMMON := -lm
 LFLAGS_DEBUG := -fsanitize=address
 LFLAGS_RELEASE := -flto
 LFLAGS_PROFILE :=
@@ -34,17 +34,17 @@ BUILD_MODE ?= debug
 # Set flags based on build mode
 ifeq ($(BUILD_MODE),release)
     CFLAGS := $(CFLAGS_RELEASE)
-    LFLAGS := $(LFLAGS_RELEASE)
+    LFLAGS := $(LFLAGS_COMMON) $(LFLAGS_RELEASE)
     BUILD_DIR := build/release
     BIN := server
 else ifeq ($(BUILD_MODE),profile)
     CFLAGS := $(CFLAGS_PROFILE)
-    LFLAGS := $(LFLAGS_PROFILE)
+    LFLAGS := $(LFLAGS_COMMON) $(LFLAGS_PROFILE)
     BUILD_DIR := build/profile
     BIN := server-profile
 else
     CFLAGS := $(CFLAGS_DEBUG)
-    LFLAGS := $(LFLAGS_DEBUG)
+    LFLAGS := $(LFLAGS_COMMON) $(LFLAGS_DEBUG)
     BUILD_DIR := build/debug
     BIN := server
 endif
