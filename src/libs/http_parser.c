@@ -5,73 +5,73 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Extract substring from start to end pointers
 char* substr(const char* start, const char* end) {
-    if (!start || !end || end < start)
+    if (!start || !end || end < start) {
         return NULL;
+    }
     size_t len = end - start;
     char* out = malloc(len + 1);
-    if (!out)
+    if (!out) {
         return NULL;
+    }
     memcpy(out, start, len);
     out[len] = '\0';
     return out;
 }
 
-/*
-char* strfind(const char* str, const char* match) {
-    size_t matchLen = strlen(match);
-    if (matchLen == 0) return NULL;
-    for (; *str; str++) {
-        if (strncmp(str, match, matchLen) == 0)
-            return (char*)str;
-    }
-    return NULL;
-}
-*/
-
-#define strfind strstr
-
-RequestMethod Enum_Method(const char* method) {
-    if (!method)
+// Convert string to request_method enum
+request_method Enum_Method(const char* method) {
+    if (!method) {
         return REQUEST_METHOD_UNKNOWN;
+    }
 
-    if (strcmp(method, "GET") == 0)
+    if (strcmp(method, "GET") == 0) {
         return REQUEST_METHOD_GET;
-    if (strcmp(method, "POST") == 0)
+    }
+    if (strcmp(method, "POST") == 0) {
         return REQUEST_METHOD_POST;
+    }
 
     return REQUEST_METHOD_UNKNOWN;
 }
 
-ProtocolVersion Enum_Protocol(const char* protocol) {
-    if (!protocol)
+// Convert string like "HTTP/1.1" to protocol_version enum
+protocol_version Enum_Protocol(const char* protocol) {
+    if (!protocol) {
         return PROTOCOL_VERSION_UNKNOWN;
-
-    if (strcmp(protocol, "HTTP/0.9") == 0)
+    }
+    if (strcmp(protocol, "HTTP/0.9") == 0) {
         return PROTOCOL_VERSION_HTTP_0_9;
-    if (strcmp(protocol, "HTTP/1.0") == 0)
+    }
+    if (strcmp(protocol, "HTTP/1.0") == 0) {
         return PROTOCOL_VERSION_HTTP_1_0;
-    if (strcmp(protocol, "HTTP/1.1") == 0)
+    }
+    if (strcmp(protocol, "HTTP/1.1") == 0) {
         return PROTOCOL_VERSION_HTTP_1_1;
-    if (strcmp(protocol, "HTTP/2.0") == 0)
+    }
+    if (strcmp(protocol, "HTTP/2.0") == 0) {
         return PROTOCOL_VERSION_HTTP_2_0;
-    if (strcmp(protocol, "HTTP/3.0") == 0)
+    }
+    if (strcmp(protocol, "HTTP/3.0") == 0) {
         return PROTOCOL_VERSION_HTTP_3_0;
+    }
 
     return PROTOCOL_VERSION_UNKNOWN;
 }
 
+// Callback for LinkedList_dispose - frees header name, value, and struct itself
 void free_header(void* context) {
     HTTPHeader* hdr = (HTTPHeader*)context;
-    free((void*)hdr->Name);
-    free((void*)hdr->Value);
+    free((void*)hdr->name);
+    free((void*)hdr->value);
     // BUG FIX (2025-11-19): Original code was missing free(hdr), causing memory leak
     // of HTTPHeader structs (16 bytes each). LinkedList_dispose calls this callback
     // expecting it to free the entire item, not just internal fields.
     free(hdr);
 }
 
-const char* RequestMethod_tostring(RequestMethod method) {
+const char* request_method_tostring(request_method method) {
     switch (method) {
     case REQUEST_METHOD_GET:
         return "GET";
@@ -82,7 +82,8 @@ const char* RequestMethod_tostring(RequestMethod method) {
     }
 }
 
-const char* CommonResponseMessages(ResponseCode code) {
+// Map response code number to human-readable message
+const char* CommonResponseMessages(response_code code) {
     switch (code) {
     case 200:
         return "OK";
@@ -113,6 +114,7 @@ const char* CommonResponseMessages(ResponseCode code) {
     }
 }
 
+// Parse string to integer, returns -1 on failure
 int parseInt(const char* str) {
     char* end;
     long val = strtol(str, &end, 10);
@@ -122,85 +124,93 @@ int parseInt(const char* str) {
     return (int)val;
 }
 
-HTTPRequest* HTTPRequest_new(RequestMethod method, const char* URL) {
-    HTTPRequest* request = calloc(1, sizeof(HTTPRequest));
+// Create new HTTP request - caller must dispose with http_request_dispose()
+http_request* http_request_new(request_method method, const char* url) {
+    http_request* request = calloc(1, sizeof(http_request));
     request->method = method;
-    request->URL = strdup(URL);
+    request->url = strdup(url); // Allocate copy
     request->headers = LinkedList_create();
-
     return request;
 }
 
-int HTTPRequest_add_header(HTTPRequest* request, const char* name, const char* value) {
-    if (request->headers == NULL)
+int http_request_add_header(http_request* request, const char* name, const char* value) {
+    if (request->headers == NULL) {
         return 0;
+    }
     HTTPHeader* header = calloc(1, sizeof(HTTPHeader));
-    if (header == NULL)
+    if (header == NULL) {
         return 0;
-    header->Name = strdup(name);
-    if (header->Name == NULL)
+    }
+    header->name = strdup(name);
+    if (header->name == NULL) {
         return 0;
-    header->Value = strdup(value);
-    if (header->Value == NULL)
+    }
+    header->value = strdup(value);
+    if (header->value == NULL) {
         return 0;
+    }
     return LinkedList_append(request->headers, header);
 }
 
-const char* HTTPRequest_tostring(HTTPRequest* request) {
-    const char* method = RequestMethod_tostring(request->method);
-    int messageSize = 2 + strlen(method) + strlen(HTTP_VERSION) + strlen(request->URL);
+// Serialize request to string - caller must free() returned memory
+const char* http_request_tostring(http_request* request) {
+    const char* method = request_method_tostring(request->method);
+    // Calculate total size needed
+    int message_size = 2 + strlen(method) + strlen(HTTP_VERSION) + strlen(request->url);
     if (request->headers != NULL) {
         LinkedList_foreach(request->headers, node) {
             HTTPHeader* hdr = (HTTPHeader*)node->item;
-            messageSize += 4 + strlen(hdr->Name) + strlen(hdr->Value);
+            message_size += 4 + strlen(hdr->name) + strlen(hdr->value); // "\r\nName: Value"
         }
     }
-    messageSize += 4; // + strlen(request->body);
-    char* status = malloc(messageSize);
-    // write first line
-    int curPos = snprintf(status, messageSize, "%s %s %s", method, request->URL, HTTP_VERSION);
-    // write headers
+    message_size += 4; // Final "\r\n\r\n"
+    char* status = malloc(message_size);
+    // Write status line: "GET /path HTTP/1.1"
+    int cur_pos = snprintf(status, message_size, "%s %s %s", method, request->url, HTTP_VERSION);
+    // Write each header
     LinkedList_foreach(request->headers, node) {
         HTTPHeader* hdr = (HTTPHeader*)node->item;
-        int written = snprintf(&status[curPos], messageSize - curPos, "\r\n%s: %s", hdr->Name, hdr->Value);
-        curPos += written;
+        int written = snprintf(&status[cur_pos], message_size - cur_pos, "\r\n%s: %s", hdr->name, hdr->value);
+        cur_pos += written;
     }
-    // write body
-    snprintf(&status[curPos], messageSize - curPos, "\r\n\r\n");
+    // Terminate with blank line
+    snprintf(&status[cur_pos], message_size - cur_pos, "\r\n\r\n");
     return status;
 }
 
 // Parse a request from Client -> Server
-HTTPRequest* HTTPRequest_fromstring(const char* message) {
-    HTTPRequest* request = calloc(1, sizeof(HTTPRequest));
-    request->reason = INVALID_REASON_MALFORMED;
+http_request* http_request_fromstring(const char* message) {
+    http_request* request = calloc(1, sizeof(http_request));
+    request->reason = INVALID_REASON_MALFORMED; // Default to error, clear on success
     request->headers = LinkedList_create();
 
-    int state = 0;
+    int state = 0; // 0=parsing status line, 1=parsing headers
 
     const char* start = message;
-    int finalLoop = 0;
-    while (start && *start && !finalLoop) {
-        // Find end of line
+    int final_loop = 0;
+    while (start && *start && !final_loop) {
+        // Find end of current line
         const char* end = strstr(start, "\r\n");
         if (!end) {
-            // No separator found, read to end of message and do not loop again
-            finalLoop = 1;
+            // No \r\n found, process remaining text and exit
+            final_loop = 1;
             end = message + strlen(message);
         }
-        // Check length with pointer math
+        // Calculate line length
         int length = end - start;
         if (length < 2) {
-            // printf("Reached end of request.\n\n");
+            // Empty or too short, we're done parsing headers
             break;
         }
-        // Allocate memory for current line
+        // Extract current line
         char* current_line = substr(start, end);
-        if (!current_line) // horrible problem
+        if (!current_line) { // Out of memory
             break;
+        }
 
         if (state == 0) {
-            // Count spaces in request, should match 2
+            // Parse status line: "GET /path HTTP/1.1"
+            // Should have exactly 2 spaces
             int count = 0;
             char* scan = current_line;
             for (; *scan; scan++) {
@@ -214,9 +224,11 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
                 break;
             }
 
+            // Find space positions to split "METHOD URL PROTOCOL"
             const char* space1 = strchr(current_line, ' ');
             const char* space2 = strchr(space1 + 1, ' ');
 
+            // Check URL length
             if (space2 - (space1 + 1) >= MAX_URL_LEN) {
                 printf("INVALID: Request URL is too long\n\n");
                 request->reason = INVALID_REASON_URL_TOO_LONG;
@@ -224,6 +236,7 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
                 break;
             }
 
+            // Extract method, path, protocol
             char* method = substr(current_line, space1);
             if (!method) {
                 free(current_line);
@@ -243,140 +256,153 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
                 break;
             }
 
+            // Convert strings to enums and store
             request->method = Enum_Method(method);
             request->protocol = Enum_Protocol(protocol);
-            request->URL = path;
+            request->url = path; // Keep path, free others
 
             free(method);
             free(protocol);
 
             request->valid = 1;
             request->reason = INVALID_REASON_NOT_INVALID;
-            state = 1; // jump to header parsing
+            state = 1; // Switch to header parsing
         } else {
-            const char* sep = strfind(current_line, ": ");
+            // Parse header line: "Name: Value"
+            const char* sep = strstr(current_line, ": ");
             if (!sep) {
                 printf("INVALID: Header is malformed.\n\n");
                 free(current_line);
                 break;
             }
 
+            // Extract name and value
             char* name = substr(current_line, sep);
             if (!name) {
                 free(current_line);
                 break;
             }
-            char* value = substr(sep + 2, current_line + length);
+            char* value = substr(sep + 2, current_line + length); // +2 to skip ": "
             if (!value) {
                 free(current_line);
                 break;
             }
 
+            // Create header and add to list
             HTTPHeader* header = calloc(1, sizeof(HTTPHeader));
             if (header != NULL) {
-                header->Name = name;
-                header->Value = value;
+                header->name = name;
+                header->value = value;
                 LinkedList_append(request->headers, header);
             }
         }
 
-        start = end + 2;
+        // Move to next line
+        start = end + 2; // Skip "\r\n"
         free(current_line);
     }
 
     return request;
 }
 
-// Properly dispose a HTTPRequest struct
-void HTTPRequest_Dispose(HTTPRequest** req) {
+// Free request and all allocated memory, sets pointer to NULL
+void http_request_dispose(http_request** req) {
     if (req && *req) {
-        HTTPRequest* request = *req;
-        free((void*)request->URL);
+        http_request* request = *req;
+        free((void*)request->url);
         LinkedList_dispose(&request->headers, free_header);
         free(request);
         *req = NULL;
     }
 }
 
-HTTPResponse* HTTPResponse_new(ResponseCode code, const char* body) {
-    HTTPResponse* response = calloc(1, sizeof(HTTPResponse));
-    response->responseCode = code;
-    response->body = strdup(body);
+// Create new HTTP response - caller must dispose with http_response_dispose()
+http_response* http_response_new(response_code code, const char* body) {
+    http_response* response = calloc(1, sizeof(http_response));
+    response->code = code;
+    response->body = strdup(body); // Allocate copy
     response->headers = LinkedList_create();
 
     return response;
 }
 
-int HTTPResponse_add_header(HTTPResponse* response, const char* name, const char* value) {
-    if (response->headers == NULL)
+int http_response_add_header(http_response* response, const char* name, const char* value) {
+    if (response->headers == NULL) {
         return 0;
+    }
     HTTPHeader* header = calloc(1, sizeof(HTTPHeader));
-    if (header == NULL)
+    if (header == NULL) {
         return 0;
-    header->Name = strdup(name);
-    if (header->Name == NULL)
+    }
+    header->name = strdup(name);
+    if (header->name == NULL) {
         return 0;
-    header->Value = strdup(value);
-    if (header->Value == NULL)
+    }
+    header->value = strdup(value);
+    if (header->value == NULL) {
         return 0;
+    }
     return LinkedList_append(response->headers, header);
 }
 
-const char* HTTPResponse_tostring(HTTPResponse* response) {
-    const char* message = CommonResponseMessages(response->responseCode);
-    // Count size of everything before allocating
+// Serialize response to string - caller must free() returned memory
+const char* http_response_tostring(http_response* response) {
+    const char* message = CommonResponseMessages(response->code);
+    // Calculate total size needed
     // 5 = 2 spaces + response code (3 digits) + null term
-    int messageSize = 6 + strlen(HTTP_VERSION) + strlen(message);
+    int message_size = 6 + strlen(HTTP_VERSION) + strlen(message);
     if (response->headers != NULL) {
         LinkedList_foreach(response->headers, node) {
             HTTPHeader* hdr = (HTTPHeader*)node->item;
-            messageSize += 4 + strlen(hdr->Name) + strlen(hdr->Value); // 4 = \r\n and symbols between name & value
+            message_size += 4 + strlen(hdr->name) + strlen(hdr->value); // "\r\nName: Value"
         }
     }
-    messageSize += 4 + strlen(response->body); // 4 = \r\n\r\n
-    // printf("We have to allocate %i bytes.\n",messageSize);
-    char* status = malloc(messageSize);
-    // write first line
-    int curPos = snprintf(status, messageSize, "%s %d %s", HTTP_VERSION, response->responseCode, message);
-    // write headers
+    message_size += 4 + strlen(response->body); // Final "\r\n\r\n" + body
+    char* status = malloc(message_size);
+    // Write status line: "HTTP/1.1 200 OK"
+    int cur_pos = snprintf(status, message_size, "%s %d %s", HTTP_VERSION, response->code, message);
+    // Write each header
     LinkedList_foreach(response->headers, node) {
         HTTPHeader* hdr = (HTTPHeader*)node->item;
-        int written = snprintf(&status[curPos], messageSize - curPos, "\r\n%s: %s", hdr->Name, hdr->Value);
-        curPos += written;
+        int written = snprintf(&status[cur_pos], message_size - cur_pos, "\r\n%s: %s", hdr->name, hdr->value);
+        cur_pos += written;
     }
-    // write body
-    snprintf(&status[curPos], messageSize - curPos, "\r\n\r\n%s", response->body);
+    // Write blank line and body
+    snprintf(&status[cur_pos], message_size - cur_pos, "\r\n\r\n%s", response->body);
     return status;
 }
 
 // Parse a response from Server -> Client
-HTTPResponse* HTTPResponse_fromstring(const char* message) {
-    HTTPResponse* response = calloc(1, sizeof(HTTPResponse));
-    response->reason = INVALID_REASON_MALFORMED;
+http_response* http_response_fromstring(const char* message) {
+    http_response* response = calloc(1, sizeof(http_response));
+    response->reason = INVALID_REASON_MALFORMED; // Default to error
     response->headers = LinkedList_create();
 
-    int messageLen = strlen(message);
-    int state = 0;
+    int message_len = strlen(message);
+    int state = 0; // 0=parsing status line, 1=parsing headers
 
     const char* start = message;
-    int finalLoop = 0;
-    while (start && *start && !finalLoop) {
+    int final_loop = 0;
+    while (start && *start && !final_loop) {
         const char* end = strstr(start, "\r\n");
         if (!end) {
-            finalLoop = 1;
-            end = message + messageLen;
+            final_loop = 1;
+            end = message + message_len;
         }
         int length = end - start;
         if (length < 2) {
-            // printf("Reached end of response.\n");
-            response->body = substr(start + 2, message + messageLen);
+            // Blank line signals end of headers, rest is body
+            response->body = substr(start + 2, message + message_len);
             break;
         }
         char* current_line = substr(start, end);
-        if (!current_line) // horrible problem
+        if (!current_line) { // Out of memory
             break;
+        }
 
         if (state == 0) {
+            // Parse status line: "HTTP/1.1 200 OK"
+            // Should have exactly 2 spaces
             int count = 0;
             char* scan = current_line;
             for (; *scan; scan++) {
@@ -390,9 +416,11 @@ HTTPResponse* HTTPResponse_fromstring(const char* message) {
                 break;
             }
 
+            // Find space positions to split "PROTOCOL CODE MESSAGE"
             const char* space1 = strchr(current_line, ' ');
             const char* space2 = strchr(space1 + 1, ' ');
 
+            // Extract protocol and code
             char* protocol = substr(current_line, space1);
             if (!protocol) {
                 free(current_line);
@@ -406,13 +434,14 @@ HTTPResponse* HTTPResponse_fromstring(const char* message) {
                 break;
             }
 
-            int codeAsInteger = parseInt(code);
-            if (codeAsInteger == -1) {
+            // Convert code string to integer
+            int code_as_integer = parseInt(code);
+            if (code_as_integer == -1) {
                 printf("INVALID: Non-numeric response code.\n\n");
                 free(current_line);
                 break;
             }
-            response->responseCode = codeAsInteger;
+            response->code = code_as_integer;
             response->protocol = Enum_Protocol(protocol);
 
             free(code);
@@ -420,44 +449,49 @@ HTTPResponse* HTTPResponse_fromstring(const char* message) {
 
             response->valid = 1;
             response->reason = INVALID_REASON_NOT_INVALID;
-            state = 1;
+            state = 1; // Switch to header parsing
         } else {
-            const char* sep = strfind(current_line, ": ");
+            // Parse header line: "Name: Value"
+            const char* sep = strstr(current_line, ": ");
             if (!sep) {
                 printf("INVALID: Header is malformed.\n\n");
                 free(current_line);
                 break;
             }
 
+            // Extract name and value
             char* name = substr(current_line, sep);
             if (!name) {
                 free(current_line);
                 break;
             }
-            char* value = substr(sep + 2, current_line + length);
+            char* value = substr(sep + 2, current_line + length); // +2 to skip ": "
             if (!value) {
                 free(current_line);
                 break;
             }
 
+            // Create header and add to list
             HTTPHeader* header = calloc(1, sizeof(HTTPHeader));
             if (header != NULL) {
-                header->Name = name;
-                header->Value = value;
+                header->name = name;
+                header->value = value;
                 LinkedList_append(response->headers, header);
             }
         }
 
-        start = end + 2;
+        // Move to next line
+        start = end + 2; // Skip "\r\n"
         free(current_line);
     }
 
     return response;
 }
 
-void HTTPResponse_Dispose(HTTPResponse** resp) {
+// Free response and all allocated memory, sets pointer to NULL
+void http_response_dispose(http_response** resp) {
     if (resp && *resp) {
-        HTTPResponse* response = *resp;
+        http_response* response = *resp;
         free((void*)response->body);
         LinkedList_dispose(&response->headers, free_header);
         free(response);

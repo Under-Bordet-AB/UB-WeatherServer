@@ -80,14 +80,14 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         fprintf(stderr, "[Client %d] Parsing message:\n%s", client->fd, client->read_buffer);
 
         // Parse the complete HTTP request
-        HTTPRequest* parsed = HTTPRequest_fromstring(client->read_buffer);
+        http_request* parsed = http_request_fromstring(client->read_buffer);
 
         if (!parsed || !parsed->valid) {
             // Parse error - send 400 Bad Request
             fprintf(stderr, "[Client %d] Parse error: %d\n", client->fd,
                     parsed ? parsed->reason : INVALID_REASON_UNKNOWN);
             if (parsed)
-                HTTPRequest_Dispose(&parsed);
+                http_request_dispose(&parsed);
             client->error_code = W_CLIENT_ERROR_MALFORMED_REQUEST;
             client->state = W_CLIENT_DONE;
             return;
@@ -101,16 +101,16 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         fprintf(stderr, "[Client %d] Raw Input (%zu bytes):\n---\n%s\n---\n", client->fd, client->bytes_read,
                 client->read_buffer);
         fprintf(stderr, "[Client %d] Parsed Request:\n", client->fd);
-        fprintf(stderr, "[Client %d]   Method: %s\n", client->fd, RequestMethod_tostring(parsed->method));
+        fprintf(stderr, "[Client %d]   Method: %s\n", client->fd, request_method_tostring(parsed->method));
         fprintf(stderr, "[Client %d]   Protocol: HTTP/%d.%d\n", client->fd, (parsed->protocol / 10),
                 (parsed->protocol % 10));
-        fprintf(stderr, "[Client %d]   URL: %s\n", client->fd, parsed->URL);
+        fprintf(stderr, "[Client %d]   URL: %s\n", client->fd, parsed->url);
         // Iterate over headers using LinkedList_foreach macro
         if (parsed->headers && parsed->headers->size > 0) {
             fprintf(stderr, "[Client %d]   Headers (%zu):\n", client->fd, parsed->headers->size);
             LinkedList_foreach(parsed->headers, node) {
                 HTTPHeader* hdr = (HTTPHeader*)node->item;
-                fprintf(stderr, "[Client %d]     %s: %s\n", client->fd, hdr->Name, hdr->Value);
+                fprintf(stderr, "[Client %d]     %s: %s\n", client->fd, hdr->name, hdr->value);
             }
         } else {
             fprintf(stderr, "[Client %d]   Headers: (none)\n", client->fd);
@@ -152,8 +152,8 @@ void w_client_cleanup(mj_scheduler* scheduler, void* ctx) {
 
     // Free parsed HTTP request
     if (client->parsed_request) {
-        HTTPRequest* req = (HTTPRequest*)client->parsed_request;
-        HTTPRequest_Dispose(&req);
+        http_request* req = (http_request*)client->parsed_request;
+        http_request_dispose(&req);
         client->parsed_request = NULL;
     }
 
