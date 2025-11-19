@@ -1,5 +1,5 @@
 #include "w_client.h"
-#include "HTTPParser.h"
+#include "http_parser.h"
 #include "majjen.h"
 #include "string.h"
 #include "utils.h"
@@ -84,7 +84,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 
         if (!parsed || !parsed->valid) {
             // Parse error - send 400 Bad Request
-            fprintf(stderr, "[Client %d] Parse error: %d\n", client->fd, parsed ? parsed->reason : Unknown);
+            fprintf(stderr, "[Client %d] Parse error: %d\n", client->fd, parsed ? parsed->reason : INVALID_REASON_UNKNOWN);
             if (parsed)
                 HTTPRequest_Dispose(&parsed);
             client->error_code = W_CLIENT_ERROR_MALFORMED_REQUEST;

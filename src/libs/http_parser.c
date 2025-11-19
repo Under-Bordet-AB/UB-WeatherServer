@@ -1,6 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "HTTPParser.h"
+#include "http_parser.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,32 +33,32 @@ char* strfind(const char* str, const char* match) {
 
 RequestMethod Enum_Method(const char* method) {
     if (!method)
-        return Method_Unknown;
+        return REQUEST_METHOD_UNKNOWN;
 
     if (strcmp(method, "GET") == 0)
-        return GET;
+        return REQUEST_METHOD_GET;
     if (strcmp(method, "POST") == 0)
-        return POST;
+        return REQUEST_METHOD_POST;
 
-    return Method_Unknown;
+    return REQUEST_METHOD_UNKNOWN;
 }
 
 ProtocolVersion Enum_Protocol(const char* protocol) {
     if (!protocol)
-        return Protocol_Unknown;
+        return PROTOCOL_VERSION_UNKNOWN;
 
     if (strcmp(protocol, "HTTP/0.9") == 0)
-        return HTTP_0_9;
+        return PROTOCOL_VERSION_HTTP_0_9;
     if (strcmp(protocol, "HTTP/1.0") == 0)
-        return HTTP_1_0;
+        return PROTOCOL_VERSION_HTTP_1_0;
     if (strcmp(protocol, "HTTP/1.1") == 0)
-        return HTTP_1_1;
+        return PROTOCOL_VERSION_HTTP_1_1;
     if (strcmp(protocol, "HTTP/2.0") == 0)
-        return HTTP_2_0;
+        return PROTOCOL_VERSION_HTTP_2_0;
     if (strcmp(protocol, "HTTP/3.0") == 0)
-        return HTTP_3_0;
+        return PROTOCOL_VERSION_HTTP_3_0;
 
-    return Protocol_Unknown;
+    return PROTOCOL_VERSION_UNKNOWN;
 }
 
 void free_header(void* context) {
@@ -73,9 +73,9 @@ void free_header(void* context) {
 
 const char* RequestMethod_tostring(RequestMethod method) {
     switch (method) {
-    case GET:
+    case REQUEST_METHOD_GET:
         return "GET";
-    case POST:
+    case REQUEST_METHOD_POST:
         return "POST";
     default:
         return "GET";
@@ -173,7 +173,7 @@ const char* HTTPRequest_tostring(HTTPRequest* request) {
 // Parse a request from Client -> Server
 HTTPRequest* HTTPRequest_fromstring(const char* message) {
     HTTPRequest* request = calloc(1, sizeof(HTTPRequest));
-    request->reason = Malformed;
+    request->reason = INVALID_REASON_MALFORMED;
     request->headers = LinkedList_create();
 
     int state = 0;
@@ -219,7 +219,7 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
 
             if (space2 - (space1 + 1) >= MAX_URL_LEN) {
                 printf("INVALID: Request URL is too long\n\n");
-                request->reason = URLTooLong;
+                request->reason = INVALID_REASON_URL_TOO_LONG;
                 free(current_line);
                 break;
             }
@@ -227,19 +227,19 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
             char* method = substr(current_line, space1);
             if (!method) {
                 free(current_line);
-                request->reason = OutOfMemory;
+                request->reason = INVALID_REASON_OUT_OF_MEMORY;
                 break;
             }
             char* path = substr(space1 + 1, space2);
             if (!path) {
                 free(current_line);
-                request->reason = OutOfMemory;
+                request->reason = INVALID_REASON_OUT_OF_MEMORY;
                 break;
             }
             char* protocol = substr(space2 + 1, current_line + length);
             if (!protocol) {
                 free(current_line);
-                request->reason = OutOfMemory;
+                request->reason = INVALID_REASON_OUT_OF_MEMORY;
                 break;
             }
 
@@ -251,7 +251,7 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
             free(protocol);
 
             request->valid = 1;
-            request->reason = NotInvalid;
+            request->reason = INVALID_REASON_NOT_INVALID;
             state = 1; // jump to header parsing
         } else {
             const char* sep = strfind(current_line, ": ");
@@ -352,7 +352,7 @@ const char* HTTPResponse_tostring(HTTPResponse* response) {
 // Parse a response from Server -> Client
 HTTPResponse* HTTPResponse_fromstring(const char* message) {
     HTTPResponse* response = calloc(1, sizeof(HTTPResponse));
-    response->reason = Malformed;
+    response->reason = INVALID_REASON_MALFORMED;
     response->headers = LinkedList_create();
 
     int messageLen = strlen(message);
@@ -396,13 +396,13 @@ HTTPResponse* HTTPResponse_fromstring(const char* message) {
             char* protocol = substr(current_line, space1);
             if (!protocol) {
                 free(current_line);
-                response->reason = OutOfMemory;
+                response->reason = INVALID_REASON_OUT_OF_MEMORY;
                 break;
             }
             char* code = substr(space1 + 1, space2);
             if (!code) {
                 free(current_line);
-                response->reason = OutOfMemory;
+                response->reason = INVALID_REASON_OUT_OF_MEMORY;
                 break;
             }
 
@@ -419,7 +419,7 @@ HTTPResponse* HTTPResponse_fromstring(const char* message) {
             free(protocol);
 
             response->valid = 1;
-            response->reason = NotInvalid;
+            response->reason = INVALID_REASON_NOT_INVALID;
             state = 1;
         } else {
             const char* sep = strfind(current_line, ": ");
