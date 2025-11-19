@@ -16,7 +16,7 @@ typedef struct surprise_t {
 
     surprise_state state;
     uint8_t* buffer;
-    int bytesread;
+    size_t bytesread;
 } surprise_t;
 
 int surprise_init(void** ctx, void** ctx_struct, void (*ondone)(void* context));
@@ -25,6 +25,6 @@ int surprise_get_buffer_size(void** ctx, size_t* size);
 int surprise_work(void** ctx);
 int surprise_dispose(void** ctx);
 
-int surprise_get_file(uint8_t **buffer_ptr);
+size_t surprise_get_file(uint8_t** buffer_ptr);
 
 #endif

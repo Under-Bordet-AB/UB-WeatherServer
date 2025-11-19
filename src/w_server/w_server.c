@@ -8,6 +8,7 @@
    ------------------------------------------------------------------------------------- */
 #define _GNU_SOURCE /* expose accept4() and other GNU extensions */
 #include "w_server.h"
+#include "../utils/ui.h"
 #include "w_client.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -45,14 +46,14 @@ void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
                 // No clients waiting, just return
                 return;
             }
-            fprintf(stderr, "Init of client failed: W_SERVER_ERROR_SOCKET_LISTEN\n");
+            ui_print_server_listen_error("W_SERVER_ERROR_SOCKET_LISTEN");
             return;
         }
 
         // Create client task
         mj_task* new_task = w_client_create(client_fd, server);
         if (!new_task) {
-            fprintf(stderr, "Failed to create client task\n");
+            ui_print_server_client_accept_error("task creation failed");
             close(client_fd);
             continue;
         }
@@ -68,7 +69,7 @@ void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
 void w_server_listen_TCP_nonblocking_cleanup(mj_scheduler* scheduler, void* ctx) {
     w_server* server = (w_server*)ctx;
 
-    printf("Listening stopped on socket %d\n", server->listen_fd);
+    ui_print_server_listen_stopped(server->listen_fd);
 }
 
 static int init_from_config(w_server* server, const w_server_config* cfg) {
@@ -111,18 +112,18 @@ w_server* w_server_create(w_server_config* config) {
     - standardize error handling from getaddrinfo to align with rest of setup
 */
     if (!config) {
-        fprintf(stderr, "Init failed: W_SERVER_ERROR_NO_CONFIG\n");
+        ui_print_server_init_error("W_SERVER_ERROR_NO_CONFIG");
         return NULL;
     }
     w_server* server = calloc(1, sizeof(*server));
     if (server == NULL) {
-        fprintf(stderr, "Init failed: W_SERVER_ERROR_MEMORY_ALLOCATION\n");
+        ui_print_server_init_error("W_SERVER_ERROR_MEMORY_ALLOCATION");
         return NULL;
     }
 
     int result = init_from_config(server, config);
     if (result != W_SERVER_ERROR_NONE) {
-        fprintf(stderr, "Init failed: W_SERVER_ERROR_INVALID_CONFIG\n");
+        ui_print_server_init_error("W_SERVER_ERROR_INVALID_CONFIG");
         free(server);
         return NULL;
     }
@@ -137,7 +138,7 @@ w_server* w_server_create(w_server_config* config) {
     int gai_err = getaddrinfo(server->address[0] ? server->address : NULL, server->port, &hints, &res);
     if (gai_err != 0) {
         server->last_error = W_SERVER_ERROR_GETADDRINFO;
-        fprintf(stderr, "Init failed: W_SERVER_ERROR_GETADDRINFO\n");
+        ui_print_server_init_error("W_SERVER_ERROR_GETADDRINFO");
         free(server);
         return NULL;
     }
@@ -165,7 +166,7 @@ w_server* w_server_create(w_server_config* config) {
     // Did we mange to bind to an address?
     if (server->listen_fd == -1) {
         server->last_error = W_SERVER_ERROR_SOCKET_BIND;
-        fprintf(stderr, "Init failed: W_SERVER_ERROR_SOCKET_BIND\n");
+        ui_print_server_init_error("W_SERVER_ERROR_SOCKET_BIND");
         free(server);
         return NULL;
     }
@@ -185,7 +186,7 @@ w_server* w_server_create(w_server_config* config) {
     mj_task* task = calloc(1, sizeof(*task));
     if (task == NULL) {
         server->last_error = W_SERVER_ERROR_MEMORY_ALLOCATION;
-        fprintf(stderr, "Init failed: W_SERVER_ERROR_MEMORY_ALLOCATION\n");
+        ui_print_server_init_error("W_SERVER_ERROR_MEMORY_ALLOCATION");
         free(server);
         return NULL;
     }
@@ -206,7 +207,7 @@ w_server* w_server_create(w_server_config* config) {
         return server;
     }
     // Unknown error
-    fprintf(stderr, "Init failed: W_SERVER_ERROR\n");
+    ui_print_server_init_error("W_SERVER_ERROR");
     free(task);
     free(server);
     return NULL;

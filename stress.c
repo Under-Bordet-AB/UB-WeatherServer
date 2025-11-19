@@ -31,8 +31,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/time.h>
+#include <sys/ttydefaults.h>
+#include <termios.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -43,35 +46,52 @@
 #define RESPONSE_TIMEOUT_SEC 10 // Increased for realistic mode with think time
 #define MAX_RESPONSE_SIZE 65536
 
-// Request templates for realistic REST API traffic
+// Get terminal width, fallback to 80 if unable to detect
+static int get_terminal_width() {
+    struct winsize w;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0 && w.ws_col > 0) {
+        return w.ws_col;
+    }
+    return 80; // fallback
+}
+
+// City data structure for weather requests
+typedef struct {
+    const char* name;
+    double latitude;
+    double longitude;
+} city_t;
+
+// Top Swedish cities with GPS coordinates
+static const city_t CITIES[] = {
+    {"Stockholm", 59.3293, 18.0686},  {"Gothenburg", 57.7089, 11.9746},   {"Malmö", 55.6049, 13.0038},
+    {"Uppsala", 59.8586, 17.6389},    {"Linköping", 58.4108, 15.6214},    {"Örebro", 59.2741, 15.2066},
+    {"Västerås", 59.6099, 16.5448},   {"Helsingborg", 56.0465, 12.6944},  {"Norrköping", 58.5877, 16.1924},
+    {"Jönköping", 57.7826, 14.1618},  {"Umeå", 63.8258, 20.2630},         {"Lund", 55.7047, 13.1910},
+    {"Borås", 57.7210, 12.9401},      {"Eskilstuna", 59.3712, 16.5098},   {"Gävle", 60.6745, 17.1417},
+    {"Södertälje", 59.1955, 17.6253}, {"Karlstad", 59.3793, 13.5036},     {"Sundsvall", 62.3908, 17.3069},
+    {"Luleå", 65.5848, 22.1567},      {"Östersund", 63.1767, 14.6361},    {"Växjö", 56.8790, 14.8059},
+    {"Halmstad", 56.6745, 12.8571},   {"Kristianstad", 56.0313, 14.1524}, {"Falun", 60.6036, 15.6259},
+    {"Kalmar", 56.6634, 16.3568},     {"Skövde", 58.3912, 13.8451},       {"Trollhättan", 58.2837, 12.2886},
+    {"Uddevalla", 58.3498, 11.9356}};
+#define NUM_CITIES (sizeof(CITIES) / sizeof(CITIES[0]))
+
+// Request templates for backend testing
 static const char* REQUEST_TEMPLATES[] = {
-    "GET / HTTP/1.1\r\n"
-    "Host: localhost\r\n"
-    "User-Agent: StressTest/1.0\r\n"
-    "Accept: */*\r\n"
-    "Connection: close\r\n\r\n",
-
-    "GET /v1/forecast?latitude=59.33&longitude=18.07&current=temperature_2m,wind_speed_10m HTTP/1.1\r\n"
+    NULL, // Weather template - dynamically generated
+    "GET /GetCities HTTP/1.1\r\n"
     "Host: localhost\r\n"
     "User-Agent: StressTest/1.0\r\n"
     "Accept: application/json\r\n"
     "Connection: close\r\n\r\n",
 
-    "GET /api/weather?city=Stockholm HTTP/1.1\r\n"
+    "GET /GetSurprise HTTP/1.1\r\n"
     "Host: localhost\r\n"
     "User-Agent: StressTest/1.0\r\n"
-    "Accept: application/json\r\n"
+    "Accept: image/png\r\n"
     "Connection: close\r\n\r\n",
-
-    "POST /data HTTP/1.1\r\n"
-    "Host: localhost\r\n"
-    "User-Agent: StressTest/1.0\r\n"
-    "Content-Type: application/json\r\n"
-    "Content-Length: 27\r\n"
-    "Connection: close\r\n\r\n"
-    "{\"temperature\":23.5,\"id\":1}",
 };
-#define NUM_REQUEST_TYPES 4
+#define NUM_REQUEST_TYPES 3
 
 typedef enum {
     CLIENT_CREATED,
@@ -98,6 +118,7 @@ typedef struct {
     int fd;
     client_state_t state;
     int request_type;
+    int city_index; // For weather requests - which city to query
 
     // Timing
     struct timespec create_time;
@@ -109,7 +130,7 @@ typedef struct {
     struct timespec recv_end;
 
     // Request/Response
-    const char* request_data;
+    char* request_data; // Changed to char* for dynamic allocation
     size_t request_size;
     size_t sent_bytes;
 
@@ -170,35 +191,49 @@ static long long calculate_percentile(long long* sorted_array, int count, double
 
 void print_usage(const char* prog) {
     printf("Usage: %s [OPTIONS]\n\n", prog);
-    printf("Speed Presets:\n");
-    printf("  -slow       10ms interval (~100 req/sec)\n");
+    printf("Enhanced REST API Stress Test for Weather Server Backends\n\n");
+    printf("Speed Modes:\n");
+    printf("  -slow       200ms interval (~5 req/sec)\n");
     printf("  -normal     1ms interval (~1,000 req/sec)\n");
-    printf("  -fast       100μs interval (~10,000 req/sec) [DEFAULT]\n");
+    printf("  -fast       100μs interval (~10,000 req/sec)\n");
     printf("  -veryfast   10μs interval (~100,000 req/sec)\n");
     printf("  -insane     1μs interval (~1,000,000 req/sec)\n");
-    printf("  -burst      No delay (all at once)\n");
-    printf("  -custom <us> Custom interval in microseconds\n\n");
+    printf("  -burst      No delay (all requests at once)\n");
+    printf("  -custom <us> Custom interval in microseconds\n");
+    printf("              [DEFAULT: trickle mode, 250ms intervals (~4 req/sec)]\n\n");
+    printf("Backend Selection:\n");
+    printf("  -weather        Test weather backend (cycles through major Swedish cities)\n");
+    printf("  -cities         Test cities backend (/GetCities)\n");
+    printf("  -surprise       Test surprise backend (/GetSurprise)\n");
+    printf("                  [DEFAULT: test all backends if none specified]\n\n");
     printf("Options:\n");
     printf("  -ip <addr>      Server IP or hostname (default: %s)\n", DEFAULT_IP);
     printf("  -port <num>     Server port (default: %d)\n", DEFAULT_PORT);
     printf("  -count <num>    Number of requests (default: %d)\n", DEFAULT_CONN);
-    printf("  -realistic      Add random think time (100-500ms)\n");
+    printf("  -realistic      Add random think time (100-500ms) after connection\n");
     printf("  -keepalive <s>  Keep connections open for N seconds (default: 0)\n");
     printf("  -h, -help       Show this help\n\n");
     printf("Examples:\n");
-    printf("  %s -fast -count 1000\n", prog);
-    printf("  %s -burst -realistic -count 500\n", prog);
-    printf("  %s -slow -ip api.example.com -port 443\n", prog);
+    printf("  %s -count 100 -weather                    # Test weather backend with trickle\n", prog);
+    printf("  %s -count 50 -cities -surprise            # Test cities and surprise backends\n", prog);
+    printf("  %s -fast -weather -cities -surprise       # Fast test of all backends\n", prog);
+    printf("  %s -burst -count 1000 -realistic          # Burst test with think time\n", prog);
+    printf("  %s -custom 500000 -count 20 -surprise     # Custom 500ms intervals\n", prog);
 }
 
 int main(int argc, char** argv) {
     const char* ip = DEFAULT_IP;
     int port = DEFAULT_PORT;
     int total = DEFAULT_CONN;
-    speed_mode_t mode = MODE_FAST;
-    int interval_us = 100;
+    speed_mode_t mode = MODE_CUSTOM; // Default to custom trickle mode
+    int interval_us = 250000;        // 250ms default trickle rate
     int realistic_timing = 0;
     int keepalive_sec = 0;
+
+    // Backend selection flags
+    int test_weather = 0;
+    int test_cities = 0;
+    int test_surprise = 0;
 
     // Parse arguments
     for (int i = 1; i < argc; i++) {
@@ -207,7 +242,7 @@ int main(int argc, char** argv) {
             return 0;
         } else if (strcmp(argv[i], "-slow") == 0) {
             mode = MODE_SLOW;
-            interval_us = 10000;
+            interval_us = 200000; // 200ms intervals
         } else if (strcmp(argv[i], "-normal") == 0) {
             mode = MODE_NORMAL;
             interval_us = 1000;
@@ -250,6 +285,12 @@ int main(int argc, char** argv) {
             total = atoi(argv[i]);
         } else if (strcmp(argv[i], "-realistic") == 0) {
             realistic_timing = 1;
+        } else if (strcmp(argv[i], "-weather") == 0) {
+            test_weather = 1;
+        } else if (strcmp(argv[i], "-cities") == 0) {
+            test_cities = 1;
+        } else if (strcmp(argv[i], "-surprise") == 0) {
+            test_surprise = 1;
         } else if (strcmp(argv[i], "-keepalive") == 0) {
             if (++i >= argc) {
                 fprintf(stderr, "Error: -keepalive requires an argument\n");
@@ -293,6 +334,21 @@ int main(int argc, char** argv) {
     memcpy(&addr, res->ai_addr, sizeof(addr));
     freeaddrinfo(res);
 
+    // If no backends specified, test all
+    if (!test_weather && !test_cities && !test_surprise) {
+        test_weather = test_cities = test_surprise = 1;
+    }
+
+    // Create list of enabled backends
+    int enabled_backends[3] = {0};
+    int num_enabled = 0;
+    if (test_weather)
+        enabled_backends[num_enabled++] = 0; // Weather
+    if (test_cities)
+        enabled_backends[num_enabled++] = 1; // Cities
+    if (test_surprise)
+        enabled_backends[num_enabled++] = 2; // Surprise
+
     // Print configuration
     const char* mode_names[] = {"SLOW", "NORMAL", "FAST", "VERY FAST", "INSANE", "BURST", "CUSTOM"};
     printf("=== Enhanced REST API Stress Test ===\n");
@@ -307,14 +363,44 @@ int main(int argc, char** argv) {
     if (realistic_timing) {
         printf("Timing:   Realistic (random 100-500ms think time)\n");
     }
+    printf("Backends: ");
+    if (test_weather)
+        printf("Weather ");
+    if (test_cities)
+        printf("Cities ");
+    if (test_surprise)
+        printf("Surprise ");
+    printf("\n");
     printf("=====================================\n\n");
 
     // Initialize clients
     for (int i = 0; i < total; i++) {
         clients[i].fd = -1;
         clients[i].state = CLIENT_CREATED;
-        clients[i].request_type = rand() % NUM_REQUEST_TYPES;
-        clients[i].request_data = REQUEST_TEMPLATES[clients[i].request_type];
+        clients[i].request_type = enabled_backends[rand() % num_enabled];
+        clients[i].city_index = rand() % NUM_CITIES; // Random city for weather requests
+
+        // Generate request data
+        if (clients[i].request_type == 0) { // Weather request
+            const city_t* city = &CITIES[clients[i].city_index];
+            char request_buf[512];
+            snprintf(request_buf, sizeof(request_buf),
+                     "GET /GetWeather?lat=%.6f&lon=%.6f HTTP/1.1\r\n"
+                     "Host: localhost\r\n"
+                     "User-Agent: StressTest/1.0\r\n"
+                     "Accept: application/json\r\n"
+                     "Connection: close\r\n\r\n",
+                     city->latitude, city->longitude);
+            clients[i].request_data = strdup(request_buf);
+        } else {
+            clients[i].request_data = strdup(REQUEST_TEMPLATES[clients[i].request_type]);
+        }
+
+        if (!clients[i].request_data) {
+            fprintf(stderr, "Failed to allocate request data for client %d\n", i);
+            continue;
+        }
+
         clients[i].request_size = strlen(clients[i].request_data);
         clients[i].sent_bytes = 0;
         clients[i].response_buffer = malloc(MAX_RESPONSE_SIZE);
@@ -562,8 +648,14 @@ int main(int argc, char** argv) {
         double rate = (completed_count + failed_count) * 1000000.0 / elapsed;
         double percent = 100.0 * (completed_count + failed_count) / total;
 
-        // Draw progress bar
-        int bar_width = 30;
+        // Get terminal width and calculate bar width (leave room for text)
+        int term_width = get_terminal_width();
+        int bar_width = term_width - 50; // Reserve ~50 chars for text
+        if (bar_width < 10)
+            bar_width = 10; // Minimum bar width
+        if (bar_width > 50)
+            bar_width = 50; // Maximum bar width
+
         int filled = (int)(bar_width * (completed_count + failed_count) / total);
         printf("\r[");
         for (int i = 0; i < bar_width; i++) {
@@ -574,8 +666,7 @@ int main(int argc, char** argv) {
             else
                 printf(" ");
         }
-        printf("] %3.0f%% | %d/%d | completed: %d | failed: %d | ~%d active | %.0f req/s", percent,
-               completed_count + failed_count, total, completed_count, failed_count, active_count, rate);
+        printf("] %3.0f%% | %d/%d | %.0f req/s", percent, completed_count + failed_count, total, rate);
         fflush(stdout);
     }
 
@@ -715,6 +806,20 @@ int main(int argc, char** argv) {
                total_times[completed_count - 1] / 1000.0);
     }
 
+    // Print responses if count is 10 or less
+    if (total <= 10) {
+        printf("\n=== Response Data ===\n");
+        for (int i = 0; i < total; i++) {
+            if (clients[i].state == CLIENT_DONE && clients[i].response_buffer) {
+                printf("\n--- Request #%d (Status: %d, %zu bytes) ---\n", i + 1, clients[i].http_status,
+                       clients[i].response_bytes);
+                printf("%s\n", clients[i].response_buffer);
+            } else if (clients[i].state == CLIENT_FAILED) {
+                printf("\n--- Request #%d (FAILED) ---\n", i + 1);
+            }
+        }
+    }
+
     // Keepalive
     if (keepalive_sec > 0) {
         printf("\nKeeping connections alive for %d seconds...\n", keepalive_sec);
@@ -729,6 +834,9 @@ int main(int argc, char** argv) {
         }
         if (clients[i].response_buffer) {
             free(clients[i].response_buffer);
+        }
+        if (clients[i].request_data) {
+            free(clients[i].request_data);
         }
     }
 

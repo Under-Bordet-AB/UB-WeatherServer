@@ -2,6 +2,9 @@
 #include "http_parser.h"
 #include <stdio.h>
 
+// UI printing control flag - can be changed at runtime
+int UI_PRINT_ENABLED = 1;
+
 // ANSI color codes (48 colors ordered for maximum contrast and readability)
 const char* client_colors[] = {
     "\033[38;5;196m", // Red
@@ -55,116 +58,171 @@ const char* client_colors[] = {
 };
 
 void ui_print_timeout(w_client* client, int timeout_sec) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
     fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Connection timeout (%ds)%s\n", color,
             client->client_number, client->server->active_count, client->server->total_clients, timeout_sec,
             COLOR_RESET);
-#endif
 }
 
 void ui_print_read_error(w_client* client, const char* error) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
     fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Read error: %s%s\n", color, client->client_number,
             client->server->active_count, client->server->total_clients, error, COLOR_RESET);
-#endif
 }
 
 void ui_print_connection_closed_by_client(w_client* client) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
     fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Connection closed by client%s\n", color,
             client->client_number, client->server->active_count, client->server->total_clients, COLOR_RESET);
-#endif
 }
 
 void ui_print_received_bytes(w_client* client, ssize_t bytes) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
     fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Received %zd bytes (total: %zu)%s\n", color,
             client->client_number, client->server->active_count, client->server->total_clients, bytes,
             client->bytes_read + bytes, COLOR_RESET);
-#endif
 }
 
 void ui_print_request_too_large(w_client* client) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
     fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) ❌ REQUEST TOO LARGE - Buffer full (%zu bytes)%s\n",
             color, client->client_number, client->server->active_count, client->server->total_clients,
             client->bytes_read, COLOR_RESET);
-#endif
 }
 
 void ui_print_bad_request(w_client* client) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
     fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) ❌ BAD REQUEST - Failed to parse HTTP request%s\n",
             color, client->client_number, client->server->active_count, client->server->total_clients, COLOR_RESET);
-#endif
 }
 
 void ui_print_request_details(w_client* client) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
     http_request* parsed = (http_request*)client->parsed_request;
     fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Request: %s %s HTTP/%d.%d%s\n", color,
             client->client_number, client->server->active_count, client->server->total_clients,
             request_method_tostring(parsed->method), parsed->url, parsed->protocol / 10, parsed->protocol % 10,
             COLOR_RESET);
-#endif
 }
 
 void ui_print_processing_request(w_client* client) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
     fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Processing request...%s\n", color, client->client_number,
             client->server->active_count, client->server->total_clients, COLOR_RESET);
-#endif
 }
 
 void ui_print_response_details(w_client* client, int code, const char* code_str, size_t response_len) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
     fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Response: %d %s (%zu bytes)%s\n", color,
             client->client_number, client->server->active_count, client->server->total_clients, code, code_str,
             response_len, COLOR_RESET);
-#endif
 }
 
 void ui_print_send_error(w_client* client, const char* error) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
     fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Send error: %s%s\n", color, client->client_number,
             client->server->active_count, client->server->total_clients, error, COLOR_RESET);
-#endif
 }
 
 void ui_print_connection_closed_during_send(w_client* client) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
     fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Connection closed during send%s\n", color,
             client->client_number, client->server->active_count, client->server->total_clients, COLOR_RESET);
-#endif
 }
 
 void ui_print_unknown_state_error(w_client* client, int state) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
     fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) ERROR: Unknown state %d, forcing cleanup%s\n", color,
             client->client_number, client->server->active_count, client->server->total_clients, state, COLOR_RESET);
-#endif
 }
 
 void ui_print_creation_error(const char* file, int line, const char* func) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     fprintf(stderr, " ERROR: [%s:%d %s]\n", file, line, func);
-#endif
 }
 
 void ui_print_creation_error_with_msg(const char* file, int line, const char* func, const char* msg) {
-#ifdef UI_PRINT_ENABLED
+    if (!UI_PRINT_ENABLED)
+        return;
     fprintf(stderr, " ERROR: [%s:%d %s] %s\n", file, line, func, msg);
-#endif
+}
+
+// Backend printing functions - use client's color with informative backend messages
+void ui_print_backend_init(w_client* client, const char* backend_name) {
+    if (!UI_PRINT_ENABLED)
+        return;
+    const char* color = client_colors[client->client_number % NUM_COLORS];
+    fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu)\n\t  [%s] initialized%s\n", color, client->client_number,
+            client->server->active_count, client->server->total_clients, backend_name, COLOR_RESET);
+}
+
+void ui_print_backend_state(w_client* client, const char* backend_name, const char* state_desc) {
+    if (!UI_PRINT_ENABLED)
+        return;
+    const char* color = client_colors[client->client_number % NUM_COLORS];
+    fprintf(stderr, "%s\t  [%s] %s%s\n", color, backend_name, state_desc, COLOR_RESET);
+}
+
+void ui_print_backend_error(w_client* client, const char* backend_name, const char* error_desc) {
+    if (!UI_PRINT_ENABLED)
+        return;
+    const char* color = client_colors[client->client_number % NUM_COLORS];
+    fprintf(stderr, "%s\t  [%s] ❌ ERROR: %s%s\n", color, backend_name, error_desc, COLOR_RESET);
+}
+
+void ui_print_backend_done(w_client* client, const char* backend_name) {
+    if (!UI_PRINT_ENABLED)
+        return;
+    const char* color = client_colors[client->client_number % NUM_COLORS];
+    fprintf(stderr, "%s\t  [%s] ✓ completed%s\n", color, backend_name, COLOR_RESET);
+}
+
+// Server printing functions
+void ui_print_server_listen_error(const char* error) {
+    if (!UI_PRINT_ENABLED)
+        return;
+    fprintf(stderr, "Server: Init of client failed: %s\n", error);
+}
+
+void ui_print_server_client_accept_error(const char* error) {
+    if (!UI_PRINT_ENABLED)
+        return;
+    fprintf(stderr, "Server: Failed to create client task: %s\n", error);
+}
+
+void ui_print_server_listen_stopped(int fd) {
+    if (!UI_PRINT_ENABLED)
+        return;
+    fprintf(stderr, "Server: Listening stopped on socket %d\n", fd);
+}
+
+void ui_print_server_init_error(const char* error) {
+    if (!UI_PRINT_ENABLED)
+        return;
+    fprintf(stderr, "Server: Init failed: %s\n", error);
 }

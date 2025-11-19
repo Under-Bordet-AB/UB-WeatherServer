@@ -1,4 +1,5 @@
 #include "http_client.h"
+#define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -6,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -73,6 +75,13 @@ static int connect_to_host(const char* host, int port) {
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
         return -1;
+
+    // Set socket timeouts to prevent blocking the event loop
+    struct timeval timeout;
+    timeout.tv_sec = 2; // 2 second timeout
+    timeout.tv_usec = 0;
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
@@ -172,6 +181,10 @@ int http_get(const char* url, http_response_t* response) {
 
     // Skip headers and find body
     int in_headers = 1;
+    int is_chunked = 0;
+    char* body_buffer = NULL;
+    size_t body_size = 0;
+    size_t body_capacity = 0;
 
     while ((bytes_read = recv(sockfd, buffer, sizeof(buffer) - 1, 0)) > 0) {
         buffer[bytes_read] = '\0';
@@ -180,25 +193,143 @@ int http_get(const char* url, http_response_t* response) {
             // Look for end of headers
             char* body_start = strstr(buffer, "\r\n\r\n");
             if (body_start) {
-                // Found end of headers, append body part
+                // Check if Transfer-Encoding: chunked
+                char* te_header = strcasestr(buffer, "Transfer-Encoding:");
+                if (te_header) {
+                    char* chunked = strcasestr(te_header, "chunked");
+                    if (chunked && chunked < body_start) {
+                        is_chunked = 1;
+                    }
+                }
+
+                // Found end of headers
                 body_start += 4;
                 size_t body_len = bytes_read - (body_start - buffer);
-                if (append_to_response(response, body_start, body_len) != 0) {
+
+                // Allocate body buffer
+                body_capacity = 4096;
+                body_buffer = malloc(body_capacity);
+                if (!body_buffer) {
                     close(sockfd);
                     free_parsed_url(&parsed);
                     return -1;
                 }
+
+                // Copy initial body data
+                memcpy(body_buffer, body_start, body_len);
+                body_size = body_len;
+                body_buffer[body_size] = '\0';
+
                 in_headers = 0;
             }
             // If no body start found, all data is headers, continue
         } else {
             // Append body data
-            if (append_to_response(response, buffer, bytes_read) != 0) {
+            if (body_size + bytes_read >= body_capacity) {
+                size_t new_capacity = body_capacity * 2;
+                while (new_capacity < body_size + bytes_read + 1) {
+                    new_capacity *= 2;
+                }
+                char* new_buffer = realloc(body_buffer, new_capacity);
+                if (!new_buffer) {
+                    free(body_buffer);
+                    close(sockfd);
+                    free_parsed_url(&parsed);
+                    return -1;
+                }
+                body_buffer = new_buffer;
+                body_capacity = new_capacity;
+            }
+            memcpy(body_buffer + body_size, buffer, bytes_read);
+            body_size += bytes_read;
+            body_buffer[body_size] = '\0';
+        }
+    }
+
+    // Process the body data
+    if (is_chunked && body_buffer) {
+        // Decode chunked encoding
+        char* decoded = malloc(body_size + 1);
+        if (!decoded) {
+            free(body_buffer);
+            close(sockfd);
+            free_parsed_url(&parsed);
+            return -1;
+        }
+
+        size_t decoded_size = 0;
+        char* ptr = body_buffer;
+
+        while (*ptr && ptr < body_buffer + body_size) {
+            // Skip any leading whitespace
+            while (*ptr == ' ' || *ptr == '\t' || *ptr == '\r' || *ptr == '\n') {
+                ptr++;
+            }
+            if (!*ptr)
+                break;
+
+            // Read chunk size (hex number)
+            char* endptr;
+            long chunk_size = strtol(ptr, &endptr, 16);
+
+            if (endptr == ptr || chunk_size < 0) {
+                free(decoded);
+                free(body_buffer);
                 close(sockfd);
                 free_parsed_url(&parsed);
                 return -1;
             }
+
+            // Skip to end of chunk size line
+            ptr = strstr(endptr, "\r\n");
+            if (!ptr) {
+                free(decoded);
+                free(body_buffer);
+                close(sockfd);
+                free_parsed_url(&parsed);
+                return -1;
+            }
+            ptr += 2; // Skip \r\n
+
+            if (chunk_size == 0) {
+                break; // Last chunk
+            }
+
+            // Make sure we have enough data
+            if (ptr + chunk_size > body_buffer + body_size) {
+                free(decoded);
+                free(body_buffer);
+                close(sockfd);
+                free_parsed_url(&parsed);
+                return -1;
+            }
+
+            // Copy chunk data
+            memcpy(decoded + decoded_size, ptr, chunk_size);
+            decoded_size += chunk_size;
+            ptr += chunk_size;
+
+            // Skip trailing \r\n after chunk data
+            if (ptr[0] == '\r' && ptr[1] == '\n') {
+                ptr += 2;
+            }
         }
+
+        decoded[decoded_size] = '\0';
+        free(body_buffer);
+        body_buffer = decoded;
+        body_size = decoded_size;
+    }
+
+    // Copy final result to response
+    if (body_buffer) {
+        if (append_to_response(response, body_buffer, body_size) != 0) {
+            free(body_buffer);
+            close(sockfd);
+            free_parsed_url(&parsed);
+            return -1;
+        }
+        free(body_buffer);
     }
 
     close(sockfd);

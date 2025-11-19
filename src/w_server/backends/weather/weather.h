@@ -4,12 +4,22 @@
 #include <jansson.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define METEO_FORECAST_URL                                                                                             \
-    "https://api.open-meteo.com/v1/"                                                                                   \
+    "http://api.open-meteo.com/v1/"                                                                                    \
     "forecast?latitude=%f&longitude=%f&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,"       \
     "precipitation,rain,showers,snowfall,weather_"                                                                     \
     "code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
+
+// Rate limiter configuration
+#define MAX_REQUESTS_PER_MINUTE 30 // OpenMeteo free tier allows ~1000/day, so 30/min is conservative
+#define RATE_LIMITER_WINDOW_SECONDS 60
+
+typedef struct {
+    time_t timestamps[MAX_REQUESTS_PER_MINUTE];
+    int count;
+} rate_limiter_t;
 
 typedef enum {
     Weather_State_Init,
@@ -97,6 +107,11 @@ int save_weather_to_cache(double latitude, double longitude, const char* json_st
 
 // ========== API Fetching Functions ==========
 int fetch_weather_from_openmeteo(double latitude, double longitude, char** api_response);
+
+// ========== Rate Limiting Functions ==========
+void rate_limiter_init(rate_limiter_t* limiter);
+int rate_limiter_allow_request(rate_limiter_t* limiter);
+void rate_limiter_record_request(rate_limiter_t* limiter);
 
 // ========== Serialization Functions ==========
 // Used by server to process API response

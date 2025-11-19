@@ -11,7 +11,8 @@ INCLUDES := -Iinclude $(addprefix -I,$(SRC_DIRS))
 # Common flags
 CFLAGS_COMMON := -D_POSIX_C_SOURCE=200809L -std=c99 -Wall -Wextra \
                  $(INCLUDES) -MMD -MP \
-                 -Wno-unused-parameter -Wno-unused-function -Wno-format-truncation
+                 -Wno-unused-parameter -Wno-unused-function -Wno-format-truncation \
+                 -Wno-stringop-truncation
 
 # Debug flags (with Address Sanitizer) - DEFAULT
 CFLAGS_DEBUG := $(CFLAGS_COMMON) -g -O0 -fsanitize=address -DDEBUG
@@ -65,26 +66,28 @@ all: debug
 
 # Debug build (ASAN enabled)
 debug:
-	@$(MAKE) BUILD_MODE=debug $(BIN)
+	@$(MAKE) BUILD_MODE=debug build
 
 # Release build (maximum performance)
 release:
-	@$(MAKE) BUILD_MODE=release $(BIN)
+	@$(MAKE) BUILD_MODE=release build
 
 # Profile build (optimized for perf)
 profile:
-	@$(MAKE) BUILD_MODE=profile $(BIN)
+	@$(MAKE) BUILD_MODE=profile build
 
 $(BIN): $(OBJ)
 	@mkdir -p $(@D)
 	@$(CC) $(CFLAGS) $^ -o $@ $(LFLAGS)
 	@echo ""
 	@echo "╔══════════════════════════════════╗"
-	@echo "║         BUILD SUCCESSFUL         ║"
+	@echo "║         BUILD SUCCESSFULL         ║"
 	@echo "╚══════════════════════════════════╝"
 	@echo "      Binary: $(BIN)"
 	@echo "      Mode:   $(BUILD_MODE)"
 	@echo ""
+
+build: $(BIN)
 
 $(BUILD_DIR)/%.o: src/%.c
 	@mkdir -p $(dir $@)
@@ -94,17 +97,12 @@ run: debug
 	./$(BIN)
 
 run-release: release
-	./$(BIN)
+	./server
 
-stress: stress_test.c
+stress: stress.c
 	@echo "Building stress test..."
-	@$(CC) -o stress stress_test.c -O2
+	@$(CC) -o stress stress.c -O2
 	@echo "✓ stress test built successfully"
-
-stress-enhanced: stress_test_enhanced.c
-	@echo "Building enhanced stress test..."
-	@$(CC) -o stress-enhanced stress_test_enhanced.c -O2
-	@echo "✓ enhanced stress test built successfully"
 
 perf-record: profile
 	@echo "========================================="
@@ -113,12 +111,12 @@ perf-record: profile
 	@echo ""
 	@echo "Server will start with perf recording..."
 	@echo "Run your stress tests in another terminal:"
-	@echo "  ./stress_test -insane -count 5000"
+	@echo "  ./stress -insane -count 5000"
 	@echo ""
 	@echo "Press Ctrl+C when done to stop recording."
 	@echo ""
 	@sleep 2
-	sudo perf record -g --call-graph dwarf -F 999 ./$(BIN)
+	sudo perf record -g --call-graph dwarf -F 999 ./server-profile
 
 perf-report:
 	@if [ ! -f perf.data ]; then \
@@ -140,7 +138,7 @@ perf-report:
 
 clean:
 	@echo "Cleaning build artifacts..."
-	$(RM) -rf build $(BIN) server-profile stress stress-enhanced perf.data perf.data.old
+	$(RM) -rf build $(BIN) server-profile stress perf.data perf.data.old
 	@echo "✓ Clean complete"
 
 help:
@@ -159,8 +157,7 @@ help:
 	@echo "  make run-release  - Build and run release version"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make stress          - Build basic stress test (outputs 'stress')"
-	@echo "  make stress-enhanced - Build enhanced REST API stress test"
+	@echo "  make stress          - Build enhanced REST API stress test"
 	@echo ""
 	@echo "Profiling Targets (Linux only):"
 	@echo "  make perf-record  - Start server with perf recording"

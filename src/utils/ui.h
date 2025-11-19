@@ -3,7 +3,7 @@
 #include "w_client.h"
 
 // UI printing control flag - set to 1 to enable printing, 0 to disable
-#define UI_PRINT_ENABLED 1
+extern int UI_PRINT_ENABLED;
 
 // ANSI color codes (48 colors ordered for maximum contrast and readability)
 #define COLOR_RESET "\033[0m"
@@ -25,3 +25,15 @@ void ui_print_connection_closed_during_send(w_client* client);
 void ui_print_unknown_state_error(w_client* client, int state);
 void ui_print_creation_error(const char* file, int line, const char* func);
 void ui_print_creation_error_with_msg(const char* file, int line, const char* func, const char* msg);
+
+// Backend printing functions - use client's color with informative backend messages
+void ui_print_backend_init(w_client* client, const char* backend_name);
+void ui_print_backend_state(w_client* client, const char* backend_name, const char* state_desc);
+void ui_print_backend_error(w_client* client, const char* backend_name, const char* error_desc);
+void ui_print_backend_done(w_client* client, const char* backend_name);
+
+// Server printing functions
+void ui_print_server_listen_error(const char* error);
+void ui_print_server_client_accept_error(const char* error);
+void ui_print_server_listen_stopped(int fd);
+void ui_print_server_init_error(const char* error);

@@ -6,10 +6,15 @@
 #include <unistd.h>
 
 #include "http_client/http_client.h"
+#include "ui.h"
 #include "utils.h"
+#include "w_client.h"
 #include "weather.h"
 
 #define CACHE_DIR "weather_cache"
+
+// Global rate limiter instance
+static rate_limiter_t global_rate_limiter;
 
 int parse_openmeteo_json_to_weather(const json_t* json_obj, weather_data_t* weather);
 int serialize_weather_to_json(const weather_data_t* weather, json_t** json_obj);
@@ -110,7 +115,59 @@ int save_weather_to_cache(double latitude, double longitude, const char* json_st
     return result == 0 ? 0 : -1;
 }
 
+// ========== Rate Limiting Functions ==========
+void rate_limiter_init(rate_limiter_t* limiter) {
+    if (!limiter)
+        return;
+    memset(limiter, 0, sizeof(rate_limiter_t));
+}
+
+int rate_limiter_allow_request(rate_limiter_t* limiter) {
+    if (!limiter)
+        return 0;
+
+    time_t current_time = time(NULL);
+
+    // If we haven't reached the limit, allow the request
+    if (limiter->count < MAX_REQUESTS_PER_MINUTE) {
+        return 1;
+    }
+
+    // Check if the oldest request is outside the window
+    time_t window_start = current_time - RATE_LIMITER_WINDOW_SECONDS;
+    if (limiter->timestamps[0] < window_start) {
+        return 1;
+    }
+
+    return 0; // Rate limit exceeded
+}
+
+void rate_limiter_record_request(rate_limiter_t* limiter) {
+    if (!limiter)
+        return;
+
+    time_t current_time = time(NULL);
+
+    if (limiter->count < MAX_REQUESTS_PER_MINUTE) {
+        // Add new timestamp
+        limiter->timestamps[limiter->count] = current_time;
+        limiter->count++;
+    } else {
+        // Shift timestamps to make room for new one
+        // Move all timestamps left by one, drop the oldest
+        for (int i = 0; i < MAX_REQUESTS_PER_MINUTE - 1; i++) {
+            limiter->timestamps[i] = limiter->timestamps[i + 1];
+        }
+        limiter->timestamps[MAX_REQUESTS_PER_MINUTE - 1] = current_time;
+    }
+}
+
 int fetch_weather_from_openmeteo(double latitude, double longitude, char** api_response) {
+    // Check rate limiter before making API call
+    if (!rate_limiter_allow_request(&global_rate_limiter)) {
+        return -2; // Rate limit exceeded
+    }
+
     char url[256];
     snprintf(url, sizeof(url), METEO_FORECAST_URL, latitude, longitude);
 
@@ -121,6 +178,10 @@ int fetch_weather_from_openmeteo(double latitude, double longitude, char** api_r
     if (result == 0 && response.buffer) {
         *api_response = strdup(response.buffer);
         http_response_cleanup(&response);
+
+        // Record the successful request
+        rate_limiter_record_request(&global_rate_limiter);
+
         return *api_response ? 0 : -1;
     }
 
@@ -133,8 +194,10 @@ int process_openmeteo_response(const char* api_response, char** client_response)
 
     json_error_t error;
     json_t* root_api = json_loads(api_response, 0, &error);
-    if (!root_api)
+    if (!root_api) {
+        // JSON parsing error - don't print here, will be handled by caller
         return -1;
+    }
 
     int result = parse_openmeteo_json_to_weather(root_api, &weather);
     json_decref(root_api);
@@ -497,6 +560,13 @@ void free_weather(weather_data_t* weather) {
 }
 
 int weather_init(void** ctx, void** ctx_struct, void (*ondone)(void* context)) {
+    // Initialize global rate limiter if not already done
+    static int rate_limiter_initialized = 0;
+    if (!rate_limiter_initialized) {
+        rate_limiter_init(&global_rate_limiter);
+        rate_limiter_initialized = 1;
+    }
+
     weather_t* weather = (weather_t*)malloc(sizeof(weather_t));
     if (!weather) {
         return -1;
@@ -525,11 +595,13 @@ int weather_work(void** ctx) {
         return -1;
     }
 
+    w_client* client = (w_client*)weather->ctx; // weather->ctx is void**, which points to w_client
+
     switch (weather->state) {
     case Weather_State_Init:
         create_folder(CACHE_DIR);
         weather->state = Weather_State_ValidateFile;
-        printf("Weather: Initialized\n");
+        ui_print_backend_init(client, "Weather");
         break;
     case Weather_State_ValidateFile:
         if (does_weather_cache_exist(weather->latitude, weather->longitude) == 0 &&
@@ -538,51 +610,62 @@ int weather_work(void** ctx) {
         } else {
             weather->state = Weather_State_FetchFromAPI_Init;
         }
-        printf("Weather: Validating File\n");
+        ui_print_backend_state(client, "Weather", "validating cache");
         break;
     case Weather_State_LoadFromDisk:
         char* json_str = NULL;
         if (load_weather_from_cache(weather->latitude, weather->longitude, &json_str) == 0) {
             weather->buffer = json_str;
+            ui_print_backend_state(client, "Weather", "loaded from cache");
         } else {
             weather->buffer = NULL;
+            ui_print_backend_error(client, "Weather", "cache load failed");
         }
         weather->state = Weather_State_Done;
-        printf("Weather: Loading From Disk\n");
         break;
     case Weather_State_FetchFromAPI_Init:
         // Fetch weather data synchronously
         char* api_response = NULL;
-        if (fetch_weather_from_openmeteo(weather->latitude, weather->longitude, &api_response) == 0) {
+        int fetch_result = fetch_weather_from_openmeteo(weather->latitude, weather->longitude, &api_response);
+        if (fetch_result == 0) {
             weather->buffer = api_response;
             weather->state = Weather_State_ProcessResponse;
-            printf("Weather: Fetching From API Succeeded\n");
-        } else {
+            ui_print_backend_state(client, "Weather", "fetched from API");
+        } else if (fetch_result == -2) {
+            // Rate limit exceeded - return error message
+            weather->buffer = strdup("{\"error\": \"Rate limit exceeded. Please try again later.\"}");
             weather->state = Weather_State_Done;
-            printf("Weather: Fetching From API Failed\n");
+            ui_print_backend_error(client, "Weather", "rate limit exceeded (30/min)");
+        } else {
+            // General API failure - return NULL to trigger 500 error in client
+            weather->buffer = NULL;
+            weather->state = Weather_State_Done;
+            ui_print_backend_error(client, "Weather", "HTTP client failed (network/timeout)");
         }
         break;
     case Weather_State_ProcessResponse:
         char* client_response = NULL;
         if (process_openmeteo_response(weather->buffer, &client_response) != 0) {
             weather->state = Weather_State_Done;
-            printf("Weather: Processing Response Failed\n");
+            ui_print_backend_error(client, "Weather", "JSON processing failed");
         } else {
             free(weather->buffer);
             weather->buffer = client_response;
             weather->state = Weather_State_SaveToDisk;
-            printf("Weather: Processing Response Succeeded\n");
+            ui_print_backend_state(client, "Weather", "processed API response");
         }
         break;
     case Weather_State_SaveToDisk:
         if (save_weather_to_cache(weather->latitude, weather->longitude, weather->buffer) != 0) {
-            printf("Weather: Saving To Disk Failed\n");
+            ui_print_backend_error(client, "Weather", "cache save failed");
+        } else {
+            ui_print_backend_state(client, "Weather", "saved to cache");
         }
         weather->state = Weather_State_Done;
         break;
     case Weather_State_Done:
+        ui_print_backend_done(client, "Weather");
         weather->on_done(weather->ctx);
-        printf("Weather: Done\n");
         break;
     }
 

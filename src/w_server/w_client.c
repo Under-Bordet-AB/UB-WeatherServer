@@ -1,5 +1,8 @@
 #include "w_client.h"
 #include "../utils/ui.h"
+#include "backends/cities/cities.h"
+#include "backends/surprise/surprise.h"
+#include "backends/weather/weather.h"
 #include "http_parser.h"
 #include "majjen.h"
 #include "string.h"
@@ -7,10 +10,14 @@
 #include "w_server.h"
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
 
 #define CLIENT_TIMEOUT_SEC 5
+
+// Forward declaration of backend done callback
+static void w_client_backend_done(void* ctx);
 
 // State machine for clients
 void w_client_run(mj_scheduler* scheduler, void* ctx) {
@@ -126,35 +133,118 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         break;
 
     case W_CLIENT_PROCESSING: {
-        // Route request and generate response (backend not implemented yet)
+        // Route request and dispatch to appropriate backend
         http_request* req = (http_request*)client->parsed_request;
-        http_response* response = NULL;
         ui_print_processing_request(client);
-        // Simple routing based on method and URL
-        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/") == 0) {
-            response = http_response_new(RESPONSE_CODE_OK, "Hello from weather server!");
-        } else if (req->method == REQUEST_METHOD_POST && strcmp(req->url, "/data") == 0) {
-            // POST not implemented yet (no body parsing)
-            response = http_response_new(RESPONSE_CODE_NOT_IMPLEMENTED, "POST not implemented");
+
+        // Initialize backend structure
+        w_client_backend* backend = &client->backend;
+        backend->backend_struct = NULL;
+        backend->backend_get_buffer = NULL;
+        backend->backend_get_buffer_size = NULL;
+        backend->backend_work = NULL;
+        backend->backend_dispose = NULL;
+        backend->binary_mode = 0;
+
+        // Route based on URL path
+        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/GetCities") == 0) {
+            cities_init((void*)client, &backend->backend_struct, w_client_backend_done);
+            backend->backend_get_buffer = cities_get_buffer;
+            backend->backend_work = cities_work;
+            backend->backend_dispose = cities_dispose;
+            backend->binary_mode = 0;
+            client->state = W_CLIENT_BACKEND_WORKING;
+        } else if (req->method == REQUEST_METHOD_GET && strncmp(req->url, "/GetWeather", 11) == 0) {
+            weather_init((void*)client, &backend->backend_struct, w_client_backend_done);
+            backend->backend_get_buffer = weather_get_buffer;
+            backend->backend_work = weather_work;
+            backend->backend_dispose = weather_dispose;
+            backend->binary_mode = 0;
+
+            // Parse query parameters for latitude and longitude
+            const char* query_start = strchr(req->url, '?');
+            double latitude = 0.0, longitude = 0.0;
+            int has_lat = 0, has_lon = 0;
+
+            if (query_start) {
+                char* query_copy = strdup(query_start + 1);
+                char* token = strtok(query_copy, "&");
+                while (token) {
+                    if (strncmp(token, "lat=", 4) == 0) {
+                        latitude = strtod(token + 4, NULL);
+                        has_lat = 1;
+                    } else if (strncmp(token, "lon=", 4) == 0) {
+                        longitude = strtod(token + 4, NULL);
+                        has_lon = 1;
+                    }
+                    token = strtok(NULL, "&");
+                }
+                free(query_copy);
+            }
+
+            if (!has_lat || !has_lon) {
+                // Missing required parameters
+                if (backend->backend_struct && backend->backend_dispose) {
+                    backend->backend_dispose(&backend->backend_struct);
+                }
+                http_response* response = http_response_new(RESPONSE_CODE_BAD_REQUEST, "Missing lat or lon parameter");
+                http_response_add_header(response, "Content-Type", "text/plain");
+                http_response_add_header(response, "Connection", "close");
+                const char* response_str = http_response_tostring(response);
+                client->response_data = (char*)response_str;
+                client->response_len = strlen(response_str);
+                client->response_sent = 0;
+                http_response_dispose(&response);
+                ui_print_response_details(client, 400, "Bad Request", client->response_len);
+                client->state = W_CLIENT_SENDING;
+                break;
+            }
+
+            weather_set_location(&backend->backend_struct, latitude, longitude);
+            client->state = W_CLIENT_BACKEND_WORKING;
+        } else if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/GetSurprise") == 0) {
+            surprise_init((void*)client, &backend->backend_struct, w_client_backend_done);
+            backend->backend_get_buffer = surprise_get_buffer;
+            backend->backend_get_buffer_size = surprise_get_buffer_size;
+            backend->backend_work = surprise_work;
+            backend->backend_dispose = surprise_dispose;
+            backend->binary_mode = 1;
+            client->state = W_CLIENT_BACKEND_WORKING;
+        } else if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/") == 0) {
+            // Root endpoint - simple hello
+            http_response* response = http_response_new(RESPONSE_CODE_OK, "Hello from weather server!");
+            http_response_add_header(response, "Content-Type", "text/plain");
+            http_response_add_header(response, "Connection", "close");
+            const char* response_str = http_response_tostring(response);
+            client->response_data = (char*)response_str;
+            client->response_len = strlen(response_str);
+            client->response_sent = 0;
+            http_response_dispose(&response);
+            ui_print_response_details(client, 200, "OK", client->response_len);
+            client->state = W_CLIENT_SENDING;
         } else {
             // 404 for all other routes
-            response = http_response_new(RESPONSE_CODE_NOT_FOUND, "Not found");
+            http_response* response = http_response_new(RESPONSE_CODE_NOT_FOUND, "Not found");
+            http_response_add_header(response, "Content-Type", "text/plain");
+            http_response_add_header(response, "Connection", "close");
+            const char* response_str = http_response_tostring(response);
+            client->response_data = (char*)response_str;
+            client->response_len = strlen(response_str);
+            client->response_sent = 0;
+            http_response_dispose(&response);
+            ui_print_response_details(client, 404, "Not Found", client->response_len);
+            client->state = W_CLIENT_SENDING;
         }
+        break;
+    }
 
-        // Add standard headers
-        http_response_add_header(response, "Content-Type", "text/plain");
-        http_response_add_header(response, "Connection", "close");
-
-        // Serialize response to string
-        const char* response_str = http_response_tostring(response);
-        client->response_data = (char*)response_str; // Store for sending
-        client->response_len = strlen(response_str);
-        client->response_sent = 0; // Track how much we've sent
-        ui_print_response_details(client, response->code, response_code_tostring(response->code), client->response_len);
-        // Clean up response struct (string is already copied)
-        http_response_dispose(&response);
-
-        client->state = W_CLIENT_SENDING;
+    case W_CLIENT_BACKEND_WORKING: {
+        // Let the backend do its work
+        w_client_backend* backend = &client->backend;
+        if (backend->backend_work && backend->backend_struct) {
+            backend->backend_work(&backend->backend_struct);
+        }
+        // State will be changed by backend when done (via w_client_backend_done callback)
         break;
     }
 
@@ -205,6 +295,75 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
     }
 }
 
+// Backend completion callback
+static void w_client_backend_done(void* ctx) {
+    w_client* client = (w_client*)ctx;
+    if (!client)
+        return;
+
+    // Get the backend response
+    w_client_backend* backend = &client->backend;
+    char* buffer = NULL;
+
+    if (backend->backend_get_buffer && backend->backend_struct) {
+        backend->backend_get_buffer(&backend->backend_struct, &buffer);
+    }
+
+    if (!buffer) {
+        // Backend failed to produce response
+        http_response* response = http_response_new(RESPONSE_CODE_INTERNAL_SERVER_ERROR, "Backend error");
+        http_response_add_header(response, "Content-Type", "text/plain");
+        http_response_add_header(response, "Connection", "close");
+        const char* response_str = http_response_tostring(response);
+        client->response_data = (char*)response_str;
+        client->response_len = strlen(response_str);
+        client->response_sent = 0;
+        http_response_dispose(&response);
+        ui_print_response_details(client, 500, "Internal Server Error", client->response_len);
+        client->state = W_CLIENT_SENDING;
+        return;
+    }
+
+    // Generate HTTP response based on backend type
+    if (backend->binary_mode) {
+        // Binary response (e.g., image)
+        size_t buffer_size = 0;
+        if (backend->backend_get_buffer_size && backend->backend_struct) {
+            backend->backend_get_buffer_size(&backend->backend_struct, &buffer_size);
+        }
+
+        // Create raw HTTP response for binary data
+        const char* header_template =
+            "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n";
+        size_t header_len = snprintf(NULL, 0, header_template, buffer_size) + 1;
+        char* header = malloc(header_len);
+        snprintf(header, header_len, header_template, buffer_size);
+
+        // Combine header and body
+        size_t total_len = header_len - 1 + buffer_size;
+        client->response_data = malloc(total_len);
+        memcpy(client->response_data, header, header_len - 1);
+        memcpy(client->response_data + header_len - 1, buffer, buffer_size);
+        client->response_len = total_len;
+        client->response_sent = 0;
+        free(header);
+        ui_print_response_details(client, 200, "OK", buffer_size);
+    } else {
+        // Text/JSON response
+        http_response* response = http_response_new(RESPONSE_CODE_OK, buffer);
+        http_response_add_header(response, "Content-Type", "application/json");
+        http_response_add_header(response, "Connection", "close");
+        const char* response_str = http_response_tostring(response);
+        client->response_data = (char*)response_str;
+        client->response_len = strlen(response_str);
+        client->response_sent = 0;
+        http_response_dispose(&response);
+        ui_print_response_details(client, 200, "OK", strlen(buffer));
+    }
+
+    client->state = W_CLIENT_SENDING;
+}
+
 // deallocate any internal reasources added to the context
 void w_client_cleanup(mj_scheduler* scheduler, void* ctx) {
     w_client* client = (w_client*)ctx;
@@ -232,6 +391,12 @@ void w_client_cleanup(mj_scheduler* scheduler, void* ctx) {
     if (client->response_data) {
         free(client->response_data);
         client->response_data = NULL;
+    }
+
+    // Dispose backend if active
+    if (client->backend.backend_struct && client->backend.backend_dispose) {
+        client->backend.backend_dispose(&client->backend.backend_struct);
+        client->backend.backend_struct = NULL;
     }
 
     // Deallocate any buffers and resources here, the instances ctx gets deallocated by the scheduler.
@@ -282,6 +447,13 @@ mj_task* w_client_create(int client_fd, w_server* server) {
     new_ctx->response_len = 0;
     new_ctx->response_data = NULL;
     new_ctx->response_sent = 0;
+
+    new_ctx->backend.backend_struct = NULL;
+    new_ctx->backend.backend_get_buffer = NULL;
+    new_ctx->backend.backend_get_buffer_size = NULL;
+    new_ctx->backend.backend_work = NULL;
+    new_ctx->backend.backend_dispose = NULL;
+    new_ctx->backend.binary_mode = 0;
 
     new_ctx->connect_time = connect_time;
     new_ctx->error_code = W_CLIENT_ERROR_NONE;

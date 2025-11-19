@@ -1,6 +1,8 @@
 #include "cities.h"
 #include "../libs/tinydir.h"
+#include "ui.h"
 #include "utils.h"
+#include "w_client.h"
 #include <jansson.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,7 +30,7 @@ const char* cities_list = "Stockholm:59.3293:18.0686\n"
 // Forward declarations
 
 int city_init(const char* _Name, const char* _Latitude, const char* _Longitude, city_t** _CityPtr);
-void city_dispose(city_t** _cityPtr);
+void city_dispose(void* item);
 
 int cities_add_city(cities_t* cities, city_t* city);
 
@@ -89,17 +91,16 @@ int city_init(const char* name, const char* latitude, const char* longitude, cit
     return 0;
 }
 
-void city_dispose(city_t** city_ptr) {
-    if (city_ptr == NULL || *city_ptr == NULL)
+void city_dispose(void* item) {
+    if (item == NULL)
         return;
 
-    city_t* city = *city_ptr;
+    city_t* city = (city_t*)item;
 
     if (city->name != NULL)
         free(city->name);
 
     free(city);
-    *city_ptr = NULL;
 }
 
 int cities_add_city(cities_t* cities, city_t* city) {
@@ -221,6 +222,8 @@ int cities_read_from_string_list(cities_t* cities) {
 
     } while (ptr);
 
+    free(list_copy);
+
     return 0;
 }
 
@@ -259,35 +262,37 @@ int cities_work(void** ctx) {
         return -1; // Memory allocation failed
     }
 
+    w_client* client = (w_client*)cities->ctx; // cities->ctx is void**, which points to w_client
+
     switch (cities->state) {
     case Cities_State_Init:
         create_folder(CACHE_DIR);
         cities->state = Cities_State_ReadFiles;
-        printf("Cities: Initialized\n");
+        ui_print_backend_init(client, "Cities");
         break;
     case Cities_State_ReadFiles:
         cities_load_from_disk(cities);
         cities->state = Cities_State_ReadString;
-        printf("Cities: Loaded from disk\n");
+        ui_print_backend_state(client, "Cities", "loaded from disk cache");
         break;
     case Cities_State_ReadString:
         cities_read_from_string_list(cities);
         cities->state = Cities_State_SaveToDisk;
-        printf("Cities: Loaded from string list\n");
+        ui_print_backend_state(client, "Cities", "parsed city data");
         break;
     case Cities_State_SaveToDisk:
         cities_save_to_disk(cities);
         cities->state = Cities_State_Convert;
-        printf("Cities: Saved to disk\n");
+        ui_print_backend_state(client, "Cities", "saved to disk cache");
         break;
     case Cities_State_Convert:
         cities_convert_to_char_json_buffer(cities);
         cities->state = Cities_State_Done;
-        printf("Cities: Converted to JSON buffer\n");
+        ui_print_backend_state(client, "Cities", "converted to JSON");
         break;
     case Cities_State_Done:
+        ui_print_backend_done(client, "Cities");
         cities->on_done(cities->ctx);
-        printf("Cities: Done\n");
         break;
     }
 
@@ -344,6 +349,16 @@ int cities_dispose(void** ctx) {
     cities_t* cities = (cities_t*)(*ctx);
     if (!cities)
         return -1; // Memory allocation failed
+
+    if (cities->buffer) {
+        free(cities->buffer);
+        cities->buffer = NULL;
+    }
+
+    LinkedList_clear(&cities->cities_list, (void (*)(void*))city_dispose);
+
+    free(cities);
+    *ctx = NULL;
 
     return 0;
 }
