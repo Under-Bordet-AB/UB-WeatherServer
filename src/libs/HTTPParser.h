@@ -1,5 +1,5 @@
-#ifndef HTTP_PARSER_H
-#define HTTP_PARSER_H
+#ifndef HTTPPARSER_H
+#define HTTPPARSER_H
 
 #define HTTP_VERSION "HTTP/1.1"
 #define MAX_URL_LEN 256
