@@ -1,6 +1,4 @@
 #include "cities.h"
-
-#include "tinydir.h"
 #include "utils.h"
 #include <jansson.h>
 #include <stdio.h>
@@ -58,10 +56,12 @@ int cities_init(void** ctx, void** ctx_struct, void (*ondone)(void* context)) {
 }
 
 int city_init(const char* name, const char* latitude, const char* longitude, city_t** city_ptr) {
-    if (name == NULL || city_ptr == NULL) return -1;
+    if (name == NULL || city_ptr == NULL)
+        return -1;
 
     city_t* city = (city_t*)malloc(sizeof(city_t));
-    if (city == NULL) return -1;
+    if (city == NULL)
+        return -1;
 
     memset(city, 0, sizeof(city_t));
 
@@ -89,11 +89,13 @@ int city_init(const char* name, const char* latitude, const char* longitude, cit
 }
 
 void city_dispose(city_t** city_ptr) {
-    if (city_ptr == NULL || *city_ptr == NULL) return;
+    if (city_ptr == NULL || *city_ptr == NULL)
+        return;
 
     city_t* city = *city_ptr;
 
-    if (city->name != NULL) free(city->name);
+    if (city->name != NULL)
+        free(city->name);
 
     free(city);
     *city_ptr = NULL;
@@ -105,13 +107,15 @@ int cities_add_city(cities_t* cities, city_t* city) {
 }
 
 int cities_get_city_by_name(cities_t* cities, const char* name, city_t** city_ptr) {
-    if (!cities || !name) return -1;
+    if (!cities || !name)
+        return -1;
 
     Node* node = cities->cities_list.head;
     while (node) {
         city_t* city = (city_t*)node->item;
         if (city && city->name && strcmp(city->name, name) == 0) {
-            if (city_ptr) *city_ptr = city;
+            if (city_ptr)
+                *city_ptr = city;
             return 0;
         }
         node = node->front;
@@ -147,7 +151,8 @@ int cities_load_from_disk(cities_t* cities) {
 
                 city_t* city = NULL;
                 city_init(name, lat_buffer, lon_buffer, &city);
-                if (city) cities_add_city(cities, city);
+                if (city)
+                    cities_add_city(cities, city);
 
                 json_decref(city_json);
             }
@@ -165,10 +170,12 @@ int cities_load_from_disk(cities_t* cities) {
 }
 
 int cities_read_from_string_list(cities_t* cities) {
-    if (!cities) return -1;
+    if (!cities)
+        return -1;
 
     char* list_copy = strdup(cities_list);
-    if (!list_copy) return -1;
+    if (!list_copy)
+        return -1;
 
     char* ptr = list_copy;
 
@@ -179,12 +186,14 @@ int cities_read_from_string_list(cities_t* cities) {
     do {
         name = ptr;
         lat_str = strchr(ptr, ':');
-        if (!lat_str) break;
+        if (!lat_str)
+            break;
         *lat_str = '\0';
         lat_str++;
 
         lon_str = strchr(lat_str, ':');
-        if (!lon_str) break;
+        if (!lon_str)
+            break;
         *lon_str = '\0';
         lon_str++;
 
@@ -197,13 +206,17 @@ int cities_read_from_string_list(cities_t* cities) {
         }
 
         city_t* existing_city = NULL;
-        if (cities_get_city_by_name(cities, name, &existing_city) == 0) { continue; }
+        if (cities_get_city_by_name(cities, name, &existing_city) == 0) {
+            continue;
+        }
 
         city_t* city = NULL;
 
         city_init(name, lat_str, lon_str, &city);
 
-        if (city) { cities_add_city(cities, city); }
+        if (city) {
+            cities_add_city(cities, city);
+        }
 
     } while (ptr);
 
@@ -211,7 +224,8 @@ int cities_read_from_string_list(cities_t* cities) {
 }
 
 int cities_save_to_disk(cities_t* cities) {
-    if (!cities) return -1;
+    if (!cities)
+        return -1;
 
     Node* node = cities->cities_list.head;
     while (node) {
@@ -280,10 +294,12 @@ int cities_work(void** ctx) {
 }
 
 int cities_convert_to_char_json_buffer(cities_t* cities) {
-    if (!cities) return -1;
+    if (!cities)
+        return -1;
 
     json_t* root_array = json_array();
-    if (!root_array) return -1;
+    if (!root_array)
+        return -1;
 
     Node* node = cities->cities_list.head;
     while (node) {
@@ -325,7 +341,8 @@ int cities_get_buffer(void** ctx, char** buffer) {
 
 int cities_dispose(void** ctx) {
     cities_t* cities = (cities_t*)(*ctx);
-    if (!cities) return -1; // Memory allocation failed
+    if (!cities)
+        return -1; // Memory allocation failed
 
     return 0;
 }
