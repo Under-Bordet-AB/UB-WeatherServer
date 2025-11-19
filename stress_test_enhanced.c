@@ -40,7 +40,7 @@
 #define DEFAULT_PORT 10480
 #define DEFAULT_CONN 100
 #define CONNECT_TIMEOUT_SEC 10
-#define RESPONSE_TIMEOUT_SEC 10  // Increased for realistic mode with think time
+#define RESPONSE_TIMEOUT_SEC 10 // Increased for realistic mode with think time
 #define MAX_RESPONSE_SIZE 65536
 
 // Request templates for realistic REST API traffic
