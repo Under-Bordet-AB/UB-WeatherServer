@@ -8,13 +8,14 @@ For most use cases, the default values should work perfectly fine.
 */
 
 #define HTTP_VERSION "HTTP/1.1" // The protocol used with all HTTP responses.
-#define CLOSE_CONNECTIONS 1     // Auto-add `Connection: close` header to all HTTPResponse structs. Tells clients to disconnect after receiving a response.
+#define CLOSE_CONNECTIONS 1 // Auto-add `Connection: close` header to all HTTPResponse structs. Tells clients to disconnect after receiving a response.
 #define MAX_URL_LEN 256
+#define STRICT_VALIDATION 1 // The parser immediately gives up on the first sign of an unknown request method or protocol.
 
 // Variables to control preflight responses for CORS.
-#define CORS_ALLOWED_ORIGIN "*"             // This string is returned as an Access-Control-Allow-Origin header.
+#define CORS_ALLOWED_ORIGIN "*" // This string is returned as an Access-Control-Allow-Origin header.
 #define CORS_ALLOWED_METHODS "GET, OPTIONS" // Add onto this if we ever add POST endpoints.
-#define CORS_ALLOWED_HEADERS ""             // Add header names you need to receive.
+#define CORS_ALLOWED_HEADERS "" // Add header names you need to receive.
 // (not required for Accept, Accept-Language, Content-Language or Content-Type for form data or text/plain)
 
 /*
@@ -48,8 +49,13 @@ typedef enum {
 
     Malformed = 2,
     OutOfMemory = 3,
-    URLTooLong = 4 // Originally existed because the URL was fixed size in the struct, but kept for extra safety
+    URLTooLong = 4, // Originally existed because the URL was fixed size in the struct, but kept for extra safety
+    InvalidMethod = 5, // only for STRICT_VALIDATION
+    InvalidProtocol = 6, // only for STRICT_VALIDATION
+    InvalidURL = 7 // URLs must begin with a slash
 } InvalidReason;
+
+const char* InvalidReason_tostring(InvalidReason method);
 
 typedef enum {
     Method_Unknown = 0,

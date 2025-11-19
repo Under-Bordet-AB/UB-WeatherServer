@@ -88,23 +88,44 @@ void HTTPServerConnection_TaskWork(void* _Context, uint64_t _MonTime) {
         break;
     }
     case HTTPServerConnection_State_Reading: {
-        TCPClient* tcpClient = &_Connection->tcpClient;
-        int read = TCPClient_Read(tcpClient, (uint8_t*)(_Connection->readBuffer + _Connection->bytesRead), READBUFFER_SIZE - _Connection->bytesRead - 1);
+        TCPClient *tcpClient = &_Connection->tcpClient;
+        int read = 0;
+        int read_amount = READBUFFER_SIZE - _Connection->bytesRead - 1;
+        if(read_amount > 0)
+        {
+        read = TCPClient_Read(
+            tcpClient,
+            (uint8_t *)(_Connection->readBuffer + _Connection->bytesRead),
+            read_amount);
 
         if (read > 0) {
             _Connection->bytesRead += read;
             _Connection->readBuffer[_Connection->bytesRead] = '\0';
         }
+        }
 
-        char* ret = strstr(_Connection->readBuffer, "\r\n\r\n");
-        if (ret != NULL) { _Connection->state = HTTPServerConnection_State_Parsing; }
+        char *ret = strstr(_Connection->readBuffer, "\r\n\r\n");
+        if (ret != NULL) {
+        _Connection->state = HTTPServerConnection_State_Parsing;
+        } else if(read == 0) {
+        if(_Connection->bytesRead + 1 >= READBUFFER_SIZE)
+        {
+            printf("Request overflows readBuffer, dropping.\n");
+            HTTPServerConnection_SendResponse(_Connection, 413, "", NULL);
+        } else {
+            printf("Request is incomplete, dropping.\n");
+            HTTPServerConnection_SendResponse(_Connection, 400, "", NULL);
+        }
+        _Connection->state = HTTPServerConnection_State_Dispose;
+        }
 
         break;
     }
     case HTTPServerConnection_State_Parsing: {
-        HTTPRequest* request = HTTPRequest_fromstring(_Connection->readBuffer);
+        HTTPRequest *request = HTTPRequest_fromstring(_Connection->readBuffer);
 
-        if (request->valid) {
+        if(request->valid)
+        {
             _Connection->url = strdup(request->URL);
             RequestMethod method = request->method;
             HTTPRequest_Dispose(&request);
@@ -112,7 +133,7 @@ void HTTPServerConnection_TaskWork(void* _Context, uint64_t _MonTime) {
             _Connection->state = HTTPServerConnection_State_Wait;
             if (method == GET) {
                 _Connection->onRequest(_Connection->context);
-            } else if (method == OPTIONS) {
+            } else if(method == OPTIONS) {
                 printf("Responding to preflight request for %s\n", _Connection->url);
                 HTTPServerConnection_SendResponse(_Connection, 204, "", NULL);
             } else {
@@ -120,9 +141,9 @@ void HTTPServerConnection_TaskWork(void* _Context, uint64_t _MonTime) {
                 HTTPServerConnection_SendResponse(_Connection, 405, "Method unsupported", "text/plain");
             }
         } else {
-            HTTPRequest_Dispose(&request);
             _Connection->state = HTTPServerConnection_State_Wait;
-            printf("Invalid request received.\n");
+            printf("Dropping invalid request, reason: %s\n", InvalidReason_tostring(request->reason));
+            HTTPRequest_Dispose(&request);
             HTTPServerConnection_SendResponse(_Connection, 400, "Invalid request received", "text/plain");
         }
 
