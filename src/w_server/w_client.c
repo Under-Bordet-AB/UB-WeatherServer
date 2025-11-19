@@ -1,4 +1,5 @@
 #include "w_client.h"
+#include "HTTPParser.h"
 #include "majjen.h"
 #include "string.h"
 #include "utils.h"
@@ -62,7 +63,8 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         client->bytes_read += bytes;
         client->read_buffer[client->bytes_read] = '\0';
 
-        // Check if we have a complete HTTP request (ends with \r\n\r\n)
+        // Check if we have a complete HTTP request (ends with \r\n\r\n).
+        // We must wait for completed request since current parser does not support incremental parsing.
         // NOTE, this check is "message framing" so it does not belong in parsing
         if (strstr(client->read_buffer, "\r\n\r\n") != NULL) {
             client->state = W_CLIENT_PARSING;
@@ -76,6 +78,43 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 
     case W_CLIENT_PARSING:
         fprintf(stderr, "[Client %d] Parsing message:\n%s", client->fd, client->read_buffer);
+
+        // Parse the complete HTTP request
+        HTTPRequest* parsed = HTTPRequest_fromstring(client->read_buffer);
+
+        if (!parsed || !parsed->valid) {
+            // Parse error - send 400 Bad Request
+            fprintf(stderr, "[Client %d] Parse error: %d\n", client->fd, parsed ? parsed->reason : Unknown);
+            if (parsed)
+                HTTPRequest_Dispose(&parsed);
+            client->error_code = W_CLIENT_ERROR_MALFORMED_REQUEST;
+            client->state = W_CLIENT_DONE;
+            return;
+        }
+
+        // Store parsed request in client context (cast to void* as per struct)
+        client->parsed_request = parsed;
+
+        // Prettier logging: Show transformation from raw to structured
+        fprintf(stderr, "[Client %d] === PARSING SUCCESSFUL ===\n", client->fd);
+        fprintf(stderr, "[Client %d] Raw Input (%zu bytes):\n---\n%s\n---\n", client->fd, client->bytes_read,
+                client->read_buffer);
+        fprintf(stderr, "[Client %d] Parsed Request:\n", client->fd);
+        fprintf(stderr, "[Client %d]   Method: %s\n", client->fd, RequestMethod_tostring(parsed->method));
+        fprintf(stderr, "[Client %d]   Protocol: HTTP/%d.%d\n", client->fd, (parsed->protocol / 10),
+                (parsed->protocol % 10));
+        fprintf(stderr, "[Client %d]   URL: %s\n", client->fd, parsed->URL);
+        // Iterate over headers using LinkedList_foreach macro
+        if (parsed->headers && parsed->headers->size > 0) {
+            fprintf(stderr, "[Client %d]   Headers (%zu):\n", client->fd, parsed->headers->size);
+            LinkedList_foreach(parsed->headers, node) {
+                HTTPHeader* hdr = (HTTPHeader*)node->item;
+                fprintf(stderr, "[Client %d]     %s: %s\n", client->fd, hdr->Name, hdr->Value);
+            }
+        } else {
+            fprintf(stderr, "[Client %d]   Headers: (none)\n", client->fd);
+        }
+        fprintf(stderr, "[Client %d] === END PARSED REQUEST ===\n", client->fd);
 
         client->state = W_CLIENT_PROCESSING;
         break;
@@ -102,11 +141,25 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 // deallocate any internal reasources added to the context
 void w_client_cleanup(mj_scheduler* scheduler, void* ctx) {
     w_client* client = (w_client*)ctx;
+
     // close socket
     if (client->fd >= 0) {
         shutdown(client->fd, SHUT_WR);
         close(client->fd);
         client->fd = -1;
+    }
+
+    // Free parsed HTTP request
+    if (client->parsed_request) {
+        HTTPRequest* req = (HTTPRequest*)client->parsed_request;
+        HTTPRequest_Dispose(&req);
+        client->parsed_request = NULL;
+    }
+
+    // Free response data
+    if (client->response_data) {
+        free(client->response_data);
+        client->response_data = NULL;
     }
 
     // Deallocate any buffers and resources here, the instances ctx gets deallocated by the scheduler.

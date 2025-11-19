@@ -28,11 +28,11 @@ typedef enum {
 typedef enum {
     Protocol_Unknown = 0,
 
-    HTTP_0_9 = 1,
-    HTTP_1_0 = 2,
-    HTTP_1_1 = 3,
-    HTTP_2_0 = 4,
-    HTTP_3_0 = 5
+    HTTP_0_9 = 9,  // Fixed: enum values now match version numbers (0.9 -> 9)
+    HTTP_1_0 = 10, // 1.0 -> 10
+    HTTP_1_1 = 11, // 1.1 -> 11
+    HTTP_2_0 = 20, // 2.0 -> 20
+    HTTP_3_0 = 30  // 3.0 -> 30
 } ProtocolVersion;
 
 typedef struct {

@@ -6,10 +6,12 @@
 #include <string.h>
 
 char* substr(const char* start, const char* end) {
-    if (!start || !end || end < start) return NULL;
+    if (!start || !end || end < start)
+        return NULL;
     size_t len = end - start;
     char* out = malloc(len + 1);
-    if (!out) return NULL;
+    if (!out)
+        return NULL;
     memcpy(out, start, len);
     out[len] = '\0';
     return out;
@@ -30,22 +32,31 @@ char* strfind(const char* str, const char* match) {
 #define strfind strstr
 
 RequestMethod Enum_Method(const char* method) {
-    if (!method) return Method_Unknown;
+    if (!method)
+        return Method_Unknown;
 
-    if (strcmp(method, "GET") == 0) return GET;
-    if (strcmp(method, "POST") == 0) return POST;
+    if (strcmp(method, "GET") == 0)
+        return GET;
+    if (strcmp(method, "POST") == 0)
+        return POST;
 
     return Method_Unknown;
 }
 
 ProtocolVersion Enum_Protocol(const char* protocol) {
-    if (!protocol) return Protocol_Unknown;
+    if (!protocol)
+        return Protocol_Unknown;
 
-    if (strcmp(protocol, "HTTP/0.9") == 0) return HTTP_0_9;
-    if (strcmp(protocol, "HTTP/1.0") == 0) return HTTP_1_0;
-    if (strcmp(protocol, "HTTP/1.1") == 0) return HTTP_1_1;
-    if (strcmp(protocol, "HTTP/2.0") == 0) return HTTP_2_0;
-    if (strcmp(protocol, "HTTP/3.0") == 0) return HTTP_3_0;
+    if (strcmp(protocol, "HTTP/0.9") == 0)
+        return HTTP_0_9;
+    if (strcmp(protocol, "HTTP/1.0") == 0)
+        return HTTP_1_0;
+    if (strcmp(protocol, "HTTP/1.1") == 0)
+        return HTTP_1_1;
+    if (strcmp(protocol, "HTTP/2.0") == 0)
+        return HTTP_2_0;
+    if (strcmp(protocol, "HTTP/3.0") == 0)
+        return HTTP_3_0;
 
     return Protocol_Unknown;
 }
@@ -54,6 +65,10 @@ void free_header(void* context) {
     HTTPHeader* hdr = (HTTPHeader*)context;
     free((void*)hdr->Name);
     free((void*)hdr->Value);
+    // BUG FIX (2025-11-19): Original code was missing free(hdr), causing memory leak
+    // of HTTPHeader structs (16 bytes each). LinkedList_dispose calls this callback
+    // expecting it to free the entire item, not just internal fields.
+    free(hdr);
 }
 
 const char* RequestMethod_tostring(RequestMethod method) {
@@ -101,7 +116,9 @@ const char* CommonResponseMessages(ResponseCode code) {
 int parseInt(const char* str) {
     char* end;
     long val = strtol(str, &end, 10);
-    if (*str == '\0' || *end != '\0') { return -1; }
+    if (*str == '\0' || *end != '\0') {
+        return -1;
+    }
     return (int)val;
 }
 
@@ -115,13 +132,17 @@ HTTPRequest* HTTPRequest_new(RequestMethod method, const char* URL) {
 }
 
 int HTTPRequest_add_header(HTTPRequest* request, const char* name, const char* value) {
-    if (request->headers == NULL) return 0;
+    if (request->headers == NULL)
+        return 0;
     HTTPHeader* header = calloc(1, sizeof(HTTPHeader));
-    if (header == NULL) return 0;
+    if (header == NULL)
+        return 0;
     header->Name = strdup(name);
-    if (header->Name == NULL) return 0;
+    if (header->Name == NULL)
+        return 0;
     header->Value = strdup(value);
-    if (header->Value == NULL) return 0;
+    if (header->Value == NULL)
+        return 0;
     return LinkedList_append(request->headers, header);
 }
 
@@ -183,7 +204,9 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
             int count = 0;
             char* scan = current_line;
             for (; *scan; scan++) {
-                if (*scan == ' ') count++;
+                if (*scan == ' ') {
+                    count++;
+                }
             }
             if (count != 2) {
                 printf("INVALID: Request is not formatted with 2 spaces.\n\n");
@@ -285,13 +308,17 @@ HTTPResponse* HTTPResponse_new(ResponseCode code, const char* body) {
 }
 
 int HTTPResponse_add_header(HTTPResponse* response, const char* name, const char* value) {
-    if (response->headers == NULL) return 0;
+    if (response->headers == NULL)
+        return 0;
     HTTPHeader* header = calloc(1, sizeof(HTTPHeader));
-    if (header == NULL) return 0;
+    if (header == NULL)
+        return 0;
     header->Name = strdup(name);
-    if (header->Name == NULL) return 0;
+    if (header->Name == NULL)
+        return 0;
     header->Value = strdup(value);
-    if (header->Value == NULL) return 0;
+    if (header->Value == NULL)
+        return 0;
     return LinkedList_append(response->headers, header);
 }
 
@@ -353,7 +380,9 @@ HTTPResponse* HTTPResponse_fromstring(const char* message) {
             int count = 0;
             char* scan = current_line;
             for (; *scan; scan++) {
-                if (*scan == ' ') count++;
+                if (*scan == ' ') {
+                    count++;
+                }
             }
             if (count != 2) {
                 printf("INVALID: Response is not formatted with 2 spaces.\n\n");
