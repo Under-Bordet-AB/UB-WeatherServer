@@ -1,0 +1,6 @@
+POST /api/subscribe HTTP/1.1
+Host: localhost:8080
+Content-Type: application/json
+Content-Length: 45
+
+{"email":"test@example.com","city":"London"}

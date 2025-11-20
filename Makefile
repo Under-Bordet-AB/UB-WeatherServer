@@ -124,6 +124,18 @@ fuzz-http:
 		fuzz/harnesses/http_request_fuzz.c src/libs/http_parser.c src/libs/linked_list.c
 	@echo "✓ fuzz harness built at build/http_request_fuzz"
 
+# Build AFL-instrumented fuzz harness for client parsing
+.PHONY: fuzz-client
+fuzz-client:
+	@echo "Building AFL-instrumented client_parse fuzz harness..."
+	@mkdir -p build
+	@if ! command -v $(AFL_CC) >/dev/null 2>&1; then \
+		echo "Error: $(AFL_CC) not found. Install AFL or set AFL_CC to your afl-clang-fast."; exit 1; \
+	fi
+	@$(AFL_CC) $(FUZZ_CFLAGS) $(FUZZ_INCLUDES) -o build/client_parse_fuzz \
+		fuzz/harnesses/client_parse_fuzz.c src/libs/http_parser.c src/libs/linked_list.c
+	@echo "✓ fuzz harness built at build/client_parse_fuzz"
+
 .PHONY: fuzz-run
 fuzz-run: fuzz-http
 	@echo "Preparing to run afl-fuzz (will run in foreground)."
@@ -144,6 +156,26 @@ fuzz-run-bg: fuzz-http
 	@echo $! > fuzz/out/http_request/afl.pid
 	@echo "afl-fuzz started in background, pid saved to fuzz/out/http_request/afl.pid"
 
+.PHONY: fuzz-client-run
+fuzz-client-run: fuzz-client
+	@echo "Preparing to run afl-fuzz for client parsing (will run in foreground)."
+	@which afl-fuzz >/dev/null 2>&1 || (echo "Error: afl-fuzz not found. Install AFL." && exit 1)
+	@mkdir -p fuzz/out/client_parse
+	@echo "Tip: run this inside tmux or screen if you want to leave it running."
+	@echo "Starting afl-fuzz for client parser... Press Ctrl+C to stop."
+	@ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:allocator_may_return_null=1:symbolize=0 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 MALLOC_ARENA_MAX=1 \
+		afl-fuzz -x fuzz/dict/http.dict -i fuzz/corpus/client_parse -o fuzz/out/client_parse -m none -t 2000 -- build/client_parse_fuzz @@
+
+.PHONY: fuzz-client-run-bg
+fuzz-client-run-bg: fuzz-client
+	@echo "Starting afl-fuzz for client parsing in background (output in fuzz/out/client_parse)."
+	@which afl-fuzz >/dev/null 2>&1 || (echo "Error: afl-fuzz not found. Install AFL." && exit 1)
+	@mkdir -p fuzz/out/client_parse
+	@ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:allocator_may_return_null=1:symbolize=0 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 MALLOC_ARENA_MAX=1 \
+		nohup afl-fuzz -x fuzz/dict/http.dict -i fuzz/corpus/client_parse -o fuzz/out/client_parse -m none -t 2000 -- build/client_parse_fuzz @@ > fuzz/out/client_parse/nohup.log 2>&1 &
+	@echo $! > fuzz/out/client_parse/afl.pid
+	@echo "afl-fuzz for client parser started in background, pid saved to fuzz/out/client_parse/afl.pid"
+
 .PHONY: fuzz-clean
 fuzz-clean:
 	@echo "Stopping background afl-fuzz (if running) and cleaning fuzz output..."
@@ -156,8 +188,17 @@ fuzz-clean:
 		fi; \
 		rm -f fuzz/out/http_request/afl.pid; \
 	fi
-	@rm -rf fuzz/out/http_request
-	@echo "Removed fuzz/out/http_request (and any logs)."
+	@if [ -f fuzz/out/client_parse/afl.pid ]; then \
+		pid=$$(cat fuzz/out/client_parse/afl.pid) ; \
+		if kill -0 $$pid >/dev/null 2>&1; then \
+			echo "Killing $$pid"; kill $$pid || true; \
+		else \
+			echo "No running process with pid $$pid"; \
+		fi; \
+		rm -f fuzz/out/client_parse/afl.pid; \
+	fi
+	@rm -rf fuzz/out/http_request fuzz/out/client_parse
+	@echo "Removed fuzz output directories (and any logs)."
 
 perf-record: profile
 	@echo "========================================="
@@ -215,10 +256,14 @@ help:
 	@echo "  make stress          - Build enhanced REST API stress test"
 	@echo ""
 	@echo "Fuzzing:"
-	@echo "  make fuzz-http       - Build AFL-instrumented fuzz harness (build/http_request_fuzz)"
+	@echo "  make fuzz-http       - Build AFL-instrumented HTTP parser fuzz harness (build/http_request_fuzz)"
 	@echo "  make fuzz-run        - Build harness and run afl-fuzz in foreground (interactive)"
 	@echo "  make fuzz-run-bg     - Build harness and start afl-fuzz in background (nohup/log + pidfile)"
-	@echo "  Fuzz corpus: fuzz/corpus/http_request/ (seeds)"
+	@echo "  make fuzz-client     - Build AFL-instrumented client parser fuzz harness (build/client_parse_fuzz)"
+	@echo "  make fuzz-client-run - Build client harness and run afl-fuzz in foreground"
+	@echo "  make fuzz-client-run-bg - Build client harness and start afl-fuzz in background"
+	@echo "  make fuzz-clean      - Stop all background fuzzers and clean output"
+	@echo "  Fuzz corpus: fuzz/corpus/http_request/ and fuzz/corpus/client_parse/"
 	@echo ""
 	@echo "Profiling Targets (Linux only):"
 	@echo "  make perf-record  - Start server with perf recording"

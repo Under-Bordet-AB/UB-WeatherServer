@@ -64,18 +64,16 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             return;
         }
 
-        // fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Received %zd bytes (total: %zu)%s\n", color,
-        // client->client_number, client->server->active_count, client->server->total_clients, bytes,
-        // client->bytes_read + bytes, COLOR_RESET);
         ui_print_received_bytes(client, bytes);
 
         // Update bytes read and null-terminate
         client->bytes_read += bytes;
-        client->read_buffer[client->bytes_read] =
-            '\0'; // Check if we have a complete HTTP request (ends with \r\n\r\n).
+        client->read_buffer[client->bytes_read] = '\0';
+        ui_print_received_bytes(client, bytes);
+
+        // Check if we have a complete HTTP request (ends with \r\n\r\n).
         // We must wait for completed request since current parser does not support incremental parsing.
         // NOTE, this check is "message framing" so it does not belong in parsing
-        ui_print_received_bytes(client, bytes);
         if (strstr(client->read_buffer, "\r\n\r\n") != NULL) {
             client->state = W_CLIENT_PARSING;
         } else if (client->bytes_read >= sizeof(client->read_buffer) - 1) {
@@ -305,6 +303,7 @@ static void w_client_backend_done(void* ctx) {
     w_client_backend* backend = &client->backend;
     char* buffer = NULL;
 
+    // get the backend data to the client via the callback (each backend has its own)
     if (backend->backend_get_buffer && backend->backend_struct) {
         backend->backend_get_buffer(&backend->backend_struct, &buffer);
     }

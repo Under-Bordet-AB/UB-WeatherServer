@@ -1,0 +1,9 @@
+GET /test HTTP/1.1
+Host: localhost
+X-Custom-Header: value1
+X-Another-Header: value2
+X-Third-Header: value3
+Accept: application/json
+User-Agent: TestClient
+Connection: close
+
