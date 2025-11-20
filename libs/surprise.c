@@ -43,19 +43,27 @@ int surprise_get_file(uint8_t **buffer_ptr, const char *file_name) {
 int surprise_get_random(uint8_t **buffer_ptr){
   tinydir_dir dir;
   tinydir_open_sorted(&dir, SURPRISE_FOLDER);
-  if (dir.n_files == 0){ // Surprise folder is missing
+
+  if (dir.n_files == 0) // Surprise folder not found
     return -1;
-  } else if (dir.n_files <= 2){ // Surprise folder is empty
-    return -2;
+
+  int n_files = 0;
+  for (int i = 0; i < dir.n_files; i++){
+    n_files += dir._files[i].is_reg; // count number of files in folder
   }
+
+  if (n_files == 0) // Surprise folder is empty
+    return -2;
 
   srand(time(NULL));
+  int index = rand() % n_files + 1;
 
-  int index = rand() % (int)(dir.n_files - 2) + 2;
-  tinydir_file file = dir._files[index];
-  if (file.is_dir){
-    return -1;
+  for (int i = 0; i < dir.n_files; i++){
+    index -= dir._files[i].is_reg; // Decrement index each time we iterate past a file
+    if (index == 0){
+      return surprise_get_file(buffer_ptr, dir._files[i].name);
+    }
   }
 
-  return surprise_get_file(buffer_ptr, file.name);
+  return -1;
 }
