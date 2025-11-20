@@ -1,33 +1,37 @@
 # ============================================
-#  Makefile with Debug (ASAN), Release, and Profile modes
+#   Makefile (Clang Edition)
+#   Debug (ASAN), Release (LTO), and Profile
 # ============================================
 
-CC := gcc
+CC := clang
 
 # AFL / fuzz build settings
-# Use afl-clang-fast by default for instrumented builds; override with AFL_CC
+# afl-clang-fast is the preferred wrapper for clang
 AFL_CC ?= afl-clang-fast
-# Fuzz build flags: ASAN + UBSAN-ish flags suitable for fuzzing
+
+# Fuzz build flags: ASAN + UBSAN flags suitable for fuzzing
 FUZZ_CFLAGS ?= -g -O1 -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all
 FUZZ_INCLUDES ?= -I./src -I./src/libs
-
 
 # Generate include search paths for ALL folders under src/
 SRC_DIRS := $(shell find src -type d)
 INCLUDES := -Iinclude $(addprefix -I,$(SRC_DIRS))
 
 # Common flags
+# Note: Removed GCC-specific flags like -Wno-stringop-truncation to avoid Clang errors
 CFLAGS_COMMON := -D_POSIX_C_SOURCE=200809L -std=c99 -Wall -Wextra \
-                 $(INCLUDES) -MMD -MP \
-                 -Wno-unused-parameter -Wno-unused-function -Wno-format-truncation \
-                 -Wno-stringop-truncation
+	             $(INCLUDES) -MMD -MP \
+	             -Wno-unused-parameter -Wno-unused-function
 
 # Debug flags (with Address Sanitizer) - DEFAULT
-CFLAGS_DEBUG := $(CFLAGS_COMMON) -g -O0 -fsanitize=address -DDEBUG
+# Clang's ASAN output is often more readable with -fno-omit-frame-pointer
+CFLAGS_DEBUG := $(CFLAGS_COMMON) -g -O0 -fsanitize=address -fno-omit-frame-pointer -DDEBUG
 
 # Release flags (maximum performance)
+# -flto=thin is a Clang specific optimization that is faster to compile, 
+# but -flto (monolithic) usually yields slightly better runtime performance.
 CFLAGS_RELEASE := $(CFLAGS_COMMON) -O3 -march=native -DNDEBUG \
-                  -fomit-frame-pointer -flto
+	              -fomit-frame-pointer -flto
 
 # Profile flags (optimized with frame pointers for perf)
 CFLAGS_PROFILE := $(CFLAGS_COMMON) -O2 -g -fno-omit-frame-pointer -DNDEBUG
@@ -42,20 +46,20 @@ BUILD_MODE ?= debug
 
 # Set flags based on build mode
 ifeq ($(BUILD_MODE),release)
-    CFLAGS := $(CFLAGS_RELEASE)
-    LFLAGS := $(LFLAGS_COMMON) $(LFLAGS_RELEASE)
-    BUILD_DIR := build/release
-    BIN := server
+	CFLAGS := $(CFLAGS_RELEASE)
+	LFLAGS := $(LFLAGS_COMMON) $(LFLAGS_RELEASE)
+	BUILD_DIR := build/release
+	BIN := server
 else ifeq ($(BUILD_MODE),profile)
-    CFLAGS := $(CFLAGS_PROFILE)
-    LFLAGS := $(LFLAGS_COMMON) $(LFLAGS_PROFILE)
-    BUILD_DIR := build/profile
-    BIN := server-profile
+	CFLAGS := $(CFLAGS_PROFILE)
+	LFLAGS := $(LFLAGS_COMMON) $(LFLAGS_PROFILE)
+	BUILD_DIR := build/profile
+	BIN := server-profile
 else
-    CFLAGS := $(CFLAGS_DEBUG)
-    LFLAGS := $(LFLAGS_COMMON) $(LFLAGS_DEBUG)
-    BUILD_DIR := build/debug
-    BIN := server
+	CFLAGS := $(CFLAGS_DEBUG)
+	LFLAGS := $(LFLAGS_COMMON) $(LFLAGS_DEBUG)
+	BUILD_DIR := build/debug
+	BIN := server
 endif
 
 # Recursive source discovery
@@ -89,10 +93,11 @@ $(BIN): $(OBJ)
 	@$(CC) $(CFLAGS) $^ -o $@ $(LFLAGS)
 	@echo ""
 	@echo "╔══════════════════════════════════╗"
-	@echo "║         BUILD SUCCESSFULL         ║"
+	@echo "║         BUILD SUCCESSFULL        ║"
 	@echo "╚══════════════════════════════════╝"
 	@echo "      Binary: $(BIN)"
 	@echo "      Mode:   $(BUILD_MODE)"
+	@echo "      Cc:     $(CC)"
 	@echo ""
 
 build: $(BIN)
@@ -118,10 +123,10 @@ fuzz-http:
 	@echo "Building AFL-instrumented http_request fuzz harness..."
 	@mkdir -p build
 	@if ! command -v $(AFL_CC) >/dev/null 2>&1; then \
-		echo "Error: $(AFL_CC) not found. Install AFL or set AFL_CC to your afl-clang-fast."; exit 1; \
+	    echo "Error: $(AFL_CC) not found. Install AFL or set AFL_CC to your afl-clang-fast."; exit 1; \
 	fi
 	@$(AFL_CC) $(FUZZ_CFLAGS) $(FUZZ_INCLUDES) -o build/http_request_fuzz \
-		fuzz/harnesses/http_request_fuzz.c src/libs/http_parser.c src/libs/linked_list.c
+	    fuzz/harnesses/http_request_fuzz.c src/libs/http_parser.c src/libs/linked_list.c
 	@echo "✓ fuzz harness built at build/http_request_fuzz"
 
 # Build AFL-instrumented fuzz harness for client parsing
@@ -130,10 +135,10 @@ fuzz-client:
 	@echo "Building AFL-instrumented client_parse fuzz harness..."
 	@mkdir -p build
 	@if ! command -v $(AFL_CC) >/dev/null 2>&1; then \
-		echo "Error: $(AFL_CC) not found. Install AFL or set AFL_CC to your afl-clang-fast."; exit 1; \
+	    echo "Error: $(AFL_CC) not found. Install AFL or set AFL_CC to your afl-clang-fast."; exit 1; \
 	fi
 	@$(AFL_CC) $(FUZZ_CFLAGS) $(FUZZ_INCLUDES) -o build/client_parse_fuzz \
-		fuzz/harnesses/client_parse_fuzz.c src/libs/http_parser.c src/libs/linked_list.c
+	    fuzz/harnesses/client_parse_fuzz.c src/libs/http_parser.c src/libs/linked_list.c
 	@echo "✓ fuzz harness built at build/client_parse_fuzz"
 
 .PHONY: fuzz-run
@@ -144,7 +149,7 @@ fuzz-run: fuzz-http
 	@echo "Tip: run this inside tmux or screen if you want to leave it running."
 	@echo "Starting afl-fuzz... Press Ctrl+C to stop."
 	@ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:allocator_may_return_null=1:symbolize=0 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 MALLOC_ARENA_MAX=1 \
-		afl-fuzz -x fuzz/dict/http.dict -i fuzz/corpus/http_request -o fuzz/out/http_request -m none -t 2000 -- build/http_request_fuzz @@
+	    afl-fuzz -x fuzz/dict/http.dict -i fuzz/corpus/http_request -o fuzz/out/http_request -m none -t 2000 -- build/http_request_fuzz @@
 
 .PHONY: fuzz-run-bg
 fuzz-run-bg: fuzz-http
@@ -152,7 +157,7 @@ fuzz-run-bg: fuzz-http
 	@which afl-fuzz >/dev/null 2>&1 || (echo "Error: afl-fuzz not found. Install AFL." && exit 1)
 	@mkdir -p fuzz/out/http_request
 	@ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:allocator_may_return_null=1:symbolize=0 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 MALLOC_ARENA_MAX=1 \
-		nohup afl-fuzz -x fuzz/dict/http.dict -i fuzz/corpus/http_request -o fuzz/out/http_request -m none -t 2000 -- build/http_request_fuzz @@ > fuzz/out/http_request/nohup.log 2>&1 &
+	    nohup afl-fuzz -x fuzz/dict/http.dict -i fuzz/corpus/http_request -o fuzz/out/http_request -m none -t 2000 -- build/http_request_fuzz @@ > fuzz/out/http_request/nohup.log 2>&1 &
 	@echo $! > fuzz/out/http_request/afl.pid
 	@echo "afl-fuzz started in background, pid saved to fuzz/out/http_request/afl.pid"
 
@@ -164,7 +169,7 @@ fuzz-client-run: fuzz-client
 	@echo "Tip: run this inside tmux or screen if you want to leave it running."
 	@echo "Starting afl-fuzz for client parser... Press Ctrl+C to stop."
 	@ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:allocator_may_return_null=1:symbolize=0 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 MALLOC_ARENA_MAX=1 \
-		afl-fuzz -x fuzz/dict/http.dict -i fuzz/corpus/client_parse -o fuzz/out/client_parse -m none -t 2000 -- build/client_parse_fuzz @@
+	    afl-fuzz -x fuzz/dict/http.dict -i fuzz/corpus/client_parse -o fuzz/out/client_parse -m none -t 2000 -- build/client_parse_fuzz @@
 
 .PHONY: fuzz-client-run-bg
 fuzz-client-run-bg: fuzz-client
@@ -172,7 +177,7 @@ fuzz-client-run-bg: fuzz-client
 	@which afl-fuzz >/dev/null 2>&1 || (echo "Error: afl-fuzz not found. Install AFL." && exit 1)
 	@mkdir -p fuzz/out/client_parse
 	@ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:allocator_may_return_null=1:symbolize=0 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 MALLOC_ARENA_MAX=1 \
-		nohup afl-fuzz -x fuzz/dict/http.dict -i fuzz/corpus/client_parse -o fuzz/out/client_parse -m none -t 2000 -- build/client_parse_fuzz @@ > fuzz/out/client_parse/nohup.log 2>&1 &
+	    nohup afl-fuzz -x fuzz/dict/http.dict -i fuzz/corpus/client_parse -o fuzz/out/client_parse -m none -t 2000 -- build/client_parse_fuzz @@ > fuzz/out/client_parse/nohup.log 2>&1 &
 	@echo $! > fuzz/out/client_parse/afl.pid
 	@echo "afl-fuzz for client parser started in background, pid saved to fuzz/out/client_parse/afl.pid"
 
@@ -180,22 +185,22 @@ fuzz-client-run-bg: fuzz-client
 fuzz-clean:
 	@echo "Stopping background afl-fuzz (if running) and cleaning fuzz output..."
 	@if [ -f fuzz/out/http_request/afl.pid ]; then \
-		pid=$$(cat fuzz/out/http_request/afl.pid) ; \
-		if kill -0 $$pid >/dev/null 2>&1; then \
-			echo "Killing $$pid"; kill $$pid || true; \
-		else \
-			echo "No running process with pid $$pid"; \
-		fi; \
-		rm -f fuzz/out/http_request/afl.pid; \
+	    pid=$$(cat fuzz/out/http_request/afl.pid) ; \
+	    if kill -0 $$pid >/dev/null 2>&1; then \
+	        echo "Killing $$pid"; kill $$pid || true; \
+	    else \
+	        echo "No running process with pid $$pid"; \
+	    fi; \
+	    rm -f fuzz/out/http_request/afl.pid; \
 	fi
 	@if [ -f fuzz/out/client_parse/afl.pid ]; then \
-		pid=$$(cat fuzz/out/client_parse/afl.pid) ; \
-		if kill -0 $$pid >/dev/null 2>&1; then \
-			echo "Killing $$pid"; kill $$pid || true; \
-		else \
-			echo "No running process with pid $$pid"; \
-		fi; \
-		rm -f fuzz/out/client_parse/afl.pid; \
+	    pid=$$(cat fuzz/out/client_parse/afl.pid) ; \
+	    if kill -0 $$pid >/dev/null 2>&1; then \
+	        echo "Killing $$pid"; kill $$pid || true; \
+	    else \
+	        echo "No running process with pid $$pid"; \
+	    fi; \
+	    rm -f fuzz/out/client_parse/afl.pid; \
 	fi
 	@rm -rf fuzz/out/http_request fuzz/out/client_parse
 	@echo "Removed fuzz output directories (and any logs)."
@@ -216,16 +221,16 @@ perf-record: profile
 
 perf-report:
 	@if [ ! -f perf.data ]; then \
-		echo "Error: perf.data not found!"; \
-		echo "Run 'make perf-record' first."; \
-		exit 1; \
+	    echo "Error: perf.data not found!"; \
+	    echo "Run 'make perf-record' first."; \
+	    exit 1; \
 	fi
 	@echo "========================================="
 	@echo "  Opening interactive perf report"
 	@echo "========================================="
 	@echo ""
 	@echo "Navigation:"
-	@echo "  ↑↓    - Move through functions"
+	@echo "  ↑↓     - Move through functions"
 	@echo "  Enter - Expand call graph"
 	@echo "  q     - Quit"
 	@echo ""
@@ -239,7 +244,7 @@ clean:
 
 help:
 	@echo "========================================="
-	@echo "  Server Build System"
+	@echo "  Server Build System (CLANG)"
 	@echo "========================================="
 	@echo ""
 	@echo "Build Targets:"

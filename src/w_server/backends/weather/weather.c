@@ -168,7 +168,7 @@ int fetch_weather_from_openmeteo(double latitude, double longitude, char** api_r
         return -2; // Rate limit exceeded
     }
 
-    char url[256];
+    char url[512];
     snprintf(url, sizeof(url), METEO_FORECAST_URL, latitude, longitude);
 
     http_response_t response;
