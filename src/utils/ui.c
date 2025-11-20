@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 // UI printing control flag - can be changed at runtime
-int UI_PRINT_ENABLED = 1;
+int UI_PRINT_ENABLED = 0;
 
 // ANSI color codes (48 colors ordered for maximum contrast and readability)
 const char* client_colors[] = {
