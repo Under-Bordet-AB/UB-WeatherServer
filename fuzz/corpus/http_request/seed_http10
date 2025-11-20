@@ -1,0 +1,3 @@
+GET /legacy HTTP/1.0
+Host: old.example.com
+

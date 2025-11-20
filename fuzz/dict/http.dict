@@ -1,0 +1,199 @@
+# ====================
+# REQUEST LINE ATTACKS
+# ====================
+"GET"
+"GET "
+"GET  "
+"GET /"
+"GET //"
+"GET ///"
+"GET ///////"
+"GET \x00/"
+"GET %00/"
+"GET %2f%2e%2e/"
+"GET ../../../../"
+"GET ?"
+"GET ??"
+"GET ???"
+"GET ?AAAAA"
+"GET ?AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+"GET /AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+"POST "
+"POST  "
+"POST /"
+"POST ///////"
+"POST \x00"
+"POST /\xff"
+"POST /%%%"
+"POST /%00%00%00"
+
+"BADVERB "
+"XYZ /"
+"\x00 /"
+
+# ====================
+# HTTP VERSION ATTACKS
+# ====================
+"HTTP/1.1"
+"HTTP/1.0"
+"HTTP/0.9"
+"HTTP/9.9"
+"HTTP/9999999999"
+"HTTP/"
+"HTTP//"
+"HTTP/1."
+"HTTP/1.1 "
+"HTTP/1.1\x00"
+"HTTP/1.1\xff"
+"HTTP/1.1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+# ========================
+# DELIMITERS (EXTREME)
+# ========================
+"\x0d\x0a"
+"\x0a"
+"\x0d"
+"\x0d\x0d"
+"\x0a\x0a"
+"\x0d\x0a\x0d\x0a"
+"\x0d\x0a\x0d"
+"\x0d\x0a\x0d\x0a\x0d\x0a"
+"\x0d"
+"\x0a"
+"\x00"
+"\xff"
+";"
+","
+":::"
+": : :"
+"       :"
+" :"
+": "
+"= ="
+"& &"
+"???="
+"?=&"
+
+# ========================
+# HEADERS (BROKEN/MALFORMED)
+# ========================
+"Host:"
+"Host: "
+"Host: \x00"
+"Host: \xff"
+"Host: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+"Host: ../../../../"
+"Host: ::1"
+"Host: :::::::"
+"Host: ;;;;"
+"Host: ,,,,"
+
+"X-"
+"X-A:"
+"X-A:\x00"
+"X-A:\xff"
+"X-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:"
+
+"Content-Length:"
+"Content-Length: "
+"Content-Length: -1"
+"Content-Length: 0"
+"Content-Length: 1"
+"Content-Length: 999999999"
+"Content-Length: 18446744073709551615"
+"Content-Length: AAAAAAAA"
+"Content-Length: \x00"
+
+"Transfer-Encoding:"
+"Transfer-Encoding: chunked"
+"Transfer-Encoding: Chunked"
+"Transfer-Encoding: CHUNKED"
+"Transfer-Encoding: chunked\x0d"
+"Transfer-Encoding: chunked\x0a"
+"Transfer-Encoding: chunked\x00"
+"Transfer-Encoding: chunked;;;;"
+
+"Cookie:"
+"Cookie: session="
+"Cookie: AAAAA=BBBBB"
+"Cookie: \x00=AAAA"
+"Cookie: AAAA=\x00"
+
+"User-Agent:"
+"User-Agent: \x00"
+"User-Agent: \xff"
+"User-Agent: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+# ====================
+# CHUNKED ENCODING ATTACKS
+# ====================
+"0\x0d\x0a\x0d\x0a"
+"1\x0d\x0aA\x0d\x0a0\x0d\x0a\x0d\x0a"
+"FFFFFFFF\x0d\x0a"
+"00000000\x0d\x0a"
+"FFFFFFF0\x0d\x0a"
+"FFFFFFFFFFFFFFFF\x0d\x0a"
+"100000000\x0d\x0a"
+"1;evil=true\x0d\x0aA\x0d\x0a0\x0d\x0a\x0d\x0a"
+"1;AAAAAAAAAAAAAAAAAAAAAA\x0d\x0aA\x0d\x0a0\x0d\x0a\x0d\x0a"
+"1\x0d\x0a\x00\x0d\x0a"
+"ZZZZZZZZ\x0d\x0a"
+"999999999999999999\x0d\x0a"
+"\x0d\x0a0\x0d\x0a\x0d\x0a"
+
+# ====================
+# PATH TRAVERSAL / UTF-8 WEIRDNESS
+# ====================
+"../../"
+"../../../"
+"../../../../../../"
+"/%2e%2e/%2e%2e/"
+"/..%00/"
+"%c0%af"
+"%e0%80%af"
+"%f0%80%80%af"
+"/%ff/"
+
+# ====================
+# HIGH-IMPACT BYTE PATTERNS
+# ====================
+"\x00"
+"\x01"
+"\x02"
+"\x7F"
+"\x80"
+"\xFE"
+"\xFF"
+"\x00\x00"
+"\xFF\xFF"
+"\x00\xFF"
+"\xFF\x00"
+"AAAA"
+"BBBB"
+"CCCC"
+"DDDD"
+"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+# ====================
+# RESPONSE TOKENS (if parser accepts them)
+# ====================
+"HTTP/1.1 200 OK"
+"HTTP/1.1 400 Bad Request"
+"HTTP/1.1 500 Internal Server Error"
+"HTTP/1.1\x00"
+"HTTP/1.1\xff"
+
+# ====================
+# SUPER-AGGRESSIVE STRUCTURAL BREAKERS
+# ====================
+" "
+"    "
+"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\x0d\x0a"
+"\x0d\x0aAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+"::::AAAAAAAAAAAAAA"
+"%%%%%%%"
+"///////"
+"<<<<<<"
+">>>>>>"

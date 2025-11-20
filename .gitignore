@@ -63,3 +63,15 @@ stress
 /weather_cache
 
 *.data
+
+# Fuzzing artifacts
+/fuzz/out/
+/fuzz/crashes/
+
+# AFL and sanitizer crash artifacts
+*.crash
+*.hang
+crashes/
+
+# Build artifacts (already listed but keep safe)
+/build/

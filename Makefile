@@ -4,6 +4,14 @@
 
 CC := gcc
 
+# AFL / fuzz build settings
+# Use afl-clang-fast by default for instrumented builds; override with AFL_CC
+AFL_CC ?= afl-clang-fast
+# Fuzz build flags: ASAN + UBSAN-ish flags suitable for fuzzing
+FUZZ_CFLAGS ?= -g -O1 -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all
+FUZZ_INCLUDES ?= -I./src -I./src/libs
+
+
 # Generate include search paths for ALL folders under src/
 SRC_DIRS := $(shell find src -type d)
 INCLUDES := -Iinclude $(addprefix -I,$(SRC_DIRS))
@@ -104,6 +112,53 @@ stress: stress.c
 	@$(CC) -o stress stress.c -O2
 	@echo "✓ stress test built successfully"
 
+# Build AFL-instrumented fuzz harness for HTTP parser
+.PHONY: fuzz-http
+fuzz-http:
+	@echo "Building AFL-instrumented http_request fuzz harness..."
+	@mkdir -p build
+	@if ! command -v $(AFL_CC) >/dev/null 2>&1; then \
+		echo "Error: $(AFL_CC) not found. Install AFL or set AFL_CC to your afl-clang-fast."; exit 1; \
+	fi
+	@$(AFL_CC) $(FUZZ_CFLAGS) $(FUZZ_INCLUDES) -o build/http_request_fuzz \
+		fuzz/harnesses/http_request_fuzz.c src/libs/http_parser.c src/libs/linked_list.c
+	@echo "✓ fuzz harness built at build/http_request_fuzz"
+
+.PHONY: fuzz-run
+fuzz-run: fuzz-http
+	@echo "Preparing to run afl-fuzz (will run in foreground)."
+	@which afl-fuzz >/dev/null 2>&1 || (echo "Error: afl-fuzz not found. Install AFL." && exit 1)
+	@mkdir -p fuzz/out/http_request
+	@echo "Tip: run this inside tmux or screen if you want to leave it running."
+	@echo "Starting afl-fuzz... Press Ctrl+C to stop."
+	@ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:allocator_may_return_null=1:symbolize=0 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 MALLOC_ARENA_MAX=1 \
+		afl-fuzz -x fuzz/dict/http.dict -i fuzz/corpus/http_request -o fuzz/out/http_request -m none -t 2000 -- build/http_request_fuzz @@
+
+.PHONY: fuzz-run-bg
+fuzz-run-bg: fuzz-http
+	@echo "Starting afl-fuzz in background (output in fuzz/out/http_request)."
+	@which afl-fuzz >/dev/null 2>&1 || (echo "Error: afl-fuzz not found. Install AFL." && exit 1)
+	@mkdir -p fuzz/out/http_request
+	@ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:allocator_may_return_null=1:symbolize=0 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 MALLOC_ARENA_MAX=1 \
+		nohup afl-fuzz -x fuzz/dict/http.dict -i fuzz/corpus/http_request -o fuzz/out/http_request -m none -t 2000 -- build/http_request_fuzz @@ > fuzz/out/http_request/nohup.log 2>&1 &
+	@echo $! > fuzz/out/http_request/afl.pid
+	@echo "afl-fuzz started in background, pid saved to fuzz/out/http_request/afl.pid"
+
+.PHONY: fuzz-clean
+fuzz-clean:
+	@echo "Stopping background afl-fuzz (if running) and cleaning fuzz output..."
+	@if [ -f fuzz/out/http_request/afl.pid ]; then \
+		pid=$$(cat fuzz/out/http_request/afl.pid) ; \
+		if kill -0 $$pid >/dev/null 2>&1; then \
+			echo "Killing $$pid"; kill $$pid || true; \
+		else \
+			echo "No running process with pid $$pid"; \
+		fi; \
+		rm -f fuzz/out/http_request/afl.pid; \
+	fi
+	@rm -rf fuzz/out/http_request
+	@echo "Removed fuzz/out/http_request (and any logs)."
+
 perf-record: profile
 	@echo "========================================="
 	@echo "  Starting perf profiling session"
@@ -158,6 +213,12 @@ help:
 	@echo ""
 	@echo "Testing:"
 	@echo "  make stress          - Build enhanced REST API stress test"
+	@echo ""
+	@echo "Fuzzing:"
+	@echo "  make fuzz-http       - Build AFL-instrumented fuzz harness (build/http_request_fuzz)"
+	@echo "  make fuzz-run        - Build harness and run afl-fuzz in foreground (interactive)"
+	@echo "  make fuzz-run-bg     - Build harness and start afl-fuzz in background (nohup/log + pidfile)"
+	@echo "  Fuzz corpus: fuzz/corpus/http_request/ (seeds)"
 	@echo ""
 	@echo "Profiling Targets (Linux only):"
 	@echo "  make perf-record  - Start server with perf recording"

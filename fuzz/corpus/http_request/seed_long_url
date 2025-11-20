@@ -1,0 +1,4 @@
+GET /api/v1/users/12345/posts/67890/comments/11223344/replies/99887766/metadata/details/full/extended/version/latest/format/json HTTP/1.1
+Host: api.example.com
+Authorization: Bearer token123
+

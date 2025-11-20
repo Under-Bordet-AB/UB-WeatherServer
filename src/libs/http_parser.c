@@ -219,7 +219,7 @@ http_request* http_request_fromstring(const char* message) {
                 }
             }
             if (count != 2) {
-                printf("INVALID: Request is not formatted with 2 spaces.\n\n");
+                // printf("INVALID: Request is not formatted with 2 spaces.\n\n");
                 free(current_line);
                 break;
             }
@@ -230,7 +230,7 @@ http_request* http_request_fromstring(const char* message) {
 
             // Check URL length
             if (space2 - (space1 + 1) >= MAX_URL_LEN) {
-                printf("INVALID: Request URL is too long\n\n");
+                // printf("INVALID: Request URL is too long\n\n");
                 request->reason = INVALID_REASON_URL_TOO_LONG;
                 free(current_line);
                 break;
@@ -271,7 +271,7 @@ http_request* http_request_fromstring(const char* message) {
             // Parse header line: "Name: Value"
             const char* sep = strstr(current_line, ": ");
             if (!sep) {
-                printf("INVALID: Header is malformed.\n\n");
+                // printf("INVALID: Header is malformed.\n\n");
                 free(current_line);
                 break;
             }
@@ -411,7 +411,7 @@ http_response* http_response_fromstring(const char* message) {
                 }
             }
             if (count != 2) {
-                printf("INVALID: Response is not formatted with 2 spaces.\n\n");
+                // printf("INVALID: Response is not formatted with 2 spaces.\n\n");
                 free(current_line);
                 break;
             }
@@ -437,7 +437,7 @@ http_response* http_response_fromstring(const char* message) {
             // Convert code string to integer
             int code_as_integer = parseInt(code);
             if (code_as_integer == -1) {
-                printf("INVALID: Non-numeric response code.\n\n");
+                // printf("INVALID: Non-numeric response code.\n\n");
                 free(current_line);
                 break;
             }
@@ -454,7 +454,7 @@ http_response* http_response_fromstring(const char* message) {
             // Parse header line: "Name: Value"
             const char* sep = strstr(current_line, ": ");
             if (!sep) {
-                printf("INVALID: Header is malformed.\n\n");
+                // printf("INVALID: Header is malformed.\n\n");
                 free(current_line);
                 break;
             }
