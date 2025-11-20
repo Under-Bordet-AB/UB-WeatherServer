@@ -13,12 +13,12 @@
 // External shutdown flag from main
 extern volatile sig_atomic_t shutdown_requested;
 
-typedef struct mj_scheduler {
+struct mj_scheduler {
     mj_task* task_list[MAX_TASKS];
     mj_task** current_task; // double pointer, so we dont have to search array to remove task
     size_t task_count;
     int stop_requested; // Flag to request scheduler shutdown
-} mj_scheduler;
+};
 
 int mj_scheduler_run(mj_scheduler* scheduler) {
     if (scheduler == NULL) {

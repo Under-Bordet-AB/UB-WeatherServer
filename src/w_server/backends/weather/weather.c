@@ -603,7 +603,7 @@ int weather_work(void** ctx) {
         weather->state = Weather_State_ValidateFile;
         ui_print_backend_init(client, "Weather");
         break;
-    case Weather_State_ValidateFile:
+    case Weather_State_ValidateFile: {
         if (does_weather_cache_exist(weather->latitude, weather->longitude) == 0 &&
             is_weather_cache_stale(weather->latitude, weather->longitude, 900) == 0) {
             weather->state = Weather_State_LoadFromDisk;
@@ -612,7 +612,8 @@ int weather_work(void** ctx) {
         }
         ui_print_backend_state(client, "Weather", "validating cache");
         break;
-    case Weather_State_LoadFromDisk:
+    }
+    case Weather_State_LoadFromDisk: {
         char* json_str = NULL;
         if (load_weather_from_cache(weather->latitude, weather->longitude, &json_str) == 0) {
             weather->buffer = json_str;
@@ -623,7 +624,8 @@ int weather_work(void** ctx) {
         }
         weather->state = Weather_State_Done;
         break;
-    case Weather_State_FetchFromAPI_Init:
+    }
+    case Weather_State_FetchFromAPI_Init: {
         // Fetch weather data synchronously
         char* api_response = NULL;
         int fetch_result = fetch_weather_from_openmeteo(weather->latitude, weather->longitude, &api_response);
@@ -643,7 +645,8 @@ int weather_work(void** ctx) {
             ui_print_backend_error(client, "Weather", "HTTP client failed (network/timeout)");
         }
         break;
-    case Weather_State_ProcessResponse:
+    }
+    case Weather_State_ProcessResponse: {
         char* client_response = NULL;
         if (process_openmeteo_response(weather->buffer, &client_response) != 0) {
             weather->state = Weather_State_Done;
@@ -655,7 +658,8 @@ int weather_work(void** ctx) {
             ui_print_backend_state(client, "Weather", "processed API response");
         }
         break;
-    case Weather_State_SaveToDisk:
+    }
+    case Weather_State_SaveToDisk: {
         if (save_weather_to_cache(weather->latitude, weather->longitude, weather->buffer) != 0) {
             ui_print_backend_error(client, "Weather", "cache save failed");
         } else {
@@ -663,10 +667,12 @@ int weather_work(void** ctx) {
         }
         weather->state = Weather_State_Done;
         break;
-    case Weather_State_Done:
+    }
+    case Weather_State_Done: {
         ui_print_backend_done(client, "Weather");
         weather->on_done(weather->ctx);
         break;
+    }
     }
 
     return 0;

@@ -28,7 +28,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
     w_client* client = (w_client*)ctx;
 
     switch (client->state) {
-    case W_CLIENT_READING:
+    case W_CLIENT_READING: {
         // Check for timeout directly (inline, no function call)
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
@@ -96,8 +96,10 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             client->state = W_CLIENT_SENDING;
         }
         break;
+    }
 
-    case W_CLIENT_PARSING:
+    case W_CLIENT_PARSING: {
+
         // Parse the complete HTTP request
         http_request* parsed = http_request_fromstring(client->read_buffer);
 
@@ -129,7 +131,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         ui_print_request_details(client);
         client->state = W_CLIENT_PROCESSING;
         break;
-
+    }
     case W_CLIENT_PROCESSING: {
         // Route request and dispatch to appropriate backend
         http_request* req = (http_request*)client->parsed_request;
@@ -246,7 +248,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         break;
     }
 
-    case W_CLIENT_SENDING:
+    case W_CLIENT_SENDING: {
         // Send response data to client
         if (client->response_data && client->response_sent < client->response_len) {
             ssize_t sent = send(client->fd, client->response_data + client->response_sent,
@@ -281,15 +283,17 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             client->state = W_CLIENT_DONE;
         }
         break;
-
-    case W_CLIENT_DONE:
+    }
+    case W_CLIENT_DONE: {
         mj_scheduler_task_remove_current(scheduler); /* invokes w_client_cleanup() */
         break;
+    }
 
-    default: /* defensive path */
+    default: { /* defensive path */
         ui_print_unknown_state_error(client, client->state);
         client->state = W_CLIENT_DONE; /* force a cleanup cycle */
         break;
+    }
     }
 }
 
