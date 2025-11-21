@@ -1,0 +1,115 @@
+Fick det här felet när jag tryckte ctrl+c medans den jobbade för fullt.  
+ 
+ 
+         [Cities] saved to disk cache
+          [Cities] saved to disk cache
+          [Cities] saved to disk cache
+          [Weather] processed API response
+          [Cities] saved to disk cache
+          [Weather] processed API response
+          [Cities] parsed city data
+          [Surprise] ✓ completed
+Client   66 (active:   78, total:  100) Response: 200 OK (96684 bytes)
+          [Surprise] ✓ completed
+Client   67 (active:   78, total:  100) Response: 200 OK (96684 bytes)
+          [Weather] fetched from API
+          [Cities] parsed city data
+          [Surprise] ✓ completed
+Client   70 (active:   78, total:  100) Response: 200 OK (96684 bytes)
+^C        [Weather] ❌ ERROR: HTTP client failed (network/timeout)
+          [Cities] parsed city data
+          [Weather] fetched from API
+          [Surprise] ✓ completed
+Client   74 (active:   78, total:  100) Response: 200 OK (96684 bytes)
+          [Cities] parsed city data
+          [Weather] fetched from API
+          [Surprise] ✓ completed
+Client   77 (active:   78, total:  100) Response: 200 OK (96684 bytes)
+          [Surprise] ✓ completed
+Client   78 (active:   78, total:  100) Response: 200 OK (96684 bytes)
+          [Weather] fetched from API
+          [Weather] fetched from API
+          [Surprise] loaded image from disk
+          [Weather] validating cache
+          [Surprise] loaded image from disk
+          [Surprise] loaded image from disk
+          [Surprise] loaded image from disk
+          [Surprise] loaded image from disk
+          [Cities] loaded from disk cache
+          [Weather] validating cache
+          [Cities] loaded from disk cache
+          [Surprise] loaded image from disk
+          [Surprise] loaded image from disk
+          [Surprise] loaded image from disk
+          [Weather] validating cache
+          [Weather] validating cache
+          [Cities] loaded from disk cache
+          [Weather] validating cache
+          [Surprise] loading image file
+          [Surprise] loading image file
+Client   99 (active:   78, total:  100)
+          [Cities] initialized
+Client  100 (active:   78, total:  100)
+          [Cities] initialized
+
+Shutdown signal received. Cleaning up...
+Server: Listening stopped on socket 3
+=================================================================
+==29444==ERROR: AddressSanitizer: heap-use-after-free on address 0x608000000060 at pc 0x58e73095b9e4 bp 0x7ffd8ce74a30 sp 0x7ffd8ce74a28
+READ of size 8 at 0x608000000060 thread T0
+    #0 0x58e73095b9e3 in w_client_cleanup /home/jimmy/progg/chas/UB-WeatherServer/src/w_server/w_client.c:389:37
+    #1 0x58e73099f3f2 in mj_scheduler_cleanup_all_tasks /home/jimmy/progg/chas/UB-WeatherServer/src/libs/majjen.c:176:13
+    #2 0x58e7309a56bf in main /home/jimmy/progg/chas/UB-WeatherServer/src/main.c:108:5
+    #3 0x79eb2f629d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #4 0x79eb2f629e3f in __libc_start_main csu/../csu/libc-start.c:392:3
+    #5 0x58e730898444 in _start (/home/jimmy/progg/chas/UB-WeatherServer/server+0x2b444) (BuildId: 538388aefdee5fb8c878205f2962f8ad38e7953d)
+
+0x608000000060 is located 64 bytes inside of 88-byte region [0x608000000020,0x608000000078)
+freed by thread T0 here:
+    #0 0x58e73091afe2 in free (/home/jimmy/progg/chas/UB-WeatherServer/server+0xadfe2) (BuildId: 538388aefdee5fb8c878205f2962f8ad38e7953d)
+    #1 0x58e73099f424 in mj_scheduler_cleanup_all_tasks /home/jimmy/progg/chas/UB-WeatherServer/src/libs/majjen.c:180:9
+    #2 0x58e7309a56bf in main /home/jimmy/progg/chas/UB-WeatherServer/src/main.c:108:5
+    #3 0x79eb2f629d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+
+previously allocated by thread T0 here:
+    #0 0x58e73091b478 in __interceptor_calloc (/home/jimmy/progg/chas/UB-WeatherServer/server+0xae478) (BuildId: 538388aefdee5fb8c878205f2962f8ad38e7953d)
+    #1 0x58e73095666a in w_server_create /home/jimmy/progg/chas/UB-WeatherServer/src/w_server/w_server.c:117:24
+    #2 0x58e7309a5439 in main /home/jimmy/progg/chas/UB-WeatherServer/src/main.c:67:24
+    #3 0x79eb2f629d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+
+SUMMARY: AddressSanitizer: heap-use-after-free /home/jimmy/progg/chas/UB-WeatherServer/src/w_server/w_client.c:389:37 in w_client_cleanup
+Shadow bytes around the buggy address:
+  0x0c107fff7fb0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c107fff7fc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c107fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c107fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c107fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x0c107fff8000: fa fa fa fa fd fd fd fd fd fd fd fd[fd]fd fd fa
+  0x0c107fff8010: fa fa fa fa fd fd fd fd fd fd fd fd fd fd fd fa
+  0x0c107fff8020: fa fa fa fa fd fd fd fd fd fd fd fd fd fd fd fa
+  0x0c107fff8030: fa fa fa fa 00 00 00 00 00 00 00 00 00 00 00 fa
+  0x0c107fff8040: fa fa fa fa 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c107fff8050: fa fa fa fa fd fd fd fd fd fd fd fd fd fd fd fd
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==29444==ABORTING
+make: *** [Makefile:110: run] Error 1
+
+jimmy@pop-os:~/progg/chas/UB-WeatherServer$ 
