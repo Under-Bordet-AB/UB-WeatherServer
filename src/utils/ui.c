@@ -84,9 +84,18 @@ void ui_print_received_bytes(w_client* client, ssize_t bytes) {
     if (!UI_PRINT_ENABLED)
         return;
     const char* color = client_colors[client->client_number % NUM_COLORS];
-    fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Received %zd bytes (total: %zu)%s\n", color,
+    fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Received %zd bytes (total: %zu)%s", color,
             client->client_number, client->server->active_count, client->server->total_clients, bytes,
             client->bytes_read + bytes, COLOR_RESET);
+}
+
+void ui_print_received_request_raw(w_client* client) {
+    if (!UI_PRINT_ENABLED)
+        return;
+    char* msg = client->read_buffer;
+    const char* color = client_colors[client->client_number % NUM_COLORS];
+    fprintf(stderr, "%sClient %4zu (active: %4zu, total: %4zu) Received msg:\n%s%s\n", color, client->client_number,
+            client->server->active_count, client->server->total_clients, msg, COLOR_RESET);
 }
 
 void ui_print_request_too_large(w_client* client) {

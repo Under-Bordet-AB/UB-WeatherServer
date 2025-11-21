@@ -34,7 +34,7 @@ typedef struct w_server {
     char port[6];     // Port string (max 65535)
     // Metrics
     size_t active_count;
-    size_t total_clients; // Total clients accepted (for numbering)
+    size_t total_clients; // Total clients accepted during run
     // Last error
     w_server_error last_error;
 } w_server;

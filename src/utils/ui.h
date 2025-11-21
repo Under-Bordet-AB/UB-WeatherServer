@@ -14,6 +14,7 @@ void ui_print_timeout(w_client* client, int timeout_sec);
 void ui_print_read_error(w_client* client, const char* error);
 void ui_print_connection_closed_by_client(w_client* client);
 void ui_print_received_bytes(w_client* client, ssize_t bytes);
+void ui_print_received_request_raw(w_client* client);
 void ui_print_request_too_large(w_client* client);
 void ui_print_bad_request(w_client* client);
 void ui_print_request_details(w_client* client);

@@ -22,8 +22,8 @@
 #include <unistd.h>
 
 // TODO w_server_listen_TCP_nonblocking() gets added as a task (along with a cleanup function) to the scheduler.
-// Therfore it should be a separate module that plugs into the server. Since we can listen on sockets in many ways.
-// Each of these ways gets its own funciton.
+// Therfore it should be a separate module that plugs into the server. Since we can listen on many sockets in many ways.
+// Each of these ways gets its own module.
 
 // Listen for new clients non-blocking. This is the function that gets added to the scheduler
 void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
@@ -175,7 +175,7 @@ w_server* w_server_create(w_server_config* config) {
     int flags = fcntl(server->listen_fd, F_GETFL, 0);
     fcntl(server->listen_fd, F_SETFL, flags | O_NONBLOCK);
     // Mark socket as listening in the OS
-    if (listen(server->listen_fd, 4096) < 0) { // SOMAXCONN
+    if (listen(server->listen_fd, SOMAXCONN) < 0) {
         perror("listen");
         free(server);
         return NULL;
@@ -201,7 +201,7 @@ w_server* w_server_create(w_server_config* config) {
 
     // Start to listen
 
-    // All done, return the surver address
+    // All done, return
     if (server->last_error == W_SERVER_ERROR_NONE) {
         return server;
     }

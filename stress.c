@@ -229,6 +229,9 @@ int main(int argc, char** argv) {
     int interval_us = 250000;        // 250ms default trickle rate
     int realistic_timing = 0;
     int keepalive_sec = 0;
+    int log_to_file = 0;
+    FILE* log_file = NULL;
+    char log_filename[256] = {0};
 
     // Backend selection flags
     int test_weather = 0;
@@ -297,6 +300,8 @@ int main(int argc, char** argv) {
                 return 1;
             }
             keepalive_sec = atoi(argv[i]);
+        } else if (strcmp(argv[i], "-log") == 0) {
+            log_to_file = 1;
         } else {
             fprintf(stderr, "Unknown option: %s\n", argv[i]);
             print_usage(argv[0]);
@@ -349,6 +354,22 @@ int main(int argc, char** argv) {
     if (test_surprise)
         enabled_backends[num_enabled++] = 2; // Surprise
 
+    // Create log file if requested
+    if (log_to_file) {
+        time_t now = time(NULL);
+        struct tm* tm_info = localtime(&now);
+        snprintf(log_filename, sizeof(log_filename), "stress_test_%04d%02d%02d_%02d%02d%02d.log",
+                 tm_info->tm_year + 1900, tm_info->tm_mon + 1, tm_info->tm_mday, tm_info->tm_hour, tm_info->tm_min,
+                 tm_info->tm_sec);
+        log_file = fopen(log_filename, "w");
+        if (!log_file) {
+            fprintf(stderr, "Warning: Failed to create log file %s: %s\n", log_filename, strerror(errno));
+            log_to_file = 0;
+        } else {
+            printf("Logging to: %s\n", log_filename);
+        }
+    }
+
     // Print configuration
     const char* mode_names[] = {"SLOW", "NORMAL", "FAST", "VERY FAST", "INSANE", "BURST", "CUSTOM"};
     printf("=== Enhanced REST API Stress Test ===\n");
@@ -372,6 +393,32 @@ int main(int argc, char** argv) {
         printf("Surprise ");
     printf("\n");
     printf("=====================================\n\n");
+
+    // Write configuration to log file
+    if (log_file) {
+        fprintf(log_file, "=== Enhanced REST API Stress Test ===\n");
+        fprintf(log_file, "Target:   %s:%d\n", ip, port);
+        fprintf(log_file, "Requests: %d\n", total);
+        fprintf(log_file, "Mode:     %s", mode_names[mode]);
+        if (mode != MODE_BURST) {
+            fprintf(log_file, " (%.0f req/sec)\n", 1000000.0 / interval_us);
+        } else {
+            fprintf(log_file, " (instant)\n");
+        }
+        if (realistic_timing) {
+            fprintf(log_file, "Timing:   Realistic (random 100-500ms think time)\n");
+        }
+        fprintf(log_file, "Backends: ");
+        if (test_weather)
+            fprintf(log_file, "Weather ");
+        if (test_cities)
+            fprintf(log_file, "Cities ");
+        if (test_surprise)
+            fprintf(log_file, "Surprise ");
+        fprintf(log_file, "\n");
+        fprintf(log_file, "=====================================\n\n");
+        fflush(log_file);
+    }
 
     // Initialize clients
     for (int i = 0; i < total; i++) {
@@ -811,18 +858,114 @@ int main(int argc, char** argv) {
                total_times[completed_count - 1] / 1000.0);
     }
 
-    // Print responses if count is 10 or less
-    if (total <= 10) {
-        printf("\n=== Response Data ===\n");
+    // Write detailed logs to file if requested
+    if (log_file) {
+        fprintf(log_file, "\n=== Results ===\n");
+        fprintf(log_file, "Total requests:   %d\n", total);
+        fprintf(log_file, "Completed:        %d (%.1f%%)\n", completed_count, 100.0 * completed_count / total);
+        fprintf(log_file, "Failed:           %d (%.1f%%)\n", failed_count, 100.0 * failed_count / total);
+        fprintf(log_file, "Time elapsed:     %.3f seconds\n", elapsed_sec);
+        fprintf(log_file, "Throughput:       %.0f req/sec\n", completed_count / elapsed_sec);
+
+        fprintf(log_file, "\n=== HTTP Status Codes ===\n");
+        if (num_unique_codes > 0) {
+            for (int i = 0; i < num_unique_codes; i++) {
+                const char* description = "";
+                int code = unique_status_codes[i];
+                if (code == 0)
+                    description = "No Response";
+                else if (code == 200)
+                    description = "OK";
+                else if (code == 201)
+                    description = "Created";
+                else if (code == 204)
+                    description = "No Content";
+                else if (code == 301)
+                    description = "Moved Permanently";
+                else if (code == 302)
+                    description = "Found";
+                else if (code == 304)
+                    description = "Not Modified";
+                else if (code == 400)
+                    description = "Bad Request";
+                else if (code == 401)
+                    description = "Unauthorized";
+                else if (code == 403)
+                    description = "Forbidden";
+                else if (code == 404)
+                    description = "Not Found";
+                else if (code == 413)
+                    description = "Content Too Large";
+                else if (code == 500)
+                    description = "Internal Server Error";
+                else if (code == 501)
+                    description = "Not Implemented";
+                else if (code == 502)
+                    description = "Bad Gateway";
+                else if (code == 503)
+                    description = "Service Unavailable";
+                fprintf(log_file, "  %6d  %3d  %-25s\n", unique_status_counts[i], code, description);
+            }
+        } else {
+            fprintf(log_file, "  No responses received\n");
+        }
+
+        if (completed_count > 0) {
+            fprintf(log_file, "\n=== Latency Metrics (milliseconds) ===\n");
+            fprintf(log_file, "                   p50      p95      p99      max\n");
+            fprintf(log_file, "  Connect:    %7.2f  %7.2f  %7.2f  %7.2f\n",
+                    calculate_percentile(connect_times, completed_count, 50) / 1000.0,
+                    calculate_percentile(connect_times, completed_count, 95) / 1000.0,
+                    calculate_percentile(connect_times, completed_count, 99) / 1000.0,
+                    connect_times[completed_count - 1] / 1000.0);
+            fprintf(log_file, "  Response:   %7.2f  %7.2f  %7.2f  %7.2f\n",
+                    calculate_percentile(response_times, completed_count, 50) / 1000.0,
+                    calculate_percentile(response_times, completed_count, 95) / 1000.0,
+                    calculate_percentile(response_times, completed_count, 99) / 1000.0,
+                    response_times[completed_count - 1] / 1000.0);
+            fprintf(log_file, "  Total:      %7.2f  %7.2f  %7.2f  %7.2f\n",
+                    calculate_percentile(total_times, completed_count, 50) / 1000.0,
+                    calculate_percentile(total_times, completed_count, 95) / 1000.0,
+                    calculate_percentile(total_times, completed_count, 99) / 1000.0,
+                    total_times[completed_count - 1] / 1000.0);
+        }
+
+        fprintf(log_file, "\n=== Individual Request Details ===\n");
         for (int i = 0; i < total; i++) {
-            if (clients[i].state == CLIENT_DONE && clients[i].response_buffer) {
-                printf("\n--- Request #%d (Status: %d, %zu bytes) ---\n", i + 1, clients[i].http_status,
-                       clients[i].response_bytes);
-                printf("%s\n", clients[i].response_buffer);
+            fprintf(log_file, "\n--- Request #%d ---\n", i + 1);
+
+            // Log request type and city (for weather requests)
+            const char* backend_name = "";
+            if (clients[i].request_type == 0) {
+                backend_name = "Weather";
+                fprintf(log_file, "Backend: %s (City: %s)\n", backend_name, CITIES[clients[i].city_index].name);
+            } else if (clients[i].request_type == 1) {
+                backend_name = "Cities";
+                fprintf(log_file, "Backend: %s\n", backend_name);
+            } else if (clients[i].request_type == 2) {
+                backend_name = "Surprise";
+                fprintf(log_file, "Backend: %s\n", backend_name);
+            }
+
+            if (clients[i].state == CLIENT_DONE) {
+                fprintf(log_file, "Status: SUCCESS (HTTP %d)\n", clients[i].http_status);
+                fprintf(log_file, "Response Size: %zu bytes\n", clients[i].response_bytes);
+                fprintf(log_file, "Connect Time: %.2f ms\n", clients[i].connect_time_us / 1000.0);
+                fprintf(log_file, "Response Time: %.2f ms\n", clients[i].response_time_us / 1000.0);
+                fprintf(log_file, "Total Time: %.2f ms\n", clients[i].total_time_us / 1000.0);
+
+                if (clients[i].response_buffer) {
+                    fprintf(log_file, "\nRequest:\n%s\n", clients[i].request_data);
+                    fprintf(log_file, "\nResponse:\n%s\n", clients[i].response_buffer);
+                }
             } else if (clients[i].state == CLIENT_FAILED) {
-                printf("\n--- Request #%d (FAILED) ---\n", i + 1);
+                fprintf(log_file, "Status: FAILED\n");
+                fprintf(log_file, "\nRequest:\n%s\n", clients[i].request_data);
             }
         }
+
+        fclose(log_file);
+        printf("\nDetailed logs written to: %s\n", log_filename);
     }
 
     // Keepalive

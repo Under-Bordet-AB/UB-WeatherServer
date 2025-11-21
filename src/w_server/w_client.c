@@ -4,6 +4,7 @@
 #include "backends/surprise/surprise.h"
 #include "backends/weather/weather.h"
 #include "global_defines.h"
+#include "http_msg_builder.h"
 #include "http_parser.h"
 #include "majjen.h"
 #include "string.h"
@@ -64,34 +65,18 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             return;
         }
 
-        ui_print_received_bytes(client, bytes);
-
         // Update bytes read and null-terminate
         client->bytes_read += bytes;
         client->read_buffer[client->bytes_read] = '\0';
         ui_print_received_bytes(client, bytes);
 
         // Check if we have a complete HTTP request (ends with \r\n\r\n).
-        // We must wait for completed request since current parser does not support incremental parsing.
-        // NOTE, this check is "message framing" so it does not belong in parsing
         if (strstr(client->read_buffer, "\r\n\r\n") != NULL) {
+            ui_print_received_request_raw(client);
             client->state = W_CLIENT_PARSING;
         } else if (client->bytes_read >= sizeof(client->read_buffer) - 1) {
             // Buffer full but no complete request
             ui_print_request_too_large(client);
-
-            // Send 413 Content Too Large response
-            http_response* too_large = http_response_new(RESPONSE_CODE_CONTENT_TOO_LARGE, "Request too large");
-            http_response_add_header(too_large, "Content-Type", "text/plain");
-            http_response_add_header(too_large, "Connection", "close");
-            const char* response_str = http_response_tostring(too_large);
-            client->response_data = (char*)response_str;
-            client->response_len = strlen(response_str);
-            client->response_sent = 0;
-            http_response_dispose(&too_large);
-
-            ui_print_response_details(client, 413, "Request Entity Too Large", client->response_len);
-
             client->error_code = W_CLIENT_ERROR_REQUEST_TOO_LARGE;
             client->state = W_CLIENT_SENDING;
         }
@@ -99,7 +84,6 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
     }
 
     case W_CLIENT_PARSING: {
-
         // Parse the complete HTTP request
         http_request* parsed = http_request_fromstring(client->read_buffer);
 
@@ -108,16 +92,6 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             ui_print_bad_request(client);
             if (parsed)
                 http_request_dispose(&parsed);
-
-            // Send 400 Bad Request response
-            http_response* bad_request = http_response_new(RESPONSE_CODE_BAD_REQUEST, "Malformed HTTP request");
-            http_response_add_header(bad_request, "Content-Type", "text/plain");
-            http_response_add_header(bad_request, "Connection", "close");
-            const char* response_str = http_response_tostring(bad_request);
-            client->response_data = (char*)response_str;
-            client->response_len = strlen(response_str);
-            client->response_sent = 0;
-            http_response_dispose(&bad_request);
 
             client->error_code = W_CLIENT_ERROR_MALFORMED_REQUEST;
             client->state = W_CLIENT_SENDING;
@@ -187,15 +161,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
                 if (backend->backend_struct && backend->backend_dispose) {
                     backend->backend_dispose(&backend->backend_struct);
                 }
-                http_response* response = http_response_new(RESPONSE_CODE_BAD_REQUEST, "Missing lat or lon parameter");
-                http_response_add_header(response, "Content-Type", "text/plain");
-                http_response_add_header(response, "Connection", "close");
-                const char* response_str = http_response_tostring(response);
-                client->response_data = (char*)response_str;
-                client->response_len = strlen(response_str);
-                client->response_sent = 0;
-                http_response_dispose(&response);
-                ui_print_response_details(client, 400, "Bad Request", client->response_len);
+                client->error_code = W_CLIENT_ERROR_MALFORMED_REQUEST;
                 client->state = W_CLIENT_SENDING;
                 break;
             }
@@ -212,26 +178,16 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             client->state = W_CLIENT_BACKEND_WORKING;
         } else if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/") == 0) {
             // Root endpoint - simple hello
-            http_response* response = http_response_new(RESPONSE_CODE_OK, "Hello from weather server!");
-            http_response_add_header(response, "Content-Type", "text/plain");
-            http_response_add_header(response, "Connection", "close");
-            const char* response_str = http_response_tostring(response);
-            client->response_data = (char*)response_str;
-            client->response_len = strlen(response_str);
+            client->response_data = http_msg_200_ok_text("Hello from weather server!");
+            client->response_len = strlen(client->response_data);
             client->response_sent = 0;
-            http_response_dispose(&response);
             ui_print_response_details(client, 200, "OK", client->response_len);
             client->state = W_CLIENT_SENDING;
         } else {
             // 404 for all other routes
-            http_response* response = http_response_new(RESPONSE_CODE_NOT_FOUND, "Not found");
-            http_response_add_header(response, "Content-Type", "text/plain");
-            http_response_add_header(response, "Connection", "close");
-            const char* response_str = http_response_tostring(response);
-            client->response_data = (char*)response_str;
-            client->response_len = strlen(response_str);
+            client->response_data = http_msg_404_not_found(req->url);
+            client->response_len = strlen(client->response_data);
             client->response_sent = 0;
-            http_response_dispose(&response);
             ui_print_response_details(client, 404, "Not Found", client->response_len);
             client->state = W_CLIENT_SENDING;
         }
@@ -249,6 +205,49 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
     }
 
     case W_CLIENT_SENDING: {
+        // Build response if not already built
+        if (!client->response_data) {
+            switch (client->error_code) {
+            case W_CLIENT_ERROR_REQUEST_TOO_LARGE:
+                client->response_data = http_msg_413_content_too_large(NULL);
+                if (client->response_data) {
+                    client->response_len = strlen(client->response_data);
+                    client->response_sent = 0;
+                    ui_print_response_details(client, 413, "Request Entity Too Large", client->response_len);
+                }
+                break;
+            case W_CLIENT_ERROR_MALFORMED_REQUEST:
+                client->response_data = http_msg_400_bad_request("Malformed HTTP request");
+                if (client->response_data) {
+                    client->response_len = strlen(client->response_data);
+                    client->response_sent = 0;
+                    ui_print_response_details(client, 400, "Bad Request", client->response_len);
+                }
+                break;
+            case W_CLIENT_ERROR_INTERNAL:
+                client->response_data = http_msg_500_internal_error("Backend error");
+                if (client->response_data) {
+                    client->response_len = strlen(client->response_data);
+                    client->response_sent = 0;
+                    ui_print_response_details(client, 500, "Internal Server Error", client->response_len);
+                }
+                break;
+            case W_CLIENT_ERROR_NONE:
+            default:
+                // No error, response should already be set by normal processing
+                if (!client->response_data) {
+                    // Defensive: shouldn't happen, but handle it
+                    client->response_data = http_msg_500_internal_error("No response generated");
+                    if (client->response_data) {
+                        client->response_len = strlen(client->response_data);
+                        client->response_sent = 0;
+                        ui_print_response_details(client, 500, "Internal Server Error", client->response_len);
+                    }
+                }
+                break;
+            }
+        }
+
         // Send response data to client
         if (client->response_data && client->response_sent < client->response_len) {
             ssize_t sent = send(client->fd, client->response_data + client->response_sent,
@@ -314,15 +313,7 @@ static void w_client_backend_done(void* ctx) {
 
     if (!buffer) {
         // Backend failed to produce response
-        http_response* response = http_response_new(RESPONSE_CODE_INTERNAL_SERVER_ERROR, "Backend error");
-        http_response_add_header(response, "Content-Type", "text/plain");
-        http_response_add_header(response, "Connection", "close");
-        const char* response_str = http_response_tostring(response);
-        client->response_data = (char*)response_str;
-        client->response_len = strlen(response_str);
-        client->response_sent = 0;
-        http_response_dispose(&response);
-        ui_print_response_details(client, 500, "Internal Server Error", client->response_len);
+        client->error_code = W_CLIENT_ERROR_INTERNAL;
         client->state = W_CLIENT_SENDING;
         return;
     }
@@ -335,32 +326,15 @@ static void w_client_backend_done(void* ctx) {
             backend->backend_get_buffer_size(&backend->backend_struct, &buffer_size);
         }
 
-        // Create raw HTTP response for binary data
-        const char* header_template =
-            "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n";
-        size_t header_len = snprintf(NULL, 0, header_template, buffer_size) + 1;
-        char* header = malloc(header_len);
-        snprintf(header, header_len, header_template, buffer_size);
-
-        // Combine header and body
-        size_t total_len = header_len - 1 + buffer_size;
-        client->response_data = malloc(total_len);
-        memcpy(client->response_data, header, header_len - 1);
-        memcpy(client->response_data + header_len - 1, buffer, buffer_size);
-        client->response_len = total_len;
+        client->response_data = http_msg_200_ok_binary("image/png", buffer, buffer_size);
+        client->response_len = http_msg_get_total_size(client->response_data);
         client->response_sent = 0;
-        free(header);
         ui_print_response_details(client, 200, "OK", buffer_size);
     } else {
         // Text/JSON response
-        http_response* response = http_response_new(RESPONSE_CODE_OK, buffer);
-        http_response_add_header(response, "Content-Type", "application/json");
-        http_response_add_header(response, "Connection", "close");
-        const char* response_str = http_response_tostring(response);
-        client->response_data = (char*)response_str;
-        client->response_len = strlen(response_str);
+        client->response_data = http_msg_200_ok_json(buffer);
+        client->response_len = strlen(client->response_data);
         client->response_sent = 0;
-        http_response_dispose(&response);
         ui_print_response_details(client, 200, "OK", strlen(buffer));
     }
 

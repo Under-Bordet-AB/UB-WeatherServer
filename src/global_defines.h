@@ -13,7 +13,6 @@
 
 //// CONNECTED CLIENTS
 #define W_CLIENT_READ_BUFFER_SIZE 8192
-#define W_CLIENT_MAX_REQUEST_SIZE (1 * 1024 * 1024) // 1MB
 
 // For how long do we let a connected client send its request
 #define CLIENT_READING_TIMEOUT_SEC 9999
