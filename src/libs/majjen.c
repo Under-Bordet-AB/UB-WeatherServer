@@ -8,7 +8,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <time.h>
-#include <unistd.h>
 
 // External shutdown flag from main
 extern volatile sig_atomic_t shutdown_requested;
@@ -29,6 +28,11 @@ int mj_scheduler_run(mj_scheduler* scheduler) {
     mj_task* current_task = NULL;
 
     while (scheduler->task_count > 0 && !shutdown_requested) {
+        // Quick fix, huge reduction in CPU usage
+        // TODO remove when epoll is done
+        struct timespec ts = {.tv_sec = 0, .tv_nsec = 1000 * 1000}; // 1ms sleep
+        nanosleep(&ts, NULL);
+
         for (int i = 0; i < MAX_TASKS; i++) {
             current_task_slot = &scheduler->task_list[i];
             current_task = *current_task_slot;
