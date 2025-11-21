@@ -510,7 +510,7 @@ int main(int argc, char** argv) {
                 FD_SET(fd, &writefds);
                 FD_SET(fd, &errfds);
                 break;
-            case CLIENT_CONNECTED:
+            case CLIENT_CONNECTED: {
                 // Check if think time elapsed
                 if (clients[i].think_time_ms > 0) {
                     long long think_elapsed = timespec_diff_us(&clients[i].connect_end, &now_ts) / 1000;
@@ -522,15 +522,20 @@ int main(int argc, char** argv) {
                 clients[i].state = CLIENT_SENDING;
                 clock_gettime(CLOCK_MONOTONIC, &clients[i].send_start);
                 // Fall through
-            case CLIENT_SENDING:
+            }
+            case CLIENT_SENDING: {
                 FD_SET(fd, &writefds);
                 break;
-            case CLIENT_SENT:
-            case CLIENT_RECEIVING:
+            }
+            case CLIENT_SENT: {
+            }
+            case CLIENT_RECEIVING: {
                 FD_SET(fd, &readfds);
                 break;
-            default:
+            }
+            default: {
                 break;
+            }
             }
 
             if (fd > maxfd)

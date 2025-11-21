@@ -168,7 +168,7 @@ int fetch_weather_from_openmeteo(double latitude, double longitude, char** api_r
         return -2; // Rate limit exceeded
     }
 
-    char url[256];
+    char url[512];
     snprintf(url, sizeof(url), METEO_FORECAST_URL, latitude, longitude);
 
     http_response_t response;
@@ -604,7 +604,7 @@ int weather_work(void** ctx) {
         ui_print_backend_init(client, "Weather");
         // TODO (JJ) do we return to scheduler from here? Yes we do. Should fall through.
         break;
-    case Weather_State_ValidateFile:
+    case Weather_State_ValidateFile: {
         if (does_weather_cache_exist(weather->latitude, weather->longitude) == 0 &&
             is_weather_cache_stale(weather->latitude, weather->longitude, 900) == 0) {
             weather->state = Weather_State_LoadFromDisk;
@@ -613,7 +613,8 @@ int weather_work(void** ctx) {
         }
         ui_print_backend_state(client, "Weather", "validating cache");
         break;
-    case Weather_State_LoadFromDisk:
+    }
+    case Weather_State_LoadFromDisk: {
         char* json_str = NULL;
         if (load_weather_from_cache(weather->latitude, weather->longitude, &json_str) == 0) {
             weather->buffer = json_str;
@@ -627,7 +628,8 @@ int weather_work(void** ctx) {
         // But check if we have blocking file I/O in any of the functions also. Because we be non blocking and should
         // return from that.
         break;
-    case Weather_State_FetchFromAPI_Init:
+    }
+    case Weather_State_FetchFromAPI_Init: {
         // Fetch weather data synchronously
         // TODO (JJ) we should be async.
         char* api_response = NULL;
@@ -648,7 +650,8 @@ int weather_work(void** ctx) {
             ui_print_backend_error(client, "Weather", "HTTP client failed (network/timeout)");
         }
         break;
-    case Weather_State_ProcessResponse:
+    }
+    case Weather_State_ProcessResponse: {
         char* client_response = NULL;
         if (process_openmeteo_response(weather->buffer, &client_response) != 0) {
             weather->state = Weather_State_Done;
@@ -660,7 +663,8 @@ int weather_work(void** ctx) {
             ui_print_backend_state(client, "Weather", "processed API response");
         }
         break;
-    case Weather_State_SaveToDisk:
+    }
+    case Weather_State_SaveToDisk: {
         if (save_weather_to_cache(weather->latitude, weather->longitude, weather->buffer) != 0) {
             ui_print_backend_error(client, "Weather", "cache save failed");
         } else {
@@ -668,10 +672,12 @@ int weather_work(void** ctx) {
         }
         weather->state = Weather_State_Done;
         break;
-    case Weather_State_Done:
+    }
+    case Weather_State_Done: {
         ui_print_backend_done(client, "Weather");
         weather->on_done(weather->ctx);
         break;
+    }
     }
 
     return 0;
