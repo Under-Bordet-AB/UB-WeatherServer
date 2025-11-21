@@ -14,7 +14,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define CLIENT_TIMEOUT_SEC 5
+#define CLIENT_TIMEOUT_SEC 9999
 
 // Forward declaration of backend done callback
 static void w_client_backend_done(void* ctx);

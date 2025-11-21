@@ -69,6 +69,7 @@ static void free_parsed_url(parsed_url_t* parsed) {
 }
 
 static int connect_to_host(const char* host, int port) {
+    // TODO blocking call to netdb.h
     struct hostent* server = gethostbyname(host);
     if (!server)
         return -1;

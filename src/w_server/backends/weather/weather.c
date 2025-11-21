@@ -602,6 +602,7 @@ int weather_work(void** ctx) {
         create_folder(CACHE_DIR);
         weather->state = Weather_State_ValidateFile;
         ui_print_backend_init(client, "Weather");
+        // TODO (JJ) do we return to scheduler from here? Yes we do. Should fall through.
         break;
     case Weather_State_ValidateFile:
         if (does_weather_cache_exist(weather->latitude, weather->longitude) == 0 &&
@@ -622,9 +623,13 @@ int weather_work(void** ctx) {
             ui_print_backend_error(client, "Weather", "cache load failed");
         }
         weather->state = Weather_State_Done;
+        // TODO (JJ) do we return to scheduler from here? Yes we do. Should fall through.
+        // But check if we have blocking file I/O in any of the functions also. Because we be non blocking and should
+        // return from that.
         break;
     case Weather_State_FetchFromAPI_Init:
         // Fetch weather data synchronously
+        // TODO (JJ) we should be async.
         char* api_response = NULL;
         int fetch_result = fetch_weather_from_openmeteo(weather->latitude, weather->longitude, &api_response);
         if (fetch_result == 0) {
