@@ -12,7 +12,8 @@ LinkedList* LinkedList_create() {
 }
 
 Node* LinkedList_get_index(LinkedList* list, size_t index) {
-    if (list == NULL || index >= list->size) return NULL;
+    if (list == NULL || index >= list->size)
+        return NULL;
 
     size_t pos = 0;
     Node* cur = NULL;
@@ -35,9 +36,11 @@ Node* LinkedList_get_index(LinkedList* list, size_t index) {
 }
 
 int LinkedList_append(LinkedList* list, void* item) {
-    if (list == NULL) return 1;
+    if (list == NULL)
+        return 1;
     Node* newNode = calloc(1, sizeof(Node));
-    if (newNode == NULL) return 1;
+    if (newNode == NULL)
+        return 1;
 
     newNode->item = item;
     list->size++;
@@ -54,13 +57,17 @@ int LinkedList_append(LinkedList* list, void* item) {
 }
 
 int LinkedList_insert(LinkedList* list, size_t index, void* item) {
-    if (list == NULL) return 1;
-    if (index >= list->size) return LinkedList_append(list, item); /* append fallback */
+    if (list == NULL)
+        return 1;
+    if (index >= list->size)
+        return LinkedList_append(list, item); /* append fallback */
     Node* target = LinkedList_get_index(list, index);
-    if (target == NULL) return 1;
+    if (target == NULL)
+        return 1;
 
     Node* newNode = calloc(1, sizeof(Node));
-    if (newNode == NULL) return 1;
+    if (newNode == NULL)
+        return 1;
 
     newNode->item = item;
     list->size++;
@@ -79,7 +86,8 @@ int LinkedList_insert(LinkedList* list, size_t index, void* item) {
 }
 
 int LinkedList_remove(LinkedList* list, Node* item, void (*free_function)(void*)) {
-    if (list == NULL || item == NULL) return 1;
+    if (list == NULL || item == NULL)
+        return 1;
 
     Node* back = item->back;
     Node* front = item->front;
@@ -101,7 +109,9 @@ int LinkedList_remove(LinkedList* list, Node* item, void (*free_function)(void*)
     item->back = NULL;
     item->front = NULL;
 
-    if (free_function != NULL) { free_function(item->item); }
+    if (free_function != NULL) {
+        free_function(item->item);
+    }
 
     free(item);
 
@@ -110,16 +120,20 @@ int LinkedList_remove(LinkedList* list, Node* item, void (*free_function)(void*)
 
 int LinkedList_pop(LinkedList* list, size_t index, void (*free_function)(void*)) {
     Node* item = LinkedList_get_index(list, index);
-    if (item == NULL) return 1;
+    if (item == NULL)
+        return 1;
     return LinkedList_remove(list, item, free_function);
 }
 
 void LinkedList_clear(LinkedList* list, void (*free_function)(void*)) {
-    if (list == NULL) return;
+    if (list == NULL)
+        return;
     Node* cur = list->head;
     while (cur) {
         Node* next = cur->front;
-        if (free_function != NULL) { free_function(cur->item); }
+        if (free_function != NULL) {
+            free_function(cur->item);
+        }
         free(cur);
         cur = next;
     }

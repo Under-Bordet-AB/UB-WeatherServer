@@ -3,7 +3,6 @@
 #include "w_client.h"
 
 // UI printing control flag - set to 1 to enable printing, 0 to disable
-extern int UI_PRINT_ENABLED;
 
 // ANSI color codes (48 colors ordered for maximum contrast and readability)
 #define COLOR_RESET "\033[0m"

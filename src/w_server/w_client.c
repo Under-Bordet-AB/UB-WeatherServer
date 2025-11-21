@@ -3,6 +3,7 @@
 #include "backends/cities/cities.h"
 #include "backends/surprise/surprise.h"
 #include "backends/weather/weather.h"
+#include "global_defines.h"
 #include "http_parser.h"
 #include "majjen.h"
 #include "string.h"
@@ -13,8 +14,6 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
-
-#define CLIENT_TIMEOUT_SEC 9999
 
 // Forward declaration of backend done callback
 static void w_client_backend_done(void* ctx);
@@ -29,13 +28,14 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 
     switch (client->state) {
     case W_CLIENT_READING: {
-        // Check for timeout directly (inline, no function call)
+        // Check for timeout
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
+        // compare now to when client first connected
         time_t elapsed_sec = now.tv_sec - client->connect_time.tv_sec;
-        if (elapsed_sec > CLIENT_TIMEOUT_SEC ||
-            (elapsed_sec == CLIENT_TIMEOUT_SEC && now.tv_nsec >= client->connect_time.tv_nsec)) {
-            ui_print_timeout(client, CLIENT_TIMEOUT_SEC);
+        if (elapsed_sec > CLIENT_READING_TIMEOUT_SEC ||
+            (elapsed_sec == CLIENT_READING_TIMEOUT_SEC && now.tv_nsec >= client->connect_time.tv_nsec)) {
+            ui_print_timeout(client, CLIENT_READING_TIMEOUT_SEC);
             client->error_code = W_CLIENT_ERROR_TIMEOUT;
             client->state = W_CLIENT_DONE;
             return;

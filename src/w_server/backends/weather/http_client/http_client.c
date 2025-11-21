@@ -1,6 +1,6 @@
-#include "http_client.h"
-
 #define _GNU_SOURCE
+#include "http_client.h"
+#include "global_defines.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -69,7 +69,9 @@ static void free_parsed_url(parsed_url_t* parsed) {
 }
 
 static int connect_to_host(const char* host, int port) {
-    // TODO blocking call to netdb.h
+    /*      TODO (JJ) blocking call. Also gethostbyname() is deprecated, use getaddrinfo.
+            Linux only: getaddrinfo_a() is the non blocking version
+    */
     struct hostent* server = gethostbyname(host);
     if (!server)
         return -1;
@@ -80,8 +82,9 @@ static int connect_to_host(const char* host, int port) {
 
     // Set socket timeouts to prevent blocking the event loop
     struct timeval timeout;
-    timeout.tv_sec = 2; // 2 second timeout
+    timeout.tv_sec = BACKEND_METEO_CALL_TIMEOUT_SECONDS; // (JJ) changed to define
     timeout.tv_usec = 0;
+    // TODO (JJ) why twice?
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
@@ -90,7 +93,7 @@ static int connect_to_host(const char* host, int port) {
     server_addr.sin_family = AF_INET;
     memcpy(&server_addr.sin_addr.s_addr, server->h_addr_list[0], server->h_length);
     server_addr.sin_port = htons(port);
-
+    // TODO (JJ) is connect blocking?
     if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         close(sockfd);
         return -1;
@@ -188,6 +191,7 @@ int http_get(const char* url, http_response_t* response) {
     size_t body_size = 0;
     size_t body_capacity = 0;
 
+    // TODO (JJ) recv backend call
     while ((bytes_read = recv(sockfd, buffer, sizeof(buffer) - 1, 0)) > 0) {
         buffer[bytes_read] = '\0';
 

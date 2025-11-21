@@ -9,6 +9,7 @@
 #define _GNU_SOURCE /* expose accept4() and other GNU extensions */
 #include "w_server.h"
 #include "../utils/ui.h"
+#include "global_defines.h"
 #include "w_client.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -24,14 +25,12 @@
 // Therfore it should be a separate module that plugs into the server. Since we can listen on sockets in many ways.
 // Each of these ways gets its own funciton.
 
-// Listen for new clients non-blocking. This is the function that gets added to the scheduler for accepting new
-// clients
+// Listen for new clients non-blocking. This is the function that gets added to the scheduler
 void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
     w_server* server = (w_server*)ctx;
     int listen_fd = server->listen_fd;
-    const int MAX_ACCEPTS_PER_TICK = 16; // TODO magic number
-    int accepts_this_tick = 0;
     int client_fd = -1;
+    int accepts_this_tick = 0;
 
     // Try to accept (non-blocking)
     struct sockaddr_storage client_addr;

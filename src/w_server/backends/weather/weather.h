@@ -16,6 +16,8 @@
 #define MAX_REQUESTS_PER_MINUTE 30 // OpenMeteo free tier allows ~1000/day, so 30/min is conservative
 #define RATE_LIMITER_WINDOW_SECONDS 60
 
+// TODO Move globals
+
 typedef struct {
     time_t timestamps[MAX_REQUESTS_PER_MINUTE];
     int count;

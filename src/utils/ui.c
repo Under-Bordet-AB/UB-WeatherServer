@@ -1,9 +1,7 @@
 #include "ui.h"
+#include "global_defines.h"
 #include "http_parser.h"
 #include <stdio.h>
-
-// UI printing control flag - can be changed at runtime
-int UI_PRINT_ENABLED = 1;
 
 // ANSI color codes (48 colors ordered for maximum contrast and readability)
 const char* client_colors[] = {

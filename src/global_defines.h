@@ -1,0 +1,26 @@
+#pragma once
+/*
+    TODO This should be a config in the server. But for now we just gather everything in one place atleast.
+*/
+
+//// UI
+// UI printing control flag
+#define UI_PRINT_ENABLED 1
+
+//// SERVER
+// How many times to call accept4() per tick / entry into the listening function
+#define MAX_ACCEPTS_PER_TICK 16 // 16 * 4 = 64 new clients can be accepted per tick
+
+//// CONNECTED CLIENTS
+#define W_CLIENT_READ_BUFFER_SIZE 8192
+#define W_CLIENT_MAX_REQUEST_SIZE (1 * 1024 * 1024) // 1MB
+
+// For how long do we let a connected client send its request
+#define CLIENT_READING_TIMEOUT_SEC 9999
+// TODO [ NOT IMPLEMENTED ] How many connections can be active per IP
+#define CLIENT_MAX_CONNECTIONS_PER_IP
+// TODO [ NOT IMPLEMENTED ] How many connections per second can a IP perform
+#define CLIENT_MAX_CONNECTIONS_PER_IP_PER_SECOND
+
+//// BACKEND
+#define BACKEND_METEO_CALL_TIMEOUT_SECONDS 9999

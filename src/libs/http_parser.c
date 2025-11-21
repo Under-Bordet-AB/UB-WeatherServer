@@ -25,7 +25,6 @@ request_method Enum_Method(const char* method) {
     if (!method) {
         return REQUEST_METHOD_UNKNOWN;
     }
-
     if (strcmp(method, "GET") == 0) {
         return REQUEST_METHOD_GET;
     }
@@ -65,7 +64,7 @@ void free_header(void* context) {
     HTTPHeader* hdr = (HTTPHeader*)context;
     free((void*)hdr->name);
     free((void*)hdr->value);
-    // BUG FIX (2025-11-19): Original code was missing free(hdr), causing memory leak
+    // FIX (2025-11-19): Original code was missing free(hdr), causing memory leak
     // of HTTPHeader structs (16 bytes each). LinkedList_dispose calls this callback
     // expecting it to free the entire item, not just internal fields.
     free(hdr);

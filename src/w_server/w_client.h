@@ -1,12 +1,10 @@
 #pragma once
 
+#include "global_defines.h"
 #include "majjen.h"
 #include "w_server.h"
 #include <netinet/in.h>
 #include <time.h>
-
-#define W_CLIENT_READ_BUFFER_SIZE 8192
-#define W_CLIENT_MAX_REQUEST_SIZE (1 * 1024 * 1024) // 1MB
 
 // Client error codes
 typedef enum {
