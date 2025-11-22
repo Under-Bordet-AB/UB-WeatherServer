@@ -10,6 +10,9 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
 
 uint64_t SystemMonotonicMS();
 
