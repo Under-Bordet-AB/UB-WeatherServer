@@ -9,6 +9,9 @@ void TCPServer_TaskWork(void* _Context, uint64_t _MonTime);
 
 int TCPServer_Initiate(TCPServer* _Server, const char* _Port, TCPServer_OnAccept _OnAccept, void* _Context)
 {
+	_Server->recent_connections = 0;
+	_Server->recent_connections_time = 0;
+
 	_Server->onAccept = _OnAccept;
 	_Server->context = _Context;
 
@@ -76,8 +79,17 @@ int TCPServer_InitiatePtr(const char* _Port, TCPServer_OnAccept _OnAccept, void*
 	return 0;
 }
 
-int TCPServer_Accept(TCPServer* _Server)
+int TCPServer_Accept(TCPServer* _Server, uint64_t _MonTime)
 {
+	if (_MonTime >= _Server->recent_connections_time + MAX_CONNECTIONS_WINDOW_SECONDS*1000){
+		_Server->recent_connections = 0;
+		_Server->recent_connections_time = _MonTime;
+	}
+
+	if (_Server->recent_connections >= MAX_CONNECTIONS_PER_WINDOW){
+		return -1;
+	}
+
 	int socket_fd = accept(_Server->listen_fd, NULL, NULL);
 	if (socket_fd < 0)
 	{
@@ -94,6 +106,7 @@ int TCPServer_Accept(TCPServer* _Server)
 	if(result != 0)
 		close(socket_fd);
 
+	_Server->recent_connections++;
 	return 0;
 }
 
@@ -101,7 +114,7 @@ void TCPServer_TaskWork(void* _Context, uint64_t _MonTime)
 {
 	TCPServer* _Server = (TCPServer*)_Context;
 	
-	TCPServer_Accept(_Server);
+	TCPServer_Accept(_Server, _MonTime);
 }
 
 void TCPServer_Dispose(TCPServer* _Server)

@@ -15,12 +15,17 @@
 #include "smw.h"
 
 #define MAX_CLIENTS 10
+#define MAX_CONNECTIONS_PER_WINDOW 10
+#define MAX_CONNECTIONS_WINDOW_SECONDS 10
 
 typedef int (*TCPServer_OnAccept)(int client_fd, void* context);
 
 typedef struct
 {
 	int listen_fd;
+	
+	int recent_connections;
+	uint64_t recent_connections_time;
 
 	TCPServer_OnAccept onAccept;
 	void* context;
