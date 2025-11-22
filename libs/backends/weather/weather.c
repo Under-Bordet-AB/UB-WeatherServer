@@ -518,6 +518,7 @@ void free_weather(weather_data_t* weather) {
 int weather_init(void** ctx, void** ctx_struct, void (*ondone)(void* context)) {
     weather_t* weather = (weather_t*)malloc(sizeof(weather_t));
     if (!weather) { return -1; }
+    memset(weather, 0, sizeof(weather_t));
     weather->ctx = ctx;
     weather->state = Weather_State_Init;
     weather->buffer = NULL;

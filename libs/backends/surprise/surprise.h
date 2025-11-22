@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include "tinydir.h"
 
 typedef enum {
     Surprise_State_Init,
@@ -25,6 +26,7 @@ int surprise_get_buffer_size(void** ctx, size_t* size);
 int surprise_work(void** ctx);
 int surprise_dispose(void** ctx);
 
-int surprise_get_file(uint8_t **buffer_ptr);
+int surprise_get_file(uint8_t **buffer_ptr, const char *file_name);
+int surprise_get_random(uint8_t **buffer_ptr);
 
 #endif

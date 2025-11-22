@@ -1,7 +1,7 @@
 #include "WeatherServerInstance.h"
-#include "surprise.h"
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "backends/cities/cities.h"
 #include "backends/surprise/surprise.h"
@@ -99,8 +99,8 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
                 break;
             }
 
-            double latitude = strtod(lat_str, NULL);
-            double longitude = strtod(lon_str, NULL);
+            double latitude = round(strtod(lat_str, NULL) * 100.0) / 100.0;
+            double longitude = round(strtod(lon_str, NULL) * 100.0) / 100.0;
             weather_set_location(&backend->backend_struct, latitude, longitude);
         } else if (strcmp(query->Path, "/GetSurprise") == 0) {
             surprise_init((void*)_Server, &backend->backend_struct, WeatherServerInstance_OnDone);
