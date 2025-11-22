@@ -17,7 +17,7 @@ PointerAlignment: Left # int *ptr
 DerivePointerAlignment: false # Moved this up for consistency
 
 # Function parameters and Line Wrapping
-BinPackParameters: false # try to keep parameters on one line
+BinPackParameters: true # try to keep parameters on one line
 AllowAllParametersOfDeclarationOnNextLine: false
 ColumnLimit: 160 # Set max line width to 50 (This overrides the '0' you had before)
 
@@ -29,5 +29,3 @@ SpaceBeforeParens: ControlStatements
 BreakBeforeBinaryOperators: None # keep expressions readable
 AllowAllArgumentsOnNextLine: false
 AllowAllConstructorInitializersOnNextLine: false
-
-AllowShortEnumsOnASingleLine: false

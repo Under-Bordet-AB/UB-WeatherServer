@@ -6,23 +6,27 @@
 #include <string.h>
 
 // strndup wrapper for old parsers that relied on manual substringing
-char* substr(const char* start, const char* end) {
-    return strndup(start, end - start);
+char* substr(const char* start, const char* end)
+{
+    return strndup(start, end-start);
 }
 
-HTTPQuery* HTTPQuery_fromstring(const char* URL) {
+HTTPQuery* HTTPQuery_fromstring(const char* URL)
+{
     HTTPQuery* query = calloc(1, sizeof(HTTPQuery));
     query->Query = LinkedList_create();
     const char* begin = strchr(URL, '?');
-    if (begin == NULL) {
+    if(begin == NULL)
+    {
         // No query detected
         query->Path = strdup(URL);
         return query;
     }
     query->Path = substr(URL, begin);
 
-    const char* pos = begin + 1;
-    while (*pos) {
+    const char* pos = begin+1;
+    while(*pos)
+    {
         const char* amp = strchr(pos, '&');
         const char* end = amp ? amp : (URL + strlen(URL));
 
@@ -45,7 +49,8 @@ HTTPQuery* HTTPQuery_fromstring(const char* URL) {
     return query;
 }
 
-void free_query(void* item) {
+void free_query(void* item)
+{
     HTTPQueryParameter* param = (HTTPQueryParameter*)item;
     free((void*)param->Name);
     free((void*)param->Value);
@@ -57,6 +62,27 @@ void HTTPQuery_Dispose(HTTPQuery** pointer) {
     LinkedList_dispose(&query->Query, free_query);
     free(query);
     *pointer = NULL;
+}
+
+const char* InvalidReason_tostring(InvalidReason reason) {
+    switch (reason) {
+        case NotInvalid:
+            return "The request is not invalid.";
+        case Malformed:
+            return "The first line was malformed.";
+        case OutOfMemory:
+            return "The parser ran out of memory.";
+        case URLTooLong:
+            return "The requested URL is too long.";
+        case InvalidMethod:
+            return "The request method was not recognized.";
+        case InvalidProtocol:
+            return "The request protocol was not recognized.";
+        case InvalidURL:
+            return "The request URL was invalid.";
+        default:
+            return "Unknown reason.";
+    }
 }
 
 RequestMethod Enum_Method(const char* method) {
@@ -106,8 +132,10 @@ const char* RequestMethod_tostring(RequestMethod method) {
         return "DELETE";
     case OPTIONS:
         return "OPTIONS";
+    case HEAD:
+        return "HEAD";
     default:
-        return "GET";
+        return "-unknown-";
     }
 }
 
@@ -133,6 +161,8 @@ const char* CommonResponseMessages(ResponseCode code) {
         return "Not Found";
     case 405:
         return "Method Not Allowed";
+    case 413:
+        return "Content Too Large";
     case 500:
         return "Internal Server Error";
     case 501:
@@ -234,7 +264,7 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
                 if (*scan == ' ') count++;
             }
             if (count != 2) {
-                printf("INVALID: Request is not formatted with 2 spaces.\n\n");
+                //printf("INVALID: Request is not formatted with 2 spaces.\n\n");
                 free(current_line);
                 break;
             }
@@ -243,8 +273,14 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
             const char* space2 = strchr(space1 + 1, ' ');
 
             if (space2 - (space1 + 1) >= MAX_URL_LEN) {
-                printf("INVALID: Request URL is too long\n\n");
+                //printf("INVALID: Request URL is too long\n\n");
                 request->reason = URLTooLong;
+                free(current_line);
+                break;
+            }
+            if(space1 == space2)
+            {
+                request->reason = Malformed;
                 free(current_line);
                 break;
             }
@@ -257,20 +293,43 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
             }
             char* path = substr(space1 + 1, space2);
             if (!path) {
+                free(method);
                 free(current_line);
                 request->reason = OutOfMemory;
                 break;
             }
             char* protocol = substr(space2 + 1, current_line + length);
             if (!protocol) {
+                free(method); free(path);
                 free(current_line);
                 request->reason = OutOfMemory;
                 break;
             }
 
             request->method = Enum_Method(method);
+            if(STRICT_VALIDATION && request->method == Method_Unknown)
+            {
+                free(method); free(path); free(protocol);
+                free(current_line);
+                request->reason = InvalidMethod;
+                break;
+            }
             request->protocol = Enum_Protocol(protocol);
+            if(STRICT_VALIDATION && request->protocol == Protocol_Unknown)
+            {
+                free(method); free(path); free(protocol);
+                free(current_line);
+                request->reason = InvalidProtocol;
+                break;
+            }
             request->URL = path;
+            if(STRICT_VALIDATION && path[0] != '/')
+            {
+                free(method); free(protocol);
+                free(current_line);
+                request->reason = InvalidURL;
+                break;
+            }
 
             free(method);
             free(protocol);
@@ -281,7 +340,7 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
         } else {
             const char* sep = strstr(current_line, ": ");
             if (!sep) {
-                printf("INVALID: Header is malformed.\n\n");
+                //printf("INVALID: Header is malformed.\n\n");
                 free(current_line);
                 break;
             }
@@ -312,10 +371,13 @@ HTTPRequest* HTTPRequest_fromstring(const char* message) {
     return request;
 }
 
-const char* HTTPQuery_getParameter(HTTPQuery* query, const char* name) {
-    LinkedList_foreach(query->Query, node) {
+const char* HTTPQuery_getParameter(HTTPQuery* query, const char* name)
+{
+    LinkedList_foreach(query->Query, node)
+    {
         HTTPQueryParameter* param = (HTTPQueryParameter*)node->item;
-        if (strcmp(param->Name, name) == 0) return param->Value;
+        if(strcmp(param->Name, name)==0)
+            return param->Value;
     };
     return NULL;
 }
@@ -324,7 +386,8 @@ const char* HTTPQuery_getParameter(HTTPQuery* query, const char* name) {
 void HTTPRequest_Dispose(HTTPRequest** req) {
     if (req && *req) {
         HTTPRequest* request = *req;
-        free((void*)request->URL);
+        if(request->URL != NULL)
+            free((void*)request->URL);
         LinkedList_dispose(&request->headers, free_header);
         free(request);
         *req = NULL;
@@ -334,7 +397,8 @@ void HTTPRequest_Dispose(HTTPRequest** req) {
 HTTPResponse* HTTPResponse_new(ResponseCode code, uint8_t* body, size_t bodyLength) {
     HTTPResponse* response = calloc(1, sizeof(HTTPResponse));
     response->responseCode = code;
-    if (body != NULL) {
+    if(body != NULL)
+    {
         response->body = (uint8_t*)malloc(bodyLength * sizeof(uint8_t));
         memcpy(response->body, body, bodyLength);
         response->bodySize = bodyLength;
@@ -346,12 +410,16 @@ HTTPResponse* HTTPResponse_new(ResponseCode code, uint8_t* body, size_t bodyLeng
     char lenStr[32];
     snprintf(lenStr, sizeof(lenStr), "%zu", response->bodySize);
     HTTPResponse_add_header(response, "Content-Length", lenStr);
-    if (CLOSE_CONNECTIONS) HTTPResponse_add_header(response, "Connection", "close");
+    if(CLOSE_CONNECTIONS)
+        HTTPResponse_add_header(response, "Connection", "close");
 
     // CORS headers
-    if (strlen(CORS_ALLOWED_ORIGIN) > 0) HTTPResponse_add_header(response, "Access-Control-Allow-Origin", CORS_ALLOWED_ORIGIN);
-    if (strlen(CORS_ALLOWED_METHODS) > 0) HTTPResponse_add_header(response, "Access-Control-Allow-Methods", CORS_ALLOWED_METHODS);
-    if (strlen(CORS_ALLOWED_HEADERS) > 0) HTTPResponse_add_header(response, "Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS);
+    if(strlen(CORS_ALLOWED_ORIGIN) > 0)
+        HTTPResponse_add_header(response, "Access-Control-Allow-Origin", CORS_ALLOWED_ORIGIN);
+    if(strlen(CORS_ALLOWED_METHODS) > 0)
+        HTTPResponse_add_header(response, "Access-Control-Allow-Methods", CORS_ALLOWED_METHODS);
+    if(strlen(CORS_ALLOWED_HEADERS) > 0)
+        HTTPResponse_add_header(response, "Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS);
 
     return response;
 }
@@ -393,7 +461,8 @@ const char* HTTPResponse_tostring(HTTPResponse* response, size_t* outSize) {
     const uint8_t separator[] = {'\r', '\n', '\r', '\n'};
     memcpy(&status[curPos], separator, sizeof(separator));
     curPos += sizeof(separator);
-    if (response->body != NULL) memcpy(&status[curPos], response->body, messageSize - curPos);
+    if(response->body != NULL)
+        memcpy(&status[curPos], response->body, messageSize - curPos);
     *outSize = messageSize;
     return status;
 }

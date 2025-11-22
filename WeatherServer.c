@@ -66,6 +66,7 @@ void WeatherServer_TaskWork(void* _Context, uint64_t _MonTime)
 		WeatherServerInstance* instance = (WeatherServerInstance*)node->item;
 		WeatherServerInstance_Work(instance, _MonTime);
 	}
+	
 }
 
 void WeatherServer_Dispose(WeatherServer* _Server)

@@ -1,7 +1,7 @@
 {
     "C_Cpp.clang_format_fallbackStyle": "LLVM",
     "C_Cpp.clang_format_style": "file",
-    "editor.formatOnSave": true,
+    "editor.formatOnSave": false,
     "[c]": {
         "editor.defaultFormatter": "ms-vscode.cpptools"
     },
@@ -10,8 +10,6 @@
     },
     "files.associations": {
         ".clang-format": "yaml",
-        "stdlib.h": "c",
-        "weather.h": "c",
-        "httpserverconnection.h": "c"
+        "stdlib.h": "c"
     }
 }
