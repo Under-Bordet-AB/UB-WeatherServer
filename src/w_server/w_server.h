@@ -10,6 +10,7 @@ typedef enum {
     W_SERVER_ERROR_SOCKET_BIND,
     W_SERVER_ERROR_SOCKET_LISTEN,
     W_SERVER_ERROR_GETADDRINFO,
+    W_SERVER_ERROR_SET_NONBLOCKING,
     W_SERVER_ERROR_MEMORY_ALLOCATION,
     W_SERVER_ERROR_NO_CONFIG,
     W_SERVER_ERROR_INVALID_CONFIG,
@@ -21,9 +22,9 @@ typedef enum {
 } w_server_error;
 
 typedef struct w_server_config {
-    const char* address; // NULL or "0.0.0.0" for all interfaces, "127.0.0.1" for localhost only
-    const char* port;    // Port number as string, e.g., "8080"
-    int backlog;         // Listen backlog, 0 for default (128)
+    const char* address;   // NULL or "0.0.0.0" for all interfaces, "127.0.0.1" for localhost only
+    const char* port;      // Port number as string, e.g., "8080"
+    int listening_backlog; // Listen listening_backlog, 0 for default (128)
 } w_server_config;
 
 typedef struct w_server {

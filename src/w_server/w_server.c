@@ -10,6 +10,7 @@
 #include "w_server.h"
 #include "../utils/ui.h"
 #include "global_defines.h"
+#include "utils.h"
 #include "w_client.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -28,18 +29,16 @@
 // Listen for new clients non-blocking. This is the function that gets added to the scheduler
 void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
     w_server* server = (w_server*)ctx;
-    int listen_fd = server->listen_fd;
-    int client_fd = -1;
-    int accepts_this_tick = 0;
 
-    // Try to accept (non-blocking)
+    int client_fd = -1;
     struct sockaddr_storage client_addr;
     socklen_t addr_len = sizeof(client_addr);
 
     // Accept more than one client per tick
+    int accepts_this_tick = 0;
     while (accepts_this_tick < MAX_ACCEPTS_PER_TICK) {
         // accept4 gets 4 clients at a time. Also set FDs to non blocking
-        client_fd = accept4(listen_fd, (struct sockaddr*)&client_addr, &addr_len, SOCK_NONBLOCK);
+        client_fd = accept4(server->listen_fd, (struct sockaddr*)&client_addr, &addr_len, SOCK_NONBLOCK);
         if (client_fd < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 // No clients waiting, just return
@@ -101,92 +100,36 @@ static int init_from_config(w_server* server, const w_server_config* cfg) {
 
 // Creates the server and opens its listening socket
 w_server* w_server_create(w_server_config* config) {
-    /* TODO server init function, error handling:
-    - Should we only return a server on no errors? Then we can use "goto cleanup" pattern for errors.
-    - Since server can fail we should check errors back in main.
-        int error= 0
-        pointer*  server =  init_server(&cfg, &error)
-        if (error !=0 || server == NULL)
-            print(error)
-    - standardize error handling from getaddrinfo to align with rest of setup
-*/
     if (!config) {
         ui_print_server_init_error("W_SERVER_ERROR_NO_CONFIG");
         return NULL;
     }
-    w_server* server = calloc(1, sizeof(*server));
-    if (server == NULL) {
+    w_server* srv = calloc(1, sizeof(*srv));
+    if (srv == NULL) {
         ui_print_server_init_error("W_SERVER_ERROR_MEMORY_ALLOCATION");
         return NULL;
     }
 
-    int result = init_from_config(server, config);
-    if (result != W_SERVER_ERROR_NONE) {
+    int cfg_res = init_from_config(srv, config);
+    if (cfg_res != W_SERVER_ERROR_NONE) {
         ui_print_server_init_error("W_SERVER_ERROR_INVALID_CONFIG");
-        free(server);
+        free(srv);
         return NULL;
     }
 
-    /* Resolve the address/port with getaddrinfo() */
-    struct addrinfo hints, *res, *p;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC; /* IPv4 or IPv6 */
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE; /* for bind() */
-
-    int gai_err = getaddrinfo(server->address[0] ? server->address : NULL, server->port, &hints, &res);
-    if (gai_err != 0) {
-        server->last_error = W_SERVER_ERROR_GETADDRINFO;
-        ui_print_server_init_error("W_SERVER_ERROR_GETADDRINFO");
-        free(server);
-        return NULL;
-    }
-
-    /* Try each returned address until we succeed */
-    for (p = res; p != NULL; p = p->ai_next) {
-        server->listen_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (server->listen_fd == -1) {
-            continue;
-        }
-
-        // Set SO_REUSEADDR before bind() to allow quick port reuse
-        int opt = 1;
-        setsockopt(server->listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
-        if (bind(server->listen_fd, p->ai_addr, p->ai_addrlen) == -1) {
-            close(server->listen_fd);
-            server->listen_fd = -1;
-            continue; /* try next */
-        }
-        break; /* success */
-    }
-    freeaddrinfo(res);
-
-    // Did we mange to bind to an address?
-    if (server->listen_fd == -1) {
-        server->last_error = W_SERVER_ERROR_SOCKET_BIND;
-        ui_print_server_init_error("W_SERVER_ERROR_SOCKET_BIND");
-        free(server);
-        return NULL;
-    }
-
-    //// Set listening socket options
-    // Set non-blocking
-    int flags = fcntl(server->listen_fd, F_GETFL, 0);
-    fcntl(server->listen_fd, F_SETFL, flags | O_NONBLOCK);
-    // Mark socket as listening in the OS
-    if (listen(server->listen_fd, SOMAXCONN) < 0) {
-        perror("listen");
-        free(server);
+    // try to bind listening socket to address
+    int bnd_res = w_server_bind_listening_socket(&srv->listen_fd, srv->address, srv->port, config->listening_backlog);
+    if (bnd_res != W_SERVER_ERROR_NONE) {
+        free(srv);
         return NULL;
     }
 
     // Create a new task for the listening task
     mj_task* task = calloc(1, sizeof(*task));
     if (task == NULL) {
-        server->last_error = W_SERVER_ERROR_MEMORY_ALLOCATION;
+        srv->last_error = W_SERVER_ERROR_MEMORY_ALLOCATION;
         ui_print_server_init_error("W_SERVER_ERROR_MEMORY_ALLOCATION");
-        free(server);
+        free(srv);
         return NULL;
     }
 
@@ -194,26 +137,24 @@ w_server* w_server_create(w_server_config* config) {
     task->create = NULL;
     task->run = w_server_listen_TCP_nonblocking;
     task->cleanup = w_server_listen_TCP_nonblocking_cleanup;
-    task->ctx = server; // The listening task needs access to the whole server struct. FD, active clients etc,
+    task->ctx = srv; // The listening task needs access to the whole server struct. FD, active clients etc,
 
     // Set servers listening task
-    server->w_server_listen_task = task;
+    srv->w_server_listen_task = task;
 
     // Start to listen
 
     // All done, return
-    if (server->last_error == W_SERVER_ERROR_NONE) {
-        return server;
+    if (srv->last_error == W_SERVER_ERROR_NONE) {
+        return srv;
     }
     // Unknown error
     ui_print_server_init_error("W_SERVER_ERROR");
     free(task);
-    free(server);
+    free(srv);
     return NULL;
 }
 
-/*  Destroy – close the socket
---------------------------------------------------------------- */
 void w_server_cleanup(w_server* server) {
     if (!server)
         return;

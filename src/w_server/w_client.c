@@ -407,6 +407,8 @@ mj_task* w_client_create(int client_fd, w_server* server) {
     struct timespec connect_time;
     clock_gettime(CLOCK_MONOTONIC, &connect_time);
 
+    // TODO här kan man lägga in nya generiska SrvStream istället
+
     // Init all fields in the new context
     new_ctx->state = W_CLIENT_READING;
     new_ctx->fd = client_fd;

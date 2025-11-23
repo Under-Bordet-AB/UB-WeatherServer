@@ -37,27 +37,28 @@ typedef struct {
 
 // CLIENT context, one per active client
 typedef struct w_client {
-    // State machine management
-    w_client_state state;
-    // Network
     int fd;
-    size_t client_number; // Sequential client number
-    // Reference to server (for metrics)
+    w_client_state state;
+    size_t client_number;
     w_server* server;
-    // HTTP parsing
+
     char read_buffer[W_CLIENT_READ_BUFFER_SIZE];
     size_t bytes_read;
+
     // Request
     char* request_body;
     uint8_t* request_body_raw;
     size_t request_body_len;
     void* parsed_request;
+
     // Response (if these are not NULL we are ready to send)
     char* response_data;
     size_t response_len;
     size_t response_sent;
+
     // Backend
     w_client_backend backend;
+
     // Metrics
     struct timespec connect_time;
     w_client_error error_code;

@@ -1,15 +1,11 @@
 #include "majjen.h"
+#include "srv_transport_socket.h"
 #include "w_server.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-/*
-// Increase fd limit for this process
-#include <sys/resource.h>
-struct rlimit rl = { .rlim_cur = 1000000, .rlim_max = 2000000 };
-setrlimit(RLIMIT_NOFILE, &rl);
- */
+#include "srv_stream.h"
 
 // Global shutdown flag (accessed by signal handler and scheduler)
 volatile sig_atomic_t shutdown_requested = 0;
@@ -46,7 +42,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Create server configuration
-    w_server_config config = {.address = address, .port = port, .backlog = SOMAXCONN};
+    w_server_config config = {.address = address, .port = port, .listening_backlog = SOMAXCONN};
 
     // Create the cooperative scheduler
     mj_scheduler* scheduler = mj_scheduler_create();
