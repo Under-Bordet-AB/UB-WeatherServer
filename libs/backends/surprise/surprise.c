@@ -34,9 +34,12 @@ int surprise_get_file(uint8_t **buffer_ptr, const char *file_name) {
     // Failed to read file
     free(buffer);
     fclose(fptr);
+    return -2;
   }
 
   *buffer_ptr = buffer;
+
+  fclose(fptr);
 
   return file_size;
 }
@@ -45,16 +48,20 @@ int surprise_get_random(uint8_t **buffer_ptr){
   tinydir_dir dir;
   tinydir_open_sorted(&dir, SURPRISE_FOLDER);
 
-  if (dir.n_files == 0) // Surprise folder not found
+  if (dir.n_files == 0) { // Surprise folder not found
+    tinydir_close(&dir);
     return -1;
+  }
 
   int n_files = 0;
   for (int i = 0; i < dir.n_files; i++){
     n_files += dir._files[i].is_reg; // count number of files in folder
   }
 
-  if (n_files == 0) // Surprise folder is empty
+  if (n_files == 0) {// Surprise folder is empty
+    tinydir_close(&dir);
     return -2;
+  }
 
   srand(time(NULL));
   int index = rand() % n_files + 1;
@@ -62,9 +69,13 @@ int surprise_get_random(uint8_t **buffer_ptr){
   for (int i = 0; i < dir.n_files; i++){
     index -= dir._files[i].is_reg; // Decrement index each time we iterate past a file
     if (index == 0){
-      return surprise_get_file(buffer_ptr, dir._files[i].name);
+      int result = surprise_get_file(buffer_ptr, dir._files[i].name);
+      tinydir_close(&dir);
+      return result;
     }
   }
+
+  tinydir_close(&dir);
 
   return -1;
 }
@@ -137,7 +148,13 @@ int surprise_work(void** ctx)
 int surprise_dispose(void** ctx)
 {
   surprise_t* surprise = (surprise_t*)(*ctx);
-    if (!surprise) return -1; // Memory allocation failed
+  if (!surprise) return -1; // Memory allocation failed
 
-    return 0;
+  free(surprise->buffer);
+  surprise->buffer = NULL;
+
+  free(surprise);
+  *ctx = NULL;
+
+  return 0;
 }

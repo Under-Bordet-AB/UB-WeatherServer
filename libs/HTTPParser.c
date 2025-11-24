@@ -439,7 +439,7 @@ const char* HTTPResponse_tostring(HTTPResponse* response, size_t* outSize) {
     const char* message = CommonResponseMessages(response->responseCode);
     // Count size of everything before allocating
     // 5 = 2 spaces + response code (3 digits) + null term
-    int messageSize = 6 + strlen(HTTP_VERSION) + strlen(message);
+    int messageSize = 5 + strlen(HTTP_VERSION) + strlen(message);
     if (response->headers != NULL) {
         LinkedList_foreach(response->headers, node) {
             HTTPHeader* hdr = (HTTPHeader*)node->item;
@@ -462,7 +462,7 @@ const char* HTTPResponse_tostring(HTTPResponse* response, size_t* outSize) {
     memcpy(&status[curPos], separator, sizeof(separator));
     curPos += sizeof(separator);
     if(response->body != NULL)
-        memcpy(&status[curPos], response->body, messageSize - curPos);
+        memcpy(&status[curPos], response->body, response->bodySize);
     *outSize = messageSize;
     return status;
 }

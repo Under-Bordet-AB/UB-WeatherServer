@@ -61,6 +61,7 @@ void WeatherServerInstance_OnDone(void* _Context) {
 }
 
 void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTime) {
+    if (_Server->connection == NULL) { return; }
     if (_Server->connection->url == NULL) { return; }
 
     HTTPQuery* query = HTTPQuery_fromstring(_Server->connection->url);
@@ -166,6 +167,8 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
 }
 
 void WeatherServerInstance_Dispose(WeatherServerInstance* _Instance) {
+    HTTPServerConnection_Dispose(_Instance->connection);
+    free(_Instance);
 }
 
 void WeatherServerInstance_DisposePtr(WeatherServerInstance** _InstancePtr) {

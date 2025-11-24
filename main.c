@@ -1,9 +1,18 @@
 #include <stdio.h>
+#include <signal.h>
 
 #include "smw.h"
 #include "utils.h"
 
 #include "WeatherServer.h"
+
+// Ovanför main
+static volatile int g_running = 1;
+static void signal_handler(int signum)
+{
+    (void)signum;
+    g_running = 0;
+}
 
 int main() {
     smw_init();
@@ -11,7 +20,10 @@ int main() {
     WeatherServer server;
     WeatherServer_Initiate(&server);
 
-    while (1) {
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
+    while (g_running) {
         uint64_t now = SystemMonotonicMS(); // debuggern kliver aldrig in i smw_work i vscode om vi inte gör så här
         smw_work(now);
         // usleep(10000);

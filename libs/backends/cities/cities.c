@@ -29,7 +29,7 @@ const char* cities_list = "Stockholm:59.3293:18.0686\n"
 // Forward declarations
 
 int city_init(const char* _Name, const char* _Latitude, const char* _Longitude, city_t** _CityPtr);
-void city_dispose(city_t** _cityPtr);
+void city_dispose(void* _cityPtr);
 
 int cities_add_city(cities_t* cities, city_t* city);
 
@@ -46,7 +46,8 @@ int cities_init(void** ctx, void** ctx_struct, void (*ondone)(void* context)) {
     if (!cities) {
         return -1; // Memory allocation failed
     }
-    memset(&cities->cities_list, 0, sizeof(LinkedList));
+    // memset(&cities->cities_list, 0, sizeof(LinkedList));
+    cities->cities_list = LinkedList_create();
     cities->ctx = ctx;
     cities->state = Cities_State_Init;
     cities->buffer = NULL;
@@ -88,26 +89,28 @@ int city_init(const char* name, const char* latitude, const char* longitude, cit
     return 0;
 }
 
-void city_dispose(city_t** city_ptr) {
-    if (city_ptr == NULL || *city_ptr == NULL) return;
+void city_dispose(void* city_ptr) {
+    // if (city_ptr == NULL || *city_ptr == NULL) return;
+    if (city_ptr == NULL) return;
+    city_t* city = (city_t*)(city_ptr);
 
-    city_t* city = *city_ptr;
+    // city_t* city = city_ptr;
 
     if (city->name != NULL) free(city->name);
 
     free(city);
-    *city_ptr = NULL;
+    city_ptr = NULL;
 }
 
 int cities_add_city(cities_t* cities, city_t* city) {
-    LinkedList_append(&cities->cities_list, city);
+    LinkedList_append(cities->cities_list, city);
     return 0;
 }
 
 int cities_get_city_by_name(cities_t* cities, const char* name, city_t** city_ptr) {
     if (!cities || !name) return -1;
 
-    Node* node = cities->cities_list.head;
+    Node* node = cities->cities_list->head;
     while (node) {
         city_t* city = (city_t*)node->item;
         if (city && city->name && strcmp(city->name, name) == 0) {
@@ -207,13 +210,15 @@ int cities_read_from_string_list(cities_t* cities) {
 
     } while (ptr);
 
+    free(list_copy);
+
     return 0;
 }
 
 int cities_save_to_disk(cities_t* cities) {
     if (!cities) return -1;
 
-    Node* node = cities->cities_list.head;
+    Node* node = cities->cities_list->head;
     while (node) {
         city_t* city = (city_t*)node->item;
         if (city && city->name) {
@@ -285,7 +290,7 @@ int cities_convert_to_char_json_buffer(cities_t* cities) {
     json_t* root_array = json_array();
     if (!root_array) return -1;
 
-    Node* node = cities->cities_list.head;
+    Node* node = cities->cities_list->head;
     while (node) {
         city_t* city = (city_t*)node->item;
         if (city) {
@@ -326,6 +331,14 @@ int cities_get_buffer(void** ctx, char** buffer) {
 int cities_dispose(void** ctx) {
     cities_t* cities = (cities_t*)(*ctx);
     if (!cities) return -1; // Memory allocation failed
+
+    LinkedList_dispose(&cities->cities_list, city_dispose);
+
+    free(cities->buffer);
+    cities->buffer = NULL;
+
+    free(cities);
+    *ctx = NULL;
 
     return 0;
 }

@@ -16,7 +16,7 @@ typedef struct cities_t {
     void* ctx;
     void (*on_done)(void* ctx);
 
-    LinkedList cities_list;
+    LinkedList* cities_list;
     cities_state state;
     char* buffer;
     int bytesread;

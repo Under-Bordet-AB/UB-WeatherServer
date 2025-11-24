@@ -17,6 +17,7 @@ int HTTPServerConnection_Initiate(HTTPServerConnection *_Connection, int _FD) {
   _Connection->state = HTTPServerConnection_State_Init;
   _Connection->startTime = 0;
   _Connection->writeBuffer = NULL;
+  _Connection->readBuffer[0] = '\0';
   _Connection->bytesSent = 0;
 
   _Connection->task =
@@ -30,8 +31,7 @@ int HTTPServerConnection_InitiatePtr(int _FD,
   if (_ConnectionPtr == NULL)
     return -1;
 
-  HTTPServerConnection *_Connection =
-      (HTTPServerConnection *)malloc(sizeof(HTTPServerConnection));
+  HTTPServerConnection *_Connection = (HTTPServerConnection *)malloc(sizeof(HTTPServerConnection));
   if (_Connection == NULL)
     return -2;
 
@@ -210,9 +210,13 @@ void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {
 
 void HTTPServerConnection_Dispose(HTTPServerConnection *_Connection) {
   TCPClient_Dispose(&_Connection->tcpClient);
+  smw_destroyTask(_Connection->task);
+
   if (_Connection->writeBuffer)
     free(_Connection->writeBuffer);
-  smw_destroyTask(_Connection->task);
+
+  // free(_Connection);
+  // _Connection = NULL;
 }
 
 void HTTPServerConnection_DisposePtr(HTTPServerConnection **_ConnectionPtr) {
