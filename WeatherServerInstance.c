@@ -61,7 +61,21 @@ void WeatherServerInstance_OnDone(void* _Context) {
 }
 
 void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTime) {
+    // Don't access connection if we're disposing or already disposed
+    if (_Server->state == WeatherServerInstance_State_Dispose) {
+        WeatherServerBackend* backend = &_Server->backend;
+        if (backend->backend_struct != NULL && backend->backend_dispose != NULL) {
+            backend->backend_dispose(&backend->backend_struct);
+        }
+        return;
+    }
+    
     if (_Server->connection == NULL) { return; }
+    // If the connection task is gone, the connection is disposing - don't use it
+    if (_Server->connection->task == NULL) { 
+        _Server->state = WeatherServerInstance_State_Dispose;
+        return;
+    }
     if (_Server->connection->url == NULL) { return; }
 
     HTTPQuery* query = HTTPQuery_fromstring(_Server->connection->url);
@@ -154,10 +168,6 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
 
         break;
     }
-    case WeatherServerInstance_State_Dispose: {
-        if (backend->backend_struct != NULL && backend->backend_dispose != NULL) { backend->backend_dispose(&backend->backend_struct); }
-        break;
-    }
     default: {
         break;
     }
@@ -168,6 +178,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
 
 void WeatherServerInstance_Dispose(WeatherServerInstance* _Instance) {
     HTTPServerConnection_Dispose(_Instance->connection);
+    free(_Instance->connection);
     free(_Instance);
 }
 

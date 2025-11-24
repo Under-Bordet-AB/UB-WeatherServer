@@ -191,8 +191,11 @@ void HTTPServerConnection_TaskWork(void *_Context, uint64_t _MonTime) {
     break;
   }
   case HTTPServerConnection_State_Dispose: {
-    HTTPServerConnection_Dispose(_Connection);
-    break;
+    // Don't dispose here - just stop the task
+    // The connection will be disposed when the server shuts down
+    smw_destroyTask(_Connection->task);
+    _Connection->task = NULL;
+    return;  // Exit the task work
   }
   case HTTPServerConnection_State_Failed: {
     printf("Reading failed\n");
@@ -214,9 +217,12 @@ void HTTPServerConnection_Dispose(HTTPServerConnection *_Connection) {
 
   if (_Connection->writeBuffer)
     free(_Connection->writeBuffer);
-
-  // free(_Connection);
-  // _Connection = NULL;
+  
+  if (_Connection->url)
+    free(_Connection->url);
+  
+  if (_Connection->method)
+    free(_Connection->method);
 }
 
 void HTTPServerConnection_DisposePtr(HTTPServerConnection **_ConnectionPtr) {

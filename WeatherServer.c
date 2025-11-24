@@ -73,7 +73,7 @@ void WeatherServer_Dispose(WeatherServer* _Server)
 {
 	HTTPServer_Dispose(&_Server->httpServer);
 	smw_destroyTask(_Server->task);
-	LinkedList_dispose(&_Server->instances, free);
+	LinkedList_dispose(&_Server->instances, (void (*)(void*))WeatherServerInstance_Dispose);
 }
 
 void WeatherServer_DisposePtr(WeatherServer** _ServerPtr)
