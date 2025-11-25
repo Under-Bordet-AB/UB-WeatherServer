@@ -82,7 +82,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
     if (!query || !query->Path) {
         if (_Server->connection) { HTTPServerConnection_SendResponse(_Server->connection, 400, "Bad Request: malformed URL\n", "text/plain"); }
         if (query) HTTPQuery_Dispose(&query);
-        _Server->state = WeatherServerInstance_State_Dispose;
+        _Server->state = WeatherServerInstance_State_Sending;
         return;
     }
 
@@ -110,7 +110,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
             const char* lon_str = HTTPQuery_getParameter(query, "lon");
             if (lat_str == NULL || lon_str == NULL) {
                 HTTPServerConnection_SendResponse(_Server->connection, 400, "Bad Request: Missing parameters\n", "text/plain");
-                _Server->state = WeatherServerInstance_State_Dispose;
+                _Server->state = WeatherServerInstance_State_Sending;
                 break;
             }
 
@@ -126,7 +126,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
             backend->binary_mode = 1;
         } else {
             HTTPServerConnection_SendResponse(_Server->connection, 404, "Not Found\n", "text/plain");
-            _Server->state = WeatherServerInstance_State_Dispose;
+            _Server->state = WeatherServerInstance_State_Sending;
             break;
         }
         _Server->state = WeatherServerInstance_State_Work;
@@ -144,30 +144,37 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
         if (backend->binary_mode == 1) {
             if (buffer == NULL) {
                 HTTPServerConnection_SendResponse(_Server->connection, 500, "Internal Server Error\n", "text/plain");
-                _Server->state = WeatherServerInstance_State_Dispose;
+                _Server->state = WeatherServerInstance_State_Sending;
                 break;
             }
             size_t buffer_size;
             backend->backend_get_buffer_size(&backend->backend_struct, &buffer_size);
             HTTPServerConnection_SendResponse_Binary(_Server->connection, 200, (uint8_t*)buffer, buffer_size, "image/png");
-            _Server->state = WeatherServerInstance_State_Dispose;
+            _Server->state = WeatherServerInstance_State_Sending;
             printf("WeatherServerInstance: Done.\n");
             break;
         } else {
             if (buffer == NULL) {
                 HTTPServerConnection_SendResponse(_Server->connection, 500, "Internal Server Error\n", "text/plain");
-                _Server->state = WeatherServerInstance_State_Dispose;
+                _Server->state = WeatherServerInstance_State_Sending;
                 break;
             }
 
             HTTPServerConnection_SendResponse(_Server->connection, 200, buffer, "application/json");
-            _Server->state = WeatherServerInstance_State_Dispose;
+            _Server->state = WeatherServerInstance_State_Sending;
             printf("WeatherServerInstance: Done.\n");
             break;
         }
 
         break;
     }
+    case WeatherServerInstance_State_Sending:
+        if (_Server->connection->state == HTTPServerConnection_State_Dispose)
+        {
+            _Server->state = WeatherServerInstance_State_Dispose;
+            break;
+        }
+        break;
     default: {
         break;
     }
@@ -179,7 +186,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
 void WeatherServerInstance_Dispose(WeatherServerInstance* _Instance) {
     HTTPServerConnection_Dispose(_Instance->connection);
     free(_Instance->connection);
-    free(_Instance);
+    // free(_Instance);
 }
 
 void WeatherServerInstance_DisposePtr(WeatherServerInstance** _InstancePtr) {
