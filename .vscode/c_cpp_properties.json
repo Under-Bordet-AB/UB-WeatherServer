@@ -7,9 +7,7 @@
         "${workspaceFolder}/src",
         "${workspaceFolder}/src/libs",
         "${workspaceFolder}/src/utils",
-        "${workspaceFolder}/src/w_server",
-        "${workspaceFolder}/src/w_server/listeners",
-        "${workspaceFolder}/src/w_server/middleware"
+        "${workspaceFolder}/src/w_server"
       ],
       "defines": [],
       "compilerPath": "/usr/bin/gcc",
@@ -21,9 +19,7 @@
           "${workspaceFolder}/src",
           "${workspaceFolder}/src/libs",
           "${workspaceFolder}/src/utils",
-          "${workspaceFolder}/src/w_server",
-          "${workspaceFolder}/src/w_server/listeners",
-          "${workspaceFolder}/src/w_server/middleware"
+          "${workspaceFolder}/src/w_server"
         ],
         "limitSymbolsToIncludedHeaders": true,
         "databaseFilename": ""
