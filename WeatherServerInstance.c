@@ -169,8 +169,13 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
         break;
     }
     case WeatherServerInstance_State_Sending:
-        if (_Server->connection->state == HTTPServerConnection_State_Dispose)
-        {
+        if (_Server->connection->task == NULL || 
+            _Server->connection->state == HTTPServerConnection_State_Dispose) {
+            _Server->state = WeatherServerInstance_State_Dispose;
+            break;
+        }
+        if (_Server->connection->state == HTTPServerConnection_State_Failed ||
+            _Server->connection->state == HTTPServerConnection_State_Timeout) {
             _Server->state = WeatherServerInstance_State_Dispose;
             break;
         }
@@ -184,9 +189,15 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
 }
 
 void WeatherServerInstance_Dispose(WeatherServerInstance* _Instance) {
+    // Dispose backend if it exists
+    WeatherServerBackend* backend = &_Instance->backend;
+    if (backend->backend_struct != NULL && backend->backend_dispose != NULL) {
+        backend->backend_dispose(&backend->backend_struct);
+    }
+    
     HTTPServerConnection_Dispose(_Instance->connection);
     free(_Instance->connection);
-    // free(_Instance);
+    free(_Instance);
 }
 
 void WeatherServerInstance_DisposePtr(WeatherServerInstance** _InstancePtr) {

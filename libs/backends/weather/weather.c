@@ -208,8 +208,14 @@ int openmeteo_read_response(weather_t** weather) {
 }
 
 int openmeteo_cleanup(weather_t** weather) {
-    curl_easy_cleanup((*weather)->curl_handle);
-    curl_multi_cleanup((*weather)->curl_multi_handle);
+    if ((*weather)->curl_handle) {
+        curl_easy_cleanup((*weather)->curl_handle);
+        (*weather)->curl_handle = NULL;
+    }
+    if ((*weather)->curl_multi_handle) {
+        curl_multi_cleanup((*weather)->curl_multi_handle);
+        (*weather)->curl_multi_handle = NULL;
+    }
     curl_global_cleanup();
 
     return 0;
@@ -627,8 +633,18 @@ int weather_dispose(void** ctx) {
     weather_t* weather = (weather_t*)(*ctx);
     if (!weather) return -1;
 
+    // Cleanup curl handles if not already cleaned up
+    if (weather->curl_multi_handle) {
+        curl_multi_cleanup(weather->curl_multi_handle);
+        weather->curl_multi_handle = NULL;
+    }
+    if (weather->curl_handle) {
+        curl_easy_cleanup(weather->curl_handle);
+        weather->curl_handle = NULL;
+    }
+
     if (weather->mem.memory) free(weather->mem.memory);
-    free(weather->buffer);
+    if (weather->buffer) free(weather->buffer);
     free(weather);
     *ctx = NULL;
 
