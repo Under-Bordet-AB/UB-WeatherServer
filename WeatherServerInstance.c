@@ -67,6 +67,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
         if (backend->backend_struct != NULL && backend->backend_dispose != NULL) {
             backend->backend_dispose(&backend->backend_struct);
         }
+        _Server->state = WeatherServerInstance_State_This_Is_Actually_The_State_Where_We_Want_This_Struct_To_Be_Disposed;
         return;
     }
     
@@ -175,6 +176,9 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
             break;
         }
         break;
+    case WeatherServerInstance_State_This_Is_Actually_The_State_Where_We_Want_This_Struct_To_Be_Disposed:
+
+        break;
     default: {
         break;
     }
@@ -186,7 +190,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
 void WeatherServerInstance_Dispose(WeatherServerInstance* _Instance) {
     HTTPServerConnection_Dispose(_Instance->connection);
     free(_Instance->connection);
-    // free(_Instance);
+    free(_Instance);
 }
 
 void WeatherServerInstance_DisposePtr(WeatherServerInstance** _InstancePtr) {
