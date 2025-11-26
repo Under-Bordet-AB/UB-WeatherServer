@@ -1,8 +1,7 @@
 #include "w_client.h"
 #include "../utils/ui.h"
-#include "backends/cities/cities.h"
-#include "backends/surprise/surprise.h"
-#include "backends/weather/weather.h"
+#include "backends/geocode_weather/geocache.h"
+#include "backends/geocode_weather/geocode_weather.h"
 #include "global_defines.h"
 #include "http_msg_builder.h"
 #include "http_parser.h"
@@ -76,9 +75,6 @@ retry:
     c->error_code = W_CLIENT_ERROR_SEND;
     return;
 }
-
-// Forward declaration of backend done callback
-static void w_client_backend_done(void* ctx);
 
 // State machine for clients
 void w_client_run(mj_scheduler* scheduler, void* ctx) {
@@ -165,123 +161,22 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         // Log the parsed request
         ui_print_request_details(client);
         client->state = W_CLIENT_PROCESSING;
-        break;
+        // break; Fall through here. Parsing is not enough work to yeild.
     }
     case W_CLIENT_PROCESSING: {
         // Route request and dispatch to appropriate backend
         http_request* req = (http_request*)client->parsed_request;
         ui_print_processing_request(client);
 
-        // Initialize backend structure
-        w_client_backend* backend = &client->backend;
-        backend->backend_struct = NULL;
-        backend->backend_get_buffer = NULL;
-        backend->backend_get_buffer_size = NULL;
-        backend->backend_work = NULL;
-        backend->backend_dispose = NULL;
-        backend->binary_mode = 0;
+        // Parse city from URL query parameter (e.g., "/weather?city=stockholm")
         int city_in_url = 0;
-
-        // TODO make a module for this
-        // parse out the city (assumes "/weather?city=stockholm")
         if (sscanf(req->url, "%*[^=]=%s", client->requested_city) == 1) {
             city_in_url = 1;
-            // I decode UTF-8 parts first, dont know if they depend on capitalization
             utils_decode_swedish_chars(client->requested_city);
-            // make lowercase
             utils_to_lowercase(client->requested_city);
         }
 
-        // TODO move routing out into functions then move out into module
-        // Route based on URL path
-
-        // LIST OF CITIES ROUTE
-        if (req->method == REQUEST_METHOD_GET && strncmp(req->url, "/cities", 11) == 0) {
-            cities_init((void*)client, &backend->backend_struct, w_client_backend_done);
-            backend->backend_get_buffer = cities_get_buffer;
-            backend->backend_work = cities_work;
-            backend->backend_dispose = cities_dispose;
-            backend->binary_mode = 0;
-            client->state = W_CLIENT_BACKEND_WORKING;
-            break;
-        }
-
-        // WEATHER FOR A CITY ROUTE
-        if (req->method == REQUEST_METHOD_GET && city_in_url) {
-            // TODO handle individual cities
-            weather_init((void*)client, &backend->backend_struct, w_client_backend_done);
-            backend->backend_get_buffer = weather_get_buffer;
-            backend->backend_work = weather_work;
-            backend->backend_dispose = weather_dispose;
-            backend->binary_mode = 0;
-
-            // Parse query parameters for latitude and longitude
-            const char* query_start = strchr(req->url, '?');
-            double latitude = 0.0, longitude = 0.0;
-            int has_lat = 0, has_lon = 0;
-
-            if (query_start) {
-                char* query_copy = strdup(query_start + 1);
-                char* token = strtok(query_copy, "&");
-                while (token) {
-                    if (strncmp(token, "lat=", 4) == 0) {
-                        latitude = strtod(token + 4, NULL);
-                        has_lat = 1;
-                    } else if (strncmp(token, "lon=", 4) == 0) {
-                        longitude = strtod(token + 4, NULL);
-                        has_lon = 1;
-                    }
-                    token = strtok(NULL, "&");
-                }
-                free(query_copy);
-            }
-
-            if (!has_lat || !has_lon) {
-                // Missing required parameters
-                if (backend->backend_struct && backend->backend_dispose) {
-                    backend->backend_dispose(&backend->backend_struct);
-                }
-                client->error_code = W_CLIENT_ERROR_MALFORMED_REQUEST;
-                client->state = W_CLIENT_SENDING;
-                break;
-            }
-
-            weather_set_location(&backend->backend_struct, latitude, longitude);
-            client->state = W_CLIENT_BACKEND_WORKING;
-            break;
-        }
-
-        // SURPRISE ROUTE
-        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/surprise") == 0) {
-            // load "bonzi.png" into a temporary buffer
-            char* img = load_image("bonzi.png", &client->response_body_size);
-            if (!img) {
-                client->error_code = W_CLIENT_ERROR_INTERNAL;
-                client->state = W_CLIENT_SENDING;
-                break;
-            }
-
-            // Build HTTP binary response (builder returns allocated buffer)
-            char* response_message =
-                http_msg_build_binary_response(200, "OK", "image/png", img, client->response_body_size, NULL);
-
-            // free image, messager builder mallocs
-            free(img);
-
-            if (!response_message) {
-                client->error_code = W_CLIENT_ERROR_INTERNAL;
-                client->state = W_CLIENT_SENDING;
-                break;
-            }
-
-            // ready for sending
-            client->response_body = response_message;
-            client->response_len = http_msg_get_total_size(client->response_body);
-            client->state = W_CLIENT_SENDING;
-            break;
-        }
-
-        // DEFAULT ROUTE
+        // ROOT ROUTE
         if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/") == 0) {
             client->response_body = http_msg_200_ok_text("Hello from weather server!");
             client->response_len = strlen(client->response_body);
@@ -290,15 +185,61 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             client->state = W_CLIENT_SENDING;
             break;
         }
+
+        // WEATHER ROUTE, uses geocode_weather task to get coordinates from location name
+        if (req->method == REQUEST_METHOD_GET && city_in_url) {
+
+            // Check geocache first - if we have cached coordinates, pass them to the task
+            geocache_entry_t cached_entry;
+            int cache_hit = 0;
+            if (client->server->geocache) {
+                if (geocache_lookup(client->server->geocache, client->requested_city, &cached_entry) == 0) {
+                    cache_hit = 1;
+                    ui_print_backend_state(client, "GeocodeWeather", "geocache hit");
+                }
+            }
+
+            // Create geocode_weather task to fetch coordinates then weather
+            mj_task* gw_task;
+            if (cache_hit) {
+                // Pass cached coordinates - task will skip geocode API call
+                gw_task = geocode_weather_task_create_with_coords(
+                    client, client->server->geocache, cached_entry.latitude, cached_entry.longitude, cached_entry.name);
+            } else {
+                // No cache hit - task will do full geocode + weather lookup
+                gw_task = geocode_weather_task_create(client, client->server->geocache);
+            }
+
+            if (!gw_task) {
+                client->error_code = W_CLIENT_ERROR_INTERNAL;
+                client->state = W_CLIENT_SENDING;
+                break;
+            }
+
+            // Add task to scheduler - it will set client->response_body when done
+            if (mj_scheduler_task_add(scheduler, gw_task) < 0) {
+                free(gw_task->ctx);
+                free(gw_task);
+                client->error_code = W_CLIENT_ERROR_INTERNAL;
+                client->state = W_CLIENT_SENDING;
+                break;
+            }
+
+            // Wait for task to complete
+            client->state = W_CLIENT_WAITING_TASK;
+            break;
+        }
+
+        // No valid route matched
+        client->error_code = W_CLIENT_ERROR_MALFORMED_REQUEST;
+        client->state = W_CLIENT_SENDING;
+        break;
     }
 
-    case W_CLIENT_BACKEND_WORKING: {
-        // Let the backend do its work
-        w_client_backend* backend = &client->backend;
-        if (backend->backend_work && backend->backend_struct) {
-            backend->backend_work(&backend->backend_struct);
-        }
-        // State will be changed by backend when done (via w_client_backend_done callback)
+    case W_CLIENT_WAITING_TASK: {
+        // Waiting for external task (e.g., geocode_weather) to complete.
+        // The task will set client->response_body and change state to W_CLIENT_SENDING when done.
+        // Nothing to do here - just wait.
         break;
     }
 
@@ -366,51 +307,6 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
     }
 }
 
-// Backend completion callback
-static void w_client_backend_done(void* ctx) {
-    w_client* client = (w_client*)ctx;
-    if (!client)
-        return;
-
-    // Get the backend response
-    w_client_backend* backend = &client->backend;
-    char* buffer = NULL;
-
-    // get the backend data to the client via the callback (each backend has its own)
-    if (backend->backend_get_buffer && backend->backend_struct) {
-        backend->backend_get_buffer(&backend->backend_struct, &buffer);
-    }
-
-    if (!buffer) {
-        // Backend failed to produce response
-        client->error_code = W_CLIENT_ERROR_INTERNAL;
-        client->state = W_CLIENT_SENDING;
-        return;
-    }
-
-    // Generate HTTP response based on backend type
-    if (backend->binary_mode) {
-        // Binary response (e.g., image)
-        size_t buffer_size = 0;
-        if (backend->backend_get_buffer_size && backend->backend_struct) {
-            backend->backend_get_buffer_size(&backend->backend_struct, &buffer_size);
-        }
-
-        client->response_body = http_msg_200_ok_binary("image/png", buffer, buffer_size);
-        client->response_len = http_msg_get_total_size(client->response_body);
-        client->response_sent = 0;
-        ui_print_response_details(client, 200, "OK", buffer_size);
-    } else {
-        // Text/JSON response
-        client->response_body = http_msg_200_ok_json(buffer);
-        client->response_len = strlen(client->response_body);
-        client->response_sent = 0;
-        ui_print_response_details(client, 200, "OK", strlen(buffer));
-    }
-
-    client->state = W_CLIENT_SENDING;
-}
-
 // deallocate any internal reasources added to the context
 void w_client_cleanup(mj_scheduler* scheduler, void* ctx) {
     w_client* client = (w_client*)ctx;
@@ -438,12 +334,6 @@ void w_client_cleanup(mj_scheduler* scheduler, void* ctx) {
     if (client->response_body) {
         free(client->response_body);
         client->response_body = NULL;
-    }
-
-    // Dispose backend if active
-    if (client->backend.backend_struct && client->backend.backend_dispose) {
-        client->backend.backend_dispose(&client->backend.backend_struct);
-        client->backend.backend_struct = NULL;
     }
 
     // Deallocate any buffers and resources here, the instances ctx gets deallocated by the scheduler.
@@ -496,13 +386,6 @@ mj_task* w_client_create(int client_fd, w_server* server) {
     new_ctx->response_len = 0;
     new_ctx->response_body = NULL;
     new_ctx->response_sent = 0;
-
-    new_ctx->backend.backend_struct = NULL;
-    new_ctx->backend.backend_get_buffer = NULL;
-    new_ctx->backend.backend_get_buffer_size = NULL;
-    new_ctx->backend.backend_work = NULL;
-    new_ctx->backend.backend_dispose = NULL;
-    new_ctx->backend.binary_mode = 0;
 
     new_ctx->connect_time = connect_time;
     new_ctx->error_code = W_CLIENT_ERROR_NONE;

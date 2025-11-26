@@ -122,7 +122,6 @@ static const city_t CITIES[] = {
     // 🏘️ Cities ranked 41 to 50
     {"Huddinge", 59.2333, 17.9833},
     {"Ängelholm", 56.2307, 12.8687},
-    {"Engelholm", 56.2307, 12.8687},
     {"Alingsås", 57.9292, 12.5298},
     {"Kiruna", 67.8557, 20.2253},
     {"Visby", 57.6333, 18.3000},

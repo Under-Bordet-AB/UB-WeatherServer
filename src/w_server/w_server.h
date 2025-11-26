@@ -4,6 +4,9 @@
 #include <netinet/in.h>
 #include <time.h>
 
+// Forward declaration
+struct geocache;
+
 typedef enum {
     W_SERVER_ERROR_NONE = 0,
     W_SERVER_ERROR_SOCKET_CREATE,
@@ -38,6 +41,8 @@ typedef struct w_server {
     size_t total_clients; // Total clients accepted during run
     // Last error
     w_server_error last_error;
+    // Geocache (shared across clients)
+    struct geocache* geocache;
 } w_server;
 
 w_server* w_server_create(w_server_config* config);

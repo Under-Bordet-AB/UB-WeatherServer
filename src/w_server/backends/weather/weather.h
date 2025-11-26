@@ -8,7 +8,7 @@
 
 #define METEO_FORECAST_URL                                                                                             \
     "http://api.open-meteo.com/v1/"                                                                                    \
-    "forecast?latitude=%f&longitude=%f&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,"       \
+    "forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,"   \
     "precipitation,rain,showers,snowfall,weather_"                                                                     \
     "code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
 

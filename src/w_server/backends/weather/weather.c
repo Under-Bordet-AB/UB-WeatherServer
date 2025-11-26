@@ -20,9 +20,15 @@ int parse_openmeteo_json_to_weather(const json_t* json_obj, weather_data_t* weat
 int serialize_weather_to_json(const weather_data_t* weather, json_t** json_obj);
 
 static void get_cache_file_path(double latitude, double longitude, char* path, size_t path_size) {
-    long long lat_key = llround(latitude * 1000000.0);
-    long long lon_key = llround(longitude * 1000000.0);
+    // Normalize to 4 decimal places and use integer keys to avoid dots in filenames
+    long long lat_key = llround(latitude * 10000.0);
+    long long lon_key = llround(longitude * 10000.0);
     snprintf(path, path_size, "weather_cache/%lld_%lld.json", lat_key, lon_key);
+}
+
+// Round to 4 decimal places helper
+static double round4(double v) {
+    return round(v * 10000.0) / 10000.0;
 }
 
 int does_weather_cache_exist(double latitude, double longitude) {
@@ -169,6 +175,7 @@ int fetch_weather_from_openmeteo(double latitude, double longitude, char** api_r
     }
 
     char url[512];
+    // Use 4 decimal places in API request to match cache normalization
     snprintf(url, sizeof(url), METEO_FORECAST_URL, latitude, longitude);
 
     http_response_t response;
@@ -283,10 +290,10 @@ int parse_openmeteo_json_to_weather(const json_t* json_obj, weather_data_t* weat
     json_t* val;
 
     val = json_object_get(json_obj, "latitude");
-    weather->latitude = json_is_real(val) ? json_real_value(val) : 0.0;
+    weather->latitude = json_is_real(val) ? round4(json_real_value(val)) : 0.0;
 
     val = json_object_get(json_obj, "longitude");
-    weather->longitude = json_is_real(val) ? json_real_value(val) : 0.0;
+    weather->longitude = json_is_real(val) ? round4(json_real_value(val)) : 0.0;
 
     val = json_object_get(json_obj, "generationtime_ms");
     weather->generationtime_ms = json_is_real(val) ? json_real_value(val) : 0.0;
@@ -450,8 +457,8 @@ int serialize_weather_to_json(const weather_data_t* weather, json_t** json_obj) 
     if (!*json_obj)
         return -1;
 
-    json_object_set_new(*json_obj, "latitude", json_real(weather->latitude));
-    json_object_set_new(*json_obj, "longitude", json_real(weather->longitude));
+    json_object_set_new(*json_obj, "latitude", json_real(round4(weather->latitude)));
+    json_object_set_new(*json_obj, "longitude", json_real(round4(weather->longitude)));
     json_object_set_new(*json_obj, "generationtime_ms", json_real(weather->generationtime_ms));
     json_object_set_new(*json_obj, "utc_offset_seconds", json_integer(weather->utc_offset_seconds));
     json_object_set_new(*json_obj, "timezone", weather->timezone ? json_string(weather->timezone) : json_string("GMT"));

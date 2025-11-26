@@ -105,11 +105,14 @@ echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
 if check_status 200 "$HTTP_CODE"; then
     if check_json "$BODY"; then
         # Check for weather data fields (temperature is nested under current)
-        HAS_TEMP=$(echo "$BODY" | jq -e '.current.temperature_2m' > /dev/null 2>&1 && echo "yes" || echo "no")
+        # Check for weather data fields. The upstream API may include
+        # current weather under `current_weather.temperature` or hourly
+        # time-series under `hourly.temperature_2m`. Accept either.
+        HAS_TEMP_CUR=$(echo "$BODY" | jq -e '.current_weather.temperature' > /dev/null 2>&1 && echo "yes" || echo "no")
+        HAS_TEMP_HOUR=$(echo "$BODY" | jq -e '.hourly.temperature_2m[0]' > /dev/null 2>&1 && echo "yes" || echo "no")
         HAS_LAT=$(echo "$BODY" | jq -e '.latitude' > /dev/null 2>&1 && echo "yes" || echo "no")
         HAS_LON=$(echo "$BODY" | jq -e '.longitude' > /dev/null 2>&1 && echo "yes" || echo "no")
-        
-        if [ "$HAS_TEMP" = "yes" ] && [ "$HAS_LAT" = "yes" ] && [ "$HAS_LON" = "yes" ]; then
+        if { [ "$HAS_TEMP_CUR" = "yes" ] || [ "$HAS_TEMP_HOUR" = "yes" ]; } && [ "$HAS_LAT" = "yes" ] && [ "$HAS_LON" = "yes" ]; then
             echo -e "${GREEN}✓ Weather data has required fields${NC}"
             TESTS_PASSED=$((TESTS_PASSED + 1))
         else

@@ -9,6 +9,7 @@
 #define _GNU_SOURCE /* expose accept4() and other GNU extensions */
 #include "w_server.h"
 #include "../utils/ui.h"
+#include "backends/geocode_weather/geocache.h"
 #include "global_defines.h"
 #include "utils.h"
 #include "w_client.h"
@@ -66,9 +67,11 @@ void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
 // TODO finish clean up function
 void w_server_listen_TCP_nonblocking_cleanup(mj_scheduler* scheduler, void* ctx) {
     w_server* server = (w_server*)ctx;
-
+    // Perform server-specific cleanup but do NOT free the server context here.
+    // The scheduler is responsible for freeing task contexts to avoid
+    // double-free when mj_scheduler_cleanup_all_tasks() runs.
     ui_print_server_listen_stopped(server->listen_fd);
-    free(ctx);
+    w_server_cleanup(server);
 }
 
 static int init_from_config(w_server* server, const w_server_config* cfg) {
@@ -118,6 +121,14 @@ w_server* w_server_create(w_server_config* config) {
         return NULL;
     }
 
+    // Load geocache
+    srv->geocache = geocache_load();
+    if (!srv->geocache) {
+        ui_print_server_init_error("W_SERVER_ERROR_GEOCACHE_LOAD");
+        free(srv);
+        return NULL;
+    }
+
     // try to bind listening socket to address
     int bnd_res = w_server_bind_listening_socket(&srv->listen_fd, srv->address, srv->port, config->listening_backlog);
     if (bnd_res != W_SERVER_ERROR_NONE) {
@@ -163,5 +174,12 @@ void w_server_cleanup(w_server* server) {
     if (server->listen_fd >= 0) {
         close(server->listen_fd);
         server->listen_fd = -1;
+    }
+
+    // Save and cleanup geocache
+    if (server->geocache) {
+        geocache_save(server->geocache);
+        geocache_destroy(server->geocache);
+        server->geocache = NULL;
     }
 }

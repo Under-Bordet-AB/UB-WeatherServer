@@ -115,7 +115,60 @@ static void utils_to_lowercase(char* str) {
         return;
     }
     for (int i = 0; str[i] != '\0'; i++) {
-        str[i] = tolower(str[i]);
+        unsigned char c = (unsigned char)str[i];
+        if (c < 128) {
+            str[i] = (char)tolower(c);
+        } else {
+            /* Handle a few common Swedish uppercase letters in UTF-8
+             * Å (U+00C5) : 0xC3 0x85 -> å (U+00E5) : 0xC3 0xA5
+             * Ä (U+00C4) : 0xC3 0x84 -> ä (U+00E4) : 0xC3 0xA4
+             * Ö (U+00D6) : 0xC3 0x96 -> ö (U+00F6) : 0xC3 0xB6
+             * We only lower-case these specific two-byte sequences to avoid
+             * implementing full Unicode case-folding.
+             */
+            unsigned char n = (unsigned char)str[i + 1];
+            if (c == 0xC3 && n != '\0') {
+                if (n == 0x85) { /* Å */
+                    str[i] = (char)0xC3;
+                    str[i + 1] = (char)0xA5; /* å */
+                    i += 1;                  /* consumed two bytes */
+                    continue;
+                } else if (n == 0x84) { /* Ä */
+                    str[i] = (char)0xC3;
+                    str[i + 1] = (char)0xA4; /* ä */
+                    i += 1;
+                    continue;
+                } else if (n == 0x96) { /* Ö */
+                    str[i] = (char)0xC3;
+                    str[i + 1] = (char)0xB6; /* ö */
+                    i += 1;
+                    continue;
+                }
+            }
+            /* leave other multibyte sequences untouched */
+        }
+    }
+}
+
+/* Normalize some Swedish variant confusion: map Å/å -> Ä/ä for geocode queries
+ * This function modifies the UTF-8 byte sequences in-place. It replaces
+ * two-byte sequences 0xC3 0x85 and 0xC3 0xA5 (Å and å) with 0xC3 0xA4 (ä).
+ * Use this only when you want to canonicalize user input for matching
+ * systems that expect 'ä' instead of 'å' in specific names.
+ */
+static void utils_normalize_swedish_a_umlaut(char* str) {
+    if (!str)
+        return;
+    for (size_t i = 0; str[i]; i++) {
+        unsigned char c = (unsigned char)str[i];
+        if (c == 0xC3 && str[i + 1]) {
+            unsigned char n = (unsigned char)str[i + 1];
+            if (n == 0x85 || n == 0xA5) {
+                /* Å (0xC3 0x85) or å (0xC3 0xA5) -> ä (0xC3 0xA4) */
+                str[i + 1] = (char)0xA4;
+                i += 1; /* skip the second byte */
+            }
+        }
     }
 }
 

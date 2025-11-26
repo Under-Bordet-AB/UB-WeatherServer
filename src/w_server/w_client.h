@@ -25,20 +25,10 @@ typedef enum {
     W_CLIENT_READING,
     W_CLIENT_PARSING,
     W_CLIENT_PROCESSING,
-    W_CLIENT_BACKEND_WORKING,
+    W_CLIENT_WAITING_TASK, // Waiting for external task (e.g., geocode_weather) to complete
     W_CLIENT_SENDING,
     W_CLIENT_DONE
 } w_client_state;
-
-// Backend interface structure
-typedef struct {
-    void* backend_struct;
-    int (*backend_get_buffer)(void** backend_struct, char** buffer);
-    int (*backend_get_buffer_size)(void** backend_struct, size_t* size);
-    int (*backend_work)(void** backend_struct);
-    int (*backend_dispose)(void** backend_struct);
-    int binary_mode;
-} w_client_backend;
 
 // CLIENT context, one per active client
 typedef struct w_client {
@@ -63,9 +53,6 @@ typedef struct w_client {
     size_t response_body_size;
     size_t response_len;
     size_t response_sent;
-
-    // Backend
-    w_client_backend backend;
 
     // Metrics
     struct timespec connect_time;
