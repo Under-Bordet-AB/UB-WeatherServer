@@ -4,6 +4,7 @@
 #include "global_defines.h"
 #include "w_client.h"
 #include "w_server.h"
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -17,12 +18,114 @@
 #include <time.h>
 #include <unistd.h>
 
-/**
- * Sleep for the given number of milliseconds.
+// Load an image
+static char* load_image(const char* path, size_t* out_size) {
+    if (!path || !out_size) {
+        errno = EINVAL;
+        return NULL;
+    }
+    *out_size = 0;
+
+    FILE* f = fopen(path, "rb");
+    if (!f)
+        return NULL; /* errno set by fopen */
+
+    struct stat st;
+    if (fstat(fileno(f), &st) != 0) {
+        fclose(f);
+        return NULL; /* errno set by fstat */
+    }
+
+    if (st.st_size <= 0) { /* empty file or directory / special file */
+        fclose(f);
+        errno = EIO;
+        return NULL;
+    }
+
+    size_t file_size = (size_t)st.st_size;
+    char* buf = malloc(file_size + 1); /* +1 for optional NUL */
+    if (!buf) {
+        fclose(f);
+        errno = ENOMEM;
+        return NULL;
+    }
+
+    size_t got = 0;
+    while (got < file_size) {
+        size_t r = fread(buf + got, 1, file_size - got, f);
+        if (r == 0) {
+            if (feof(f))
+                break;
+            if (ferror(f)) {
+                free(buf);
+                fclose(f);
+                errno = EIO;
+                return NULL;
+            }
+        }
+        got += r;
+    }
+    fclose(f);
+
+    if (got != file_size) {
+        free(buf);
+        errno = EIO;
+        return NULL;
+    }
+
+    buf[file_size] = '\0'; /* safe NUL terminator */
+    *out_size = file_size;
+    return buf;
+}
+// Converts string IN PLACE so we can printf them and match strings with "åäö"
+static void utils_decode_swedish_chars(char* str) {
+    if (str == NULL) {
+        return;
+    }
+    char* read_ptr = str;
+    char* write_ptr = str;
+
+    while (*read_ptr) {
+        if (*read_ptr == '%') {
+            if (isxdigit((unsigned char)read_ptr[1]) && isxdigit((unsigned char)read_ptr[2])) {
+                char hex_digit[3];
+                hex_digit[0] = read_ptr[1];
+                hex_digit[1] = read_ptr[2];
+                hex_digit[2] = '\0';
+
+                long byte_value = strtol(hex_digit, NULL, 16);
+                *write_ptr = (char)byte_value;
+                read_ptr += 3;
+            } else {
+                *write_ptr = *read_ptr;
+                read_ptr++;
+            }
+        } else {
+            // Regular character
+            *write_ptr = *read_ptr;
+            read_ptr++;
+        }
+        write_ptr++;
+    }
+    *write_ptr = '\0';
+}
+
+static void utils_to_lowercase(char* str) {
+    if (str == NULL) {
+        return;
+    }
+    for (int i = 0; str[i] != '\0'; i++) {
+        str[i] = tolower(str[i]);
+    }
+}
+
+/*
+ * s owe can printf them and match against swedish like "Jönköping" the given number of milliseconds.
  *
  * @param ms  Milliseconds to sleep. 0 <= ms <= INT_MAX/1000.
  *            The function may return earlier if interrupted by a signal.
  */
+
 static inline void utils_sleep_ms(unsigned int ms) {
     struct timespec req = {.tv_sec = ms / 1000, .tv_nsec = (ms % 1000) * 1000000L};
 

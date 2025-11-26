@@ -11,10 +11,71 @@
 #include "utils.h"
 #include "w_server.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+
+static void response_send(w_client* c) {
+    /* Kanske intressant om blocking
+    "You can set SO_SNDTIMEO via setsockopt() to make send() block only for a limited time"
+    */
+    int retries = 0;
+    ssize_t remaining = c->response_len - c->response_sent;
+    // if nothing to send, return
+    if (remaining == 0) {
+        return;
+    }
+
+    ssize_t bytes; // cant have declaration directly after a label
+retry:
+    // no MSG_NOSIGNAL prevents process to be killed if writing to closed socket
+    bytes = send(c->fd, c->response_body + c->response_sent, remaining, MSG_NOSIGNAL);
+
+    // handle errors
+    if (bytes < 0) {
+        switch (errno) {
+        case EAGAIN: // would have blocked
+            return;
+        case EINTR: // interrupted
+            // retry N times
+            if (retries < MAX_SEND_RETRIES) {
+                retries++;
+                goto retry;
+            }
+            return;
+        // ERRORS
+        case EPIPE: // Socket was orderly closed by peer, or network error
+            c->error_code = W_CLIENT_ERROR_SEND_EPIPE;
+            return;
+
+        case ECONNRESET: // Socket was closed incorrectly. Peer crashed or missbehaved
+            c->error_code = W_CLIENT_ERROR_SEND_ECONNRESET;
+            return;
+
+        case EFAULT: // bad pointer to message buffer
+            c->error_code = W_CLIENT_ERROR_SEND_EFAULT;
+            return;
+        default:
+            // All other errno values
+            c->error_code = W_CLIENT_ERROR_SEND;
+            return;
+        }
+    }
+
+    if (bytes > 0) {
+        // Bytes where sent
+        c->response_sent += bytes;
+        return;
+    }
+
+    // bytes == 0 is rare and an error
+    c->error_code = W_CLIENT_ERROR_SEND;
+    return;
+}
 
 // Forward declaration of backend done callback
 static void w_client_backend_done(void* ctx);
@@ -119,16 +180,35 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         backend->backend_work = NULL;
         backend->backend_dispose = NULL;
         backend->binary_mode = 0;
+        int city_in_url = 0;
 
+        // TODO make a module for this
+        // parse out the city (assumes "/weather?city=stockholm")
+        if (sscanf(req->url, "%*[^=]=%s", client->requested_city) == 1) {
+            city_in_url = 1;
+            // I decode UTF-8 parts first, dont know if they depend on capitalization
+            utils_decode_swedish_chars(client->requested_city);
+            // make lowercase
+            utils_to_lowercase(client->requested_city);
+        }
+
+        // TODO move routing out into functions then move out into module
         // Route based on URL path
-        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/GetCities") == 0) {
+
+        // LIST OF CITIES ROUTE
+        if (req->method == REQUEST_METHOD_GET && strncmp(req->url, "/cities", 11) == 0) {
             cities_init((void*)client, &backend->backend_struct, w_client_backend_done);
             backend->backend_get_buffer = cities_get_buffer;
             backend->backend_work = cities_work;
             backend->backend_dispose = cities_dispose;
             backend->binary_mode = 0;
             client->state = W_CLIENT_BACKEND_WORKING;
-        } else if (req->method == REQUEST_METHOD_GET && strncmp(req->url, "/GetWeather", 11) == 0) {
+            break;
+        }
+
+        // WEATHER FOR A CITY ROUTE
+        if (req->method == REQUEST_METHOD_GET && city_in_url) {
+            // TODO handle individual cities
             weather_init((void*)client, &backend->backend_struct, w_client_backend_done);
             backend->backend_get_buffer = weather_get_buffer;
             backend->backend_work = weather_work;
@@ -168,30 +248,48 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 
             weather_set_location(&backend->backend_struct, latitude, longitude);
             client->state = W_CLIENT_BACKEND_WORKING;
-        } else if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/GetSurprise") == 0) {
-            surprise_init((void*)client, &backend->backend_struct, w_client_backend_done);
-            backend->backend_get_buffer = surprise_get_buffer;
-            backend->backend_get_buffer_size = surprise_get_buffer_size;
-            backend->backend_work = surprise_work;
-            backend->backend_dispose = surprise_dispose;
-            backend->binary_mode = 1;
-            client->state = W_CLIENT_BACKEND_WORKING;
-        } else if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/") == 0) {
-            // Root endpoint - simple hello
-            client->response_data = http_msg_200_ok_text("Hello from weather server!");
-            client->response_len = strlen(client->response_data);
+            break;
+        }
+
+        // SURPRISE ROUTE
+        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/surprise") == 0) {
+            // load "bonzi.png" into a temporary buffer
+            char* img = load_image("bonzi.png", &client->response_body_size);
+            if (!img) {
+                client->error_code = W_CLIENT_ERROR_INTERNAL;
+                client->state = W_CLIENT_SENDING;
+                break;
+            }
+
+            // Build HTTP binary response (builder returns allocated buffer)
+            char* response_message =
+                http_msg_build_binary_response(200, "OK", "image/png", img, client->response_body_size, NULL);
+
+            // free image, messager builder mallocs
+            free(img);
+
+            if (!response_message) {
+                client->error_code = W_CLIENT_ERROR_INTERNAL;
+                client->state = W_CLIENT_SENDING;
+                break;
+            }
+
+            // ready for sending
+            client->response_body = response_message;
+            client->response_len = http_msg_get_total_size(client->response_body);
+            client->state = W_CLIENT_SENDING;
+            break;
+        }
+
+        // DEFAULT ROUTE
+        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/") == 0) {
+            client->response_body = http_msg_200_ok_text("Hello from weather server!");
+            client->response_len = strlen(client->response_body);
             client->response_sent = 0;
             ui_print_response_details(client, 200, "OK", client->response_len);
             client->state = W_CLIENT_SENDING;
-        } else {
-            // 404 for all other routes
-            client->response_data = http_msg_404_not_found(req->url);
-            client->response_len = strlen(client->response_data);
-            client->response_sent = 0;
-            ui_print_response_details(client, 404, "Not Found", client->response_len);
-            client->state = W_CLIENT_SENDING;
+            break;
         }
-        break;
     }
 
     case W_CLIENT_BACKEND_WORKING: {
@@ -205,92 +303,64 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
     }
 
     case W_CLIENT_SENDING: {
-        // Build response if not already built
-        if (!client->response_data) {
+        // handle any errors from prev state
+        if (client->error_code != W_CLIENT_ERROR_NONE) {
             switch (client->error_code) {
-            case W_CLIENT_ERROR_REQUEST_TOO_LARGE:
-                client->response_data = http_msg_413_content_too_large(NULL);
-                if (client->response_data) {
-                    client->response_len = strlen(client->response_data);
-                    client->response_sent = 0;
-                    ui_print_response_details(client, 413, "Request Entity Too Large", client->response_len);
-                }
+            case W_CLIENT_ERROR_REQUEST_TOO_LARGE: {
+                client->response_body = http_msg_413_content_too_large(NULL);
+                client->response_len = strlen(client->response_body);
+                ui_print_response_details(client, 413, "Request Entity Too Large", client->response_len);
+                client->state = W_CLIENT_DONE;
                 break;
-            case W_CLIENT_ERROR_MALFORMED_REQUEST:
-                client->response_data = http_msg_400_bad_request("Malformed HTTP request");
-                if (client->response_data) {
-                    client->response_len = strlen(client->response_data);
-                    client->response_sent = 0;
-                    ui_print_response_details(client, 400, "Bad Request", client->response_len);
-                }
+            }
+            case W_CLIENT_ERROR_MALFORMED_REQUEST: {
+                client->response_body = http_msg_400_bad_request("Malformed HTTP request");
+                client->response_len = strlen(client->response_body);
+                ui_print_response_details(client, 400, "Bad Request", client->response_len);
+                client->state = W_CLIENT_DONE;
                 break;
-            case W_CLIENT_ERROR_INTERNAL:
-                client->response_data = http_msg_500_internal_error("Backend error");
-                if (client->response_data) {
-                    client->response_len = strlen(client->response_data);
-                    client->response_sent = 0;
-                    ui_print_response_details(client, 500, "Internal Server Error", client->response_len);
-                }
+            }
+            case W_CLIENT_ERROR_INTERNAL: {
+                client->response_body = http_msg_500_internal_error("Backend error");
+                client->response_len = strlen(client->response_body);
+                ui_print_response_details(client, 500, "Internal Server Error", client->response_len);
+                client->state = W_CLIENT_DONE;
                 break;
-            case W_CLIENT_ERROR_NONE:
+            }
             default:
-                // No error, response should already be set by normal processing
-                if (!client->response_data) {
-                    // Defensive: shouldn't happen, but handle it
-                    client->response_data = http_msg_500_internal_error("No response generated");
-                    if (client->response_data) {
-                        client->response_len = strlen(client->response_data);
-                        client->response_sent = 0;
-                        ui_print_response_details(client, 500, "Internal Server Error", client->response_len);
-                    }
-                }
-                break;
+                client->response_body = http_msg_500_internal_error("Backend error");
+                client->response_len = strlen(client->response_body);
+                ui_print_response_details(client, 500, "Internal Server Error", client->response_len);
+                client->state = W_CLIENT_DONE;
             }
         }
 
-        // Send response data to client
-        if (client->response_data && client->response_sent < client->response_len) {
-            ssize_t sent = send(client->fd, client->response_data + client->response_sent,
-                                client->response_len - client->response_sent, MSG_DONTWAIT);
+        // Send response
+        response_send(client);
 
-            if (sent < 0) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    // Socket buffer full, try again later
-                    return;
-                }
-                // Send error
-                ui_print_send_error(client, strerror(errno));
-                client->state = W_CLIENT_DONE;
-                return;
-            }
-
-            if (sent == 0) {
-                // Connection closed by peer
-                ui_print_connection_closed_during_send(client);
-                client->state = W_CLIENT_DONE;
-                return;
-            }
-
-            client->response_sent += sent;
-
-            // Check if we've sent everything
-            if (client->response_sent >= client->response_len) {
-                client->state = W_CLIENT_DONE;
-            }
-        } else {
-            // No response data or already sent
+        // send error, we are done
+        if (client->error_code != W_CLIENT_ERROR_NONE) {
             client->state = W_CLIENT_DONE;
+            break;
         }
-        break;
+
+        /// Did we send the whole response?
+        if (client->response_sent == client->response_len) {
+            client->state = W_CLIENT_DONE;
+            break;
+        }
+
+        // no state change, try again next tick
     }
+
     case W_CLIENT_DONE: {
-        mj_scheduler_task_remove_current(scheduler); /* invokes w_client_cleanup() */
+        mj_scheduler_task_remove_current(scheduler); // also calls w_client_cleanup()
         break;
     }
 
-    default: { /* defensive path */
+    default: {
         ui_print_unknown_state_error(client, client->state);
-        client->state = W_CLIENT_DONE; /* force a cleanup cycle */
+        client->state = W_CLIENT_DONE;
         break;
     }
     }
@@ -326,14 +396,14 @@ static void w_client_backend_done(void* ctx) {
             backend->backend_get_buffer_size(&backend->backend_struct, &buffer_size);
         }
 
-        client->response_data = http_msg_200_ok_binary("image/png", buffer, buffer_size);
-        client->response_len = http_msg_get_total_size(client->response_data);
+        client->response_body = http_msg_200_ok_binary("image/png", buffer, buffer_size);
+        client->response_len = http_msg_get_total_size(client->response_body);
         client->response_sent = 0;
         ui_print_response_details(client, 200, "OK", buffer_size);
     } else {
         // Text/JSON response
-        client->response_data = http_msg_200_ok_json(buffer);
-        client->response_len = strlen(client->response_data);
+        client->response_body = http_msg_200_ok_json(buffer);
+        client->response_len = strlen(client->response_body);
         client->response_sent = 0;
         ui_print_response_details(client, 200, "OK", strlen(buffer));
     }
@@ -365,9 +435,9 @@ void w_client_cleanup(mj_scheduler* scheduler, void* ctx) {
     }
 
     // Free response data
-    if (client->response_data) {
-        free(client->response_data);
-        client->response_data = NULL;
+    if (client->response_body) {
+        free(client->response_body);
+        client->response_body = NULL;
     }
 
     // Dispose backend if active
@@ -424,7 +494,7 @@ mj_task* w_client_create(int client_fd, w_server* server) {
     new_ctx->parsed_request = NULL;
 
     new_ctx->response_len = 0;
-    new_ctx->response_data = NULL;
+    new_ctx->response_body = NULL;
     new_ctx->response_sent = 0;
 
     new_ctx->backend.backend_struct = NULL;

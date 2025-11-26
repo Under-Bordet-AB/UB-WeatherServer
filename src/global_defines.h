@@ -10,6 +10,7 @@
 //// SERVER
 // How many times to call accept4() per tick / entry into the listening function
 #define MAX_ACCEPTS_PER_TICK 16 // 16 * 4 = 64 new clients can be accepted per tick
+#define MAX_SEND_RETRIES 10     // Lets client retry immediately if it was interrupted (errno == EINTR)
 
 //// CONNECTED CLIENTS
 #define W_CLIENT_READ_BUFFER_SIZE 8192

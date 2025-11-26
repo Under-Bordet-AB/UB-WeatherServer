@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +39,13 @@
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
+
+// Stop flag for eternal mode, set by SIGINT handler
+volatile sig_atomic_t stop_requested = 0;
+static void sigint_handler(int signum) {
+    (void)signum;
+    stop_requested = 1;
+}
 
 #define DEFAULT_IP "127.0.0.1"
 #define DEFAULT_PORT 10480
@@ -62,30 +70,140 @@ typedef struct {
     double longitude;
 } city_t;
 
-// Top Swedish cities with GPS coordinates
 static const city_t CITIES[] = {
-    {"Stockholm", 59.3293, 18.0686},  {"Gothenburg", 57.7089, 11.9746},   {"Malmö", 55.6049, 13.0038},
-    {"Uppsala", 59.8586, 17.6389},    {"Linköping", 58.4108, 15.6214},    {"Örebro", 59.2741, 15.2066},
-    {"Västerås", 59.6099, 16.5448},   {"Helsingborg", 56.0465, 12.6944},  {"Norrköping", 58.5877, 16.1924},
-    {"Jönköping", 57.7826, 14.1618},  {"Umeå", 63.8258, 20.2630},         {"Lund", 55.7047, 13.1910},
-    {"Borås", 57.7210, 12.9401},      {"Eskilstuna", 59.3712, 16.5098},   {"Gävle", 60.6745, 17.1417},
-    {"Södertälje", 59.1955, 17.6253}, {"Karlstad", 59.3793, 13.5036},     {"Sundsvall", 62.3908, 17.3069},
-    {"Luleå", 65.5848, 22.1567},      {"Östersund", 63.1767, 14.6361},    {"Växjö", 56.8790, 14.8059},
-    {"Halmstad", 56.6745, 12.8571},   {"Kristianstad", 56.0313, 14.1524}, {"Falun", 60.6036, 15.6259},
-    {"Kalmar", 56.6634, 16.3568},     {"Skövde", 58.3912, 13.8451},       {"Trollhättan", 58.2837, 12.2886},
-    {"Uddevalla", 58.3498, 11.9356}};
+    // 🇸🇪 Top 10 Major Metropolitan Areas
+    {"Stockholm", 59.3293, 18.0686},
+    {"Göteborg", 57.7089, 11.9746},
+    {"Malmö", 55.6049, 13.0038},
+    {"Uppsala", 59.8586, 17.6389},
+    {"Västerås", 59.6099, 16.5448},
+    {"Örebro", 59.2741, 15.2066},
+    {"Linköping", 58.4108, 15.6214},
+    {"Helsingborg", 56.0465, 12.6944},
+    {"Jönköping", 57.7826, 14.1618},
+    {"Norrköping", 58.5877, 16.1924},
+
+    // 🏙️ Cities ranked 11 to 20
+    {"Lund", 55.7047, 13.1910},
+    {"Umeå", 63.8258, 20.2630},
+    {"Gävle", 60.6745, 17.1417},
+    {"Borås", 57.7210, 12.9401},
+    {"Eskilstuna", 59.3712, 16.5098},
+    {"Södertälje", 59.1955, 17.6253},
+    {"Karlstad", 59.3793, 13.5036},
+    {"Täby", 59.4000, 18.0667},
+    {"Växjö", 56.8790, 14.8059},
+    {"Sundsvall", 62.3908, 17.3069},
+
+    // 🏘️ Cities ranked 21 to 30
+    {"Halmstad", 56.6745, 12.8571},
+    {"Luleå", 65.5848, 22.1567},
+    {"Trollhättan", 58.2837, 12.2886},
+    {"Östersund", 63.1767, 14.6361},
+    {"Borlänge", 60.4855, 15.4385},
+    {"Tumba", 59.2000, 17.8333},
+    {"Skövde", 58.3912, 13.8451},
+    {"Kalmar", 56.6634, 16.3568},
+    {"Kristianstad", 56.0313, 14.1524},
+    {"Falun", 60.6036, 15.6259},
+
+    // 🏘️ Cities ranked 31 to 40
+    {"Karlskrona", 56.1608, 15.5866},
+    {"Skellefteå", 64.7500, 20.9500},
+    {"Uddevalla", 58.3498, 11.9356},
+    {"Nyköping", 58.7535, 17.0019},
+    {"Varberg", 57.1054, 12.2519},
+    {"Motala", 58.5398, 15.0381},
+    {"Landskrona", 55.8670, 12.8300},
+    {"Köping", 59.5100, 16.0000},
+    {"Arvika", 59.6558, 12.5857},
+    {"Piteå", 65.3167, 21.4667},
+
+    // 🏘️ Cities ranked 41 to 50
+    {"Huddinge", 59.2333, 17.9833},
+    {"Ängelholm", 56.2307, 12.8687},
+    {"Engelholm", 56.2307, 12.8687},
+    {"Alingsås", 57.9292, 12.5298},
+    {"Kiruna", 67.8557, 20.2253},
+    {"Visby", 57.6333, 18.3000},
+    {"Värnamo", 56.8732, 14.0436},
+    {"Katrineholm", 59.0022, 16.2081},
+    {"Kungälv", 57.8596, 11.9861},
+    {"Västervik", 57.7500, 16.6333},
+    {"Trelleborg", 55.3750, 13.1500},
+
+    // 🏘️ Cities ranked 51 to 60
+    {"Mjölby", 58.3242, 15.1325},
+    {"Sandviken", 60.6214, 16.7820},
+    {"Oskarshamn", 57.2917, 16.4500},
+    {"Härnösand", 62.6322, 17.9405},
+    {"Lidköping", 58.5000, 13.1667},
+    {"Karlshamn", 56.1694, 14.8688},
+    {"Falkenberg", 56.9080, 12.4939},
+    {"Boo", 59.3333, 18.2500},
+    {"Hässleholm", 56.1667, 13.7833},
+    {"Ystad", 55.4287, 13.8202},
+
+    // 🏘️ Cities ranked 61 to 70
+    {"Eslöv", 55.8333, 13.3000},
+    {"Norrtälje", 59.7600, 18.7000},
+    {"Enköping", 59.6333, 17.1000},
+    {"Vänersborg", 58.3667, 12.3167},
+    {"Boden", 65.8250, 21.6889},
+    {"Kumla", 59.1333, 15.1333},
+    {"Kungsbacka", 57.4833, 12.0833},
+    {"Nässjö", 57.6500, 14.4833},
+    {"Vetlanda", 57.6833, 15.0500},
+    {"Simrishamn", 55.5500, 14.3500},
+
+    // 🏘️ Cities ranked 71 to 80
+    {"Falköping", 58.1708, 13.5417},
+    {"Ljungby", 56.8333, 13.9333},
+    {"Kristinehamn", 59.3000, 14.1000},
+    {"Mariestad", 58.7167, 13.8167},
+    {"Strängnäs", 59.3789, 17.0267},
+    {"Säffle", 59.1239, 12.9234},
+    {"Habo", 57.9000, 14.0500},
+    {"Bålsta", 59.5833, 17.5333},
+    {"Avesta", 60.1420, 16.1691},
+    {"Flen", 59.0500, 16.5833},
+
+    // 🏘️ Cities ranked 81 to 90
+    {"Hultsfred", 57.4858, 15.8344},
+    {"Bjuv", 56.0964, 13.0642},
+    {"Ludvika", 60.1500, 15.1833},
+    {"Söderhamn", 61.3000, 17.0667},
+    {"Sala", 59.9167, 16.6000},
+    {"Vaxholm", 59.4011, 18.3589},
+    {"Ronneby", 56.2000, 15.2833},
+    {"Klippan", 56.1333, 13.1333},
+    {"Staffanstorp", 55.6333, 13.2000},
+    {"Torshälla", 59.4167, 16.4833},
+
+    // 🏘️ Cities ranked 91 to 100
+    {"Älmhult", 56.5670, 14.1370},
+    {"Timrå", 62.4833, 17.3333},
+    {"Vellinge", 55.4500, 13.0333},
+    {"Nybro", 56.6850, 15.9189},
+    {"Laholm", 56.5167, 13.0500},
+    {"Finspång", 58.7000, 15.7167},
+    {"Olofström", 56.2730, 14.5372},
+    {"Hörby", 55.8500, 13.6333},
+    {"Gnesta", 59.0500, 17.3000},
+    {"Hultsfred", 57.4858, 15.8344}};
+
 #define NUM_CITIES (sizeof(CITIES) / sizeof(CITIES[0]))
 
 // Request templates for backend testing
 static const char* REQUEST_TEMPLATES[] = {
     NULL, // Weather template - dynamically generated
-    "GET /GetCities HTTP/1.1\r\n"
+    "GET /cities HTTP/1.1\r\n"
     "Host: localhost\r\n"
     "User-Agent: StressTest/1.0\r\n"
     "Accept: application/json\r\n"
     "Connection: close\r\n\r\n",
 
-    "GET /GetSurprise HTTP/1.1\r\n"
+    "GET /surprise HTTP/1.1\r\n"
     "Host: localhost\r\n"
     "User-Agent: StressTest/1.0\r\n"
     "Accept: image/png\r\n"
@@ -105,12 +223,11 @@ typedef enum {
 } client_state_t;
 
 typedef enum {
-    MODE_SLOW,     // 10ms interval
-    MODE_NORMAL,   // 1ms interval
-    MODE_FAST,     // 100μs interval
-    MODE_VERYFAST, // 10μs interval
-    MODE_INSANE,   // 1μs interval
-    MODE_BURST,    // No delay
+    MODE_VERY_SLOW, // 1000ms interval (1 req/sec)
+    MODE_SLOW,      // 250ms interval (~4 req/sec)
+    MODE_NORMAL,    // 50ms interval (~20 req/sec)
+    MODE_FAST,      // 1ms interval (~1000 req/sec)
+    MODE_BURST,     // No delay
     MODE_CUSTOM
 } speed_mode_t;
 
@@ -155,6 +272,35 @@ static inline long long get_time_us() {
     return (long long)ts.tv_sec * 1000000LL + ts.tv_nsec / 1000;
 }
 
+// URL-encode a string. Caller must free the returned pointer.
+static char* url_encode(const char* s) {
+    if (!s)
+        return NULL;
+    size_t len = strlen(s);
+    // Worst case every char is encoded as %XX -> 3x
+    char* out = malloc(len * 3 + 1);
+    if (!out)
+        return NULL;
+    char* o = out;
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' ||
+            c == '.' || c == '~') {
+            *o++ = c;
+        } else if (c == ' ') {
+            *o++ = '+'; // spaces -> plus
+        } else {
+            // percent-encode
+            static const char hex[] = "0123456789ABCDEF";
+            *o++ = '%';
+            *o++ = hex[c >> 4];
+            *o++ = hex[c & 0xF];
+        }
+    }
+    *o = '\0';
+    return out;
+}
+
 // Calculate time difference in microseconds
 static inline long long timespec_diff_us(struct timespec* start, struct timespec* end) {
     return (end->tv_sec - start->tv_sec) * 1000000LL + (end->tv_nsec - start->tv_nsec) / 1000;
@@ -193,45 +339,56 @@ void print_usage(const char* prog) {
     printf("Usage: %s [OPTIONS]\n\n", prog);
     printf("Enhanced REST API Stress Test for Weather Server Backends\n\n");
     printf("Speed Modes:\n");
-    printf("  -slow       200ms interval (~5 req/sec)\n");
-    printf("  -normal     1ms interval (~1,000 req/sec)\n");
-    printf("  -fast       100μs interval (~10,000 req/sec)\n");
-    printf("  -veryfast   10μs interval (~100,000 req/sec)\n");
-    printf("  -insane     1μs interval (~1,000,000 req/sec)\n");
-    printf("  -burst      No delay (all requests at once)\n");
+    printf("  -very-slow 1000ms interval (~1 req/sec)\n");
+    printf("  -slow      250ms interval (~4 req/sec)\n");
+    printf("  -normal    50ms interval (~20 req/sec)\n");
+    printf("  -fast      1ms interval (~1000 req/sec)\n");
+    printf("  -burst     No delay (all requests at once)\n");
     printf("  -custom <us> Custom interval in microseconds\n");
-    printf("              [DEFAULT: trickle mode, 250ms intervals (~4 req/sec)]\n\n");
+    printf("              [DEFAULT: -slow, 250ms intervals (~4 req/sec)]\n\n");
     printf("Backend Selection:\n");
     printf("  -weather        Test weather backend (cycles through major Swedish cities)\n");
-    printf("  -cities         Test cities backend (/GetCities)\n");
-    printf("  -surprise       Test surprise backend (/GetSurprise)\n");
+    printf("  -cities         Test cities backend (/cities)\n");
+    printf("  -surprise       Test surprise backend (/surprise)\n");
     printf("                  [DEFAULT: test all backends if none specified]\n\n");
     printf("Options:\n");
     printf("  -ip <addr>      Server IP or hostname (default: %s)\n", DEFAULT_IP);
     printf("  -port <num>     Server port (default: %d)\n", DEFAULT_PORT);
     printf("  -count <num>    Number of requests (default: %d)\n", DEFAULT_CONN);
+    printf("  -count eternal  Run forever until interrupted (uses concurrency=%d)\n", DEFAULT_CONN);
     printf("  -realistic      Add random think time (100-500ms) after connection\n");
+    printf("  -msg <path>     Use custom request path (e.g. \"/weather?city=oslo\")\n");
+    printf("  -nr <N>         Concurrency for eternal runs (default: %d)\n", DEFAULT_CONN);
     printf("  -keepalive <s>  Keep connections open for N seconds (default: 0)\n");
     printf("  -h, -help       Show this help\n\n");
+    printf("Control:\n");
+    printf("  Ctrl-C (SIGINT) stops an eternal run and prints summary\n\n");
     printf("Examples:\n");
     printf("  %s -count 100 -weather                    # Test weather backend with trickle\n", prog);
     printf("  %s -count 50 -cities -surprise            # Test cities and surprise backends\n", prog);
     printf("  %s -fast -weather -cities -surprise       # Fast test of all backends\n", prog);
     printf("  %s -burst -count 1000 -realistic          # Burst test with think time\n", prog);
     printf("  %s -custom 500000 -count 20 -surprise     # Custom 500ms intervals\n", prog);
+    printf("  %s -count eternal -fast                  # Run forever until interrupted\n", prog);
 }
 
 int main(int argc, char** argv) {
     const char* ip = DEFAULT_IP;
     int port = DEFAULT_PORT;
     int total = DEFAULT_CONN;
-    speed_mode_t mode = MODE_CUSTOM; // Default to custom trickle mode
-    int interval_us = 250000;        // 250ms default trickle rate
+    int concurrency = DEFAULT_CONN; // concurrency for eternal runs (set with -nr)
+    speed_mode_t mode = MODE_SLOW;  // Default to slow (250ms) mode
+    int interval_us = 250000;       // 250ms default slow rate
     int realistic_timing = 0;
+    const char* msg_path = NULL;
     int keepalive_sec = 0;
     int log_to_file = 0;
     FILE* log_file = NULL;
     char log_filename[256] = {0};
+
+    // Eternal/run-forever support
+    int eternal = 0; // set when -count eternal
+    long long requests_sent = 0;
 
     // Backend selection flags
     int test_weather = 0;
@@ -243,21 +400,18 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "-help") == 0) {
             print_usage(argv[0]);
             return 0;
+        } else if (strcmp(argv[i], "-very-slow") == 0) {
+            mode = MODE_VERY_SLOW;
+            interval_us = 1000000; // 1000ms (1s)
         } else if (strcmp(argv[i], "-slow") == 0) {
             mode = MODE_SLOW;
-            interval_us = 200000; // 200ms intervals
+            interval_us = 250000; // 250ms
         } else if (strcmp(argv[i], "-normal") == 0) {
             mode = MODE_NORMAL;
-            interval_us = 1000;
+            interval_us = 50000; // 50ms
         } else if (strcmp(argv[i], "-fast") == 0) {
             mode = MODE_FAST;
-            interval_us = 100;
-        } else if (strcmp(argv[i], "-veryfast") == 0) {
-            mode = MODE_VERYFAST;
-            interval_us = 10;
-        } else if (strcmp(argv[i], "-insane") == 0) {
-            mode = MODE_INSANE;
-            interval_us = 1;
+            interval_us = 1000; // 1ms
         } else if (strcmp(argv[i], "-burst") == 0) {
             mode = MODE_BURST;
             interval_us = 0;
@@ -285,9 +439,36 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "Error: -count requires an argument\n");
                 return 1;
             }
-            total = atoi(argv[i]);
+            if (strcmp(argv[i], "eternal") == 0) {
+                eternal = 1;
+                // use DEFAULT_CONN as concurrency for eternal mode
+                /* total remains DEFAULT_CONN for compatibility but we'll
+                   allocate using client_capacity below */
+            } else {
+                total = atoi(argv[i]);
+                if (total <= 0) {
+                    fprintf(stderr, "Error: -count must be > 0 or 'eternal'\n");
+                    return 1;
+                }
+            }
         } else if (strcmp(argv[i], "-realistic") == 0) {
             realistic_timing = 1;
+        } else if (strcmp(argv[i], "-nr") == 0) {
+            if (++i >= argc) {
+                fprintf(stderr, "Error: -nr requires an argument\n");
+                return 1;
+            }
+            concurrency = atoi(argv[i]);
+            if (concurrency <= 0) {
+                fprintf(stderr, "Error: -nr must be > 0\n");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "-msg") == 0) {
+            if (++i >= argc) {
+                fprintf(stderr, "Error: -msg requires an argument\n");
+                return 1;
+            }
+            msg_path = argv[i];
         } else if (strcmp(argv[i], "-weather") == 0) {
             test_weather = 1;
         } else if (strcmp(argv[i], "-cities") == 0) {
@@ -312,12 +493,56 @@ int main(int argc, char** argv) {
     // Seed random
     srand(time(NULL));
 
+    // Install SIGINT handler so eternal runs can be stopped with Ctrl-C
+    signal(SIGINT, sigint_handler);
+
+    // Determine client buffer size. For eternal mode use `concurrency` (-nr), otherwise `total`.
+    int client_capacity = eternal ? concurrency : total;
+
     // Allocate clients
-    client_t* clients = calloc(total, sizeof(client_t));
+    client_t* clients = calloc(client_capacity, sizeof(client_t));
     if (!clients) {
         perror("calloc");
         return 1;
     }
+
+    // Normalize `ip` argument: allow URLs like "http://host[:port]/..." and extract hostname
+    char host_only[256] = {0};
+    const char* src = ip;
+    if (strncmp(src, "http://", 7) == 0) {
+        src += 7;
+    } else if (strncmp(src, "https://", 8) == 0) {
+        src += 8;
+    }
+
+    // Extract hostname (stop at ':' or '/' or end)
+    const char* p = src;
+    size_t hi = 0;
+    while (*p && *p != '/' && *p != ':' && hi + 1 < sizeof(host_only)) {
+        host_only[hi++] = *p++;
+    }
+    host_only[hi] = '\0';
+
+    // If user included a port in the URL (e.g. host:8080), and -port was not explicitly set,
+    // update `port` to use that value. We only override when current `port` equals DEFAULT_PORT.
+    if (*p == ':') {
+        p++;
+        char port_part[16] = {0};
+        size_t pj = 0;
+        while (*p && *p != '/' && pj + 1 < sizeof(port_part)) {
+            port_part[pj++] = *p++;
+        }
+        port_part[pj] = '\0';
+        if (port == DEFAULT_PORT && pj > 0) {
+            int parsed = atoi(port_part);
+            if (parsed > 0) {
+                port = parsed;
+            }
+        }
+    }
+
+    // If extraction failed, fall back to the original `ip` value
+    const char* resolve_name = (*host_only) ? host_only : ip;
 
     // Resolve hostname
     struct addrinfo hints, *res;
@@ -328,9 +553,9 @@ int main(int argc, char** argv) {
     char port_str[16];
     snprintf(port_str, sizeof(port_str), "%d", port);
 
-    int ret = getaddrinfo(ip, port_str, &hints, &res);
+    int ret = getaddrinfo(resolve_name, port_str, &hints, &res);
     if (ret != 0) {
-        fprintf(stderr, "Failed to resolve %s: %s\n", ip, gai_strerror(ret));
+        fprintf(stderr, "Failed to resolve %s: %s\n", resolve_name, gai_strerror(ret));
         free(clients);
         return 1;
     }
@@ -338,6 +563,14 @@ int main(int argc, char** argv) {
     struct sockaddr_in addr;
     memcpy(&addr, res->ai_addr, sizeof(addr));
     freeaddrinfo(res);
+
+    // Build a Host header value from the resolved hostname and port
+    char host_header_global[256];
+    if (port == 80) {
+        snprintf(host_header_global, sizeof(host_header_global), "%s", resolve_name);
+    } else {
+        snprintf(host_header_global, sizeof(host_header_global), "%s:%d", resolve_name, port);
+    }
 
     // If no backends specified, test all
     if (!test_weather && !test_cities && !test_surprise) {
@@ -371,10 +604,13 @@ int main(int argc, char** argv) {
     }
 
     // Print configuration
-    const char* mode_names[] = {"SLOW", "NORMAL", "FAST", "VERY FAST", "INSANE", "BURST", "CUSTOM"};
+    const char* mode_names[] = {"VERY SLOW", "SLOW", "NORMAL", "FAST", "BURST", "CUSTOM"};
     printf("=== Enhanced REST API Stress Test ===\n");
     printf("Target:   %s:%d\n", ip, port);
-    printf("Requests: %d\n", total);
+    if (eternal)
+        printf("Requests: eternal (concurrency %d)\n", client_capacity);
+    else
+        printf("Requests: %d\n", total);
     printf("Mode:     %s", mode_names[mode]);
     if (mode != MODE_BURST) {
         printf(" (%.0f req/sec)\n", 1000000.0 / interval_us);
@@ -421,24 +657,54 @@ int main(int argc, char** argv) {
     }
 
     // Initialize clients
-    for (int i = 0; i < total; i++) {
+    for (int i = 0; i < client_capacity; i++) {
         clients[i].fd = -1;
         clients[i].state = CLIENT_CREATED;
         clients[i].request_type = enabled_backends[rand() % num_enabled];
-        clients[i].city_index = rand() % NUM_CITIES; // Random city for weather requests
+        clients[i].city_index = i % NUM_CITIES; // Cycle through cities sequentially
 
         // Generate request data
-        if (clients[i].request_type == 0) { // Weather request
-            const city_t* city = &CITIES[clients[i].city_index];
-            char request_buf[512];
+        if (msg_path) {
+            // Use provided custom path for every request
+            const char* path = msg_path;
+            char full_path[512];
+            if (path[0] != '/') {
+                snprintf(full_path, sizeof(full_path), "/%s", path);
+            } else {
+                strncpy(full_path, path, sizeof(full_path) - 1);
+                full_path[sizeof(full_path) - 1] = '\0';
+            }
+            char request_buf[1024];
             snprintf(request_buf, sizeof(request_buf),
-                     "GET /GetWeather?lat=%.6f&lon=%.6f HTTP/1.1\r\n"
-                     "Host: localhost\r\n"
+                     "GET %s HTTP/1.1\r\n"
+                     "Host: %s\r\n"
+                     "User-Agent: StressTest/1.0\r\n"
+                     "Accept: */*\r\n"
+                     "Connection: close\r\n\r\n",
+                     full_path, host_header_global);
+            clients[i].request_data = strdup(request_buf);
+        } else if (clients[i].request_type == 0) { // Weather request
+            const city_t* city = &CITIES[clients[i].city_index];
+            // Encode city name for URL
+            char* enc = url_encode(city->name);
+            char path[512];
+            if (enc) {
+                snprintf(path, sizeof(path), "/weather?city=%s", enc);
+            } else {
+                // fallback: raw name (may break URL)
+                snprintf(path, sizeof(path), "/weather?city=%s", city->name);
+            }
+            char request_buf[1024];
+            snprintf(request_buf, sizeof(request_buf),
+                     "GET %s HTTP/1.1\r\n"
+                     "Host: %s\r\n"
                      "User-Agent: StressTest/1.0\r\n"
                      "Accept: application/json\r\n"
                      "Connection: close\r\n\r\n",
-                     city->latitude, city->longitude);
+                     path, host_header_global);
             clients[i].request_data = strdup(request_buf);
+            if (enc)
+                free(enc);
         } else {
             clients[i].request_data = strdup(REQUEST_TEMPLATES[clients[i].request_type]);
         }
@@ -474,51 +740,161 @@ int main(int argc, char** argv) {
     int failed_count = 0;
 
     // Main event loop
-    while (completed_count + failed_count < total) {
+    while ((eternal && !stop_requested) || (!eternal && (completed_count + failed_count < total))) {
         long long now_us = get_time_us();
 
         // Create new clients
-        int can_create = (next_to_create < total);
-        if (mode == MODE_BURST) {
-            can_create = can_create && (next_to_create == 0 || active_count < total);
+        int can_create = 0;
+        if (!eternal) {
+            can_create = (next_to_create < total);
+            if (mode == MODE_BURST) {
+                can_create = can_create && (next_to_create == 0 || active_count < total);
+            } else {
+                can_create = can_create && ((now_us - last_create_time_us) >= interval_us);
+            }
         } else {
-            can_create = can_create && ((now_us - last_create_time_us) >= interval_us);
+            // Eternal mode: create when we have capacity and interval elapsed
+            if (mode == MODE_BURST) {
+                can_create = (active_count < client_capacity);
+            } else {
+                can_create = (active_count < client_capacity) && ((now_us - last_create_time_us) >= interval_us);
+            }
         }
 
         if (can_create) {
-            int fd = socket(AF_INET, SOCK_STREAM, 0);
-            if (fd < 0) {
-                clients[next_to_create].state = CLIENT_FAILED;
-                failed_count++;
-                next_to_create++;
-            } else {
-                // Set non-blocking
-                int flags = fcntl(fd, F_GETFL, 0);
-                fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-
-                clients[next_to_create].fd = fd;
-                clients[next_to_create].state = CLIENT_CONNECTING;
-                clock_gettime(CLOCK_MONOTONIC, &clients[next_to_create].connect_start);
-
-                // Initiate connection
-                int r = connect(fd, (struct sockaddr*)&addr, sizeof(addr));
-                if (r == 0) {
-                    // Connected immediately (unlikely)
-                    clients[next_to_create].state = CLIENT_CONNECTED;
-                    clock_gettime(CLOCK_MONOTONIC, &clients[next_to_create].connect_end);
-                } else if (errno != EINPROGRESS) {
-                    close(fd);
-                    clients[next_to_create].state = CLIENT_FAILED;
-                    failed_count++;
+            int idx = next_to_create % client_capacity;
+            if (eternal) {
+                // find a free slot to reuse
+                int found = 0;
+                for (int s = 0; s < client_capacity; s++) {
+                    int cand = (idx + s) % client_capacity;
+                    if (clients[cand].state == CLIENT_CREATED || clients[cand].state == CLIENT_DONE ||
+                        clients[cand].state == CLIENT_FAILED || clients[cand].fd < 0) {
+                        idx = cand;
+                        found = 1;
+                        break;
+                    }
                 }
-
-                active_count++;
-                next_to_create++;
+                if (!found) {
+                    // no free slot now
+                    last_create_time_us = now_us;
+                    // skip creating this tick
+                    // fall through to processing sockets
+                }
+            } else {
+                idx = next_to_create;
             }
 
-            last_create_time_us = now_us;
+            if (idx >= 0 && idx < client_capacity) {
+                // Clean up any previous buffers in reused slot
+                if (clients[idx].response_buffer) {
+                    free(clients[idx].response_buffer);
+                    clients[idx].response_buffer = NULL;
+                }
+                if (clients[idx].request_data) {
+                    free(clients[idx].request_data);
+                    clients[idx].request_data = NULL;
+                }
 
-            if (mode == MODE_BURST && next_to_create < total) {
+                clients[idx].fd = -1;
+                clients[idx].state = CLIENT_CREATED;
+                clients[idx].request_type = enabled_backends[rand() % num_enabled];
+                clients[idx].city_index = idx % NUM_CITIES;
+                clients[idx].response_capacity = MAX_RESPONSE_SIZE;
+                clients[idx].response_buffer = malloc(MAX_RESPONSE_SIZE);
+                clients[idx].response_bytes = 0;
+                clients[idx].sent_bytes = 0;
+                clients[idx].http_status = 0;
+
+                // Generate request data for the slot
+                if (msg_path) {
+                    const char* path = msg_path;
+                    char full_path[512];
+                    if (path[0] != '/')
+                        snprintf(full_path, sizeof(full_path), "/%s", path);
+                    else {
+                        strncpy(full_path, path, sizeof(full_path) - 1);
+                        full_path[sizeof(full_path) - 1] = '\0';
+                    }
+                    char request_buf[1024];
+                    snprintf(request_buf, sizeof(request_buf),
+                             "GET %s HTTP/1.1\r\n"
+                             "Host: %s\r\n"
+                             "User-Agent: StressTest/1.0\r\n"
+                             "Accept: */*\r\n"
+                             "Connection: close\r\n\r\n",
+                             full_path, host_header_global);
+                    clients[idx].request_data = strdup(request_buf);
+                } else if (clients[idx].request_type == 0) {
+                    const city_t* city = &CITIES[clients[idx].city_index];
+                    char* enc = url_encode(city->name);
+                    char path[512];
+                    if (enc) {
+                        snprintf(path, sizeof(path), "/weather?city=%s", enc);
+                        free(enc);
+                    } else {
+                        snprintf(path, sizeof(path), "/weather?city=%s", city->name);
+                    }
+                    char request_buf[1024];
+                    snprintf(request_buf, sizeof(request_buf),
+                             "GET %s HTTP/1.1\r\n"
+                             "Host: %s\r\n"
+                             "User-Agent: StressTest/1.0\r\n"
+                             "Accept: application/json\r\n"
+                             "Connection: close\r\n\r\n",
+                             path, host_header_global);
+                    clients[idx].request_data = strdup(request_buf);
+                } else {
+                    clients[idx].request_data = strdup(REQUEST_TEMPLATES[clients[idx].request_type]);
+                }
+
+                if (clients[idx].request_data)
+                    clients[idx].request_size = strlen(clients[idx].request_data);
+
+                clients[idx].think_time_ms = realistic_timing ? (rand() % 400 + 100) : 0;
+                clock_gettime(CLOCK_MONOTONIC, &clients[idx].create_time);
+
+                // Create socket and start connect
+                int fd = socket(AF_INET, SOCK_STREAM, 0);
+                if (fd < 0) {
+                    clients[idx].state = CLIENT_FAILED;
+                    failed_count++;
+                } else {
+                    int flags = fcntl(fd, F_GETFL, 0);
+                    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+                    clients[idx].fd = fd;
+                    clients[idx].state = CLIENT_CONNECTING;
+                    clock_gettime(CLOCK_MONOTONIC, &clients[idx].connect_start);
+                    int r = connect(fd, (struct sockaddr*)&addr, sizeof(addr));
+                    if (r == 0) {
+                        clients[idx].state = CLIENT_CONNECTED;
+                        clock_gettime(CLOCK_MONOTONIC, &clients[idx].connect_end);
+                    } else if (errno != EINPROGRESS) {
+                        close(fd);
+                        clients[idx].state = CLIENT_FAILED;
+                        failed_count++;
+                        if (total < 11) {
+                            printf("\n--- Client #%d FAILED (connect) ---\n", idx + 1);
+                            if (clients[idx].request_data)
+                                printf("Request:\n%s\n", clients[idx].request_data);
+                            if (clients[idx].response_buffer && clients[idx].response_bytes > 0) {
+                                printf("Response:\n");
+                                fwrite(clients[idx].response_buffer, 1, clients[idx].response_bytes, stdout);
+                                printf("\n");
+                            }
+                            fflush(stdout);
+                        }
+                    } else {
+                        active_count++;
+                    }
+                }
+
+                next_to_create++;
+                requests_sent++;
+                last_create_time_us = now_us;
+            }
+
+            if (!eternal && mode == MODE_BURST && next_to_create < total) {
                 continue;
             }
         }
@@ -533,7 +909,8 @@ int main(int argc, char** argv) {
         struct timespec now_ts;
         clock_gettime(CLOCK_MONOTONIC, &now_ts);
 
-        for (int i = 0; i < next_to_create; i++) {
+        int scan_limit = eternal ? client_capacity : next_to_create;
+        for (int i = 0; i < scan_limit; i++) {
             if (clients[i].state == CLIENT_DONE || clients[i].state == CLIENT_FAILED) {
                 continue;
             }
@@ -546,9 +923,23 @@ int main(int argc, char** argv) {
             long long elapsed_us = timespec_diff_us(&clients[i].connect_start, &now_ts);
             if (elapsed_us > RESPONSE_TIMEOUT_SEC * 1000000LL) {
                 close(fd);
-                clients[i].state = CLIENT_FAILED;
-                active_count--;
-                failed_count++;
+                // If we already have some bytes from the server, treat this as a completed
+                // request (partial response) rather than a hard failure. Only count as
+                // failed when no response bytes were received.
+                if (clients[i].response_bytes > 0) {
+                    clients[i].response_buffer[clients[i].response_bytes] = '\0';
+                    clients[i].http_status = parse_http_status(clients[i].response_buffer, clients[i].response_bytes);
+                    clock_gettime(CLOCK_MONOTONIC, &clients[i].recv_end);
+                    clients[i].response_time_us = timespec_diff_us(&clients[i].recv_start, &clients[i].recv_end);
+                    clients[i].total_time_us = timespec_diff_us(&clients[i].connect_start, &clients[i].recv_end);
+                    clients[i].state = CLIENT_DONE;
+                    active_count--;
+                    completed_count++;
+                } else {
+                    clients[i].state = CLIENT_FAILED;
+                    active_count--;
+                    failed_count++;
+                }
                 continue;
             }
 
@@ -609,7 +1000,7 @@ int main(int argc, char** argv) {
             continue;
 
         // Process ready sockets
-        for (int i = 0; i < next_to_create && n > 0; i++) {
+        for (int i = 0; i < scan_limit && n > 0; i++) {
             int fd = clients[i].fd;
             if (fd < 0)
                 continue;
@@ -617,9 +1008,22 @@ int main(int argc, char** argv) {
             // Check for errors
             if (FD_ISSET(fd, &errfds)) {
                 close(fd);
-                clients[i].state = CLIENT_FAILED;
-                active_count--;
-                failed_count++;
+                // If we have any response bytes, consider the request completed (partial
+                // response). Otherwise count as failed (no response received).
+                if (clients[i].response_bytes > 0) {
+                    clients[i].response_buffer[clients[i].response_bytes] = '\0';
+                    clients[i].http_status = parse_http_status(clients[i].response_buffer, clients[i].response_bytes);
+                    clock_gettime(CLOCK_MONOTONIC, &clients[i].recv_end);
+                    clients[i].response_time_us = timespec_diff_us(&clients[i].recv_start, &clients[i].recv_end);
+                    clients[i].total_time_us = timespec_diff_us(&clients[i].connect_start, &clients[i].recv_end);
+                    clients[i].state = CLIENT_DONE;
+                    active_count--;
+                    completed_count++;
+                } else {
+                    clients[i].state = CLIENT_FAILED;
+                    active_count--;
+                    failed_count++;
+                }
                 n--;
                 continue;
             }
@@ -631,9 +1035,33 @@ int main(int argc, char** argv) {
                 socklen_t len = sizeof(error);
                 if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error != 0) {
                     close(fd);
-                    clients[i].state = CLIENT_FAILED;
-                    active_count--;
-                    failed_count++;
+                    if (clients[i].response_bytes > 0) {
+                        // Partial response received before connect-check failure: treat as done
+                        clients[i].response_buffer[clients[i].response_bytes] = '\0';
+                        clients[i].http_status =
+                            parse_http_status(clients[i].response_buffer, clients[i].response_bytes);
+                        clock_gettime(CLOCK_MONOTONIC, &clients[i].recv_end);
+                        clients[i].response_time_us = timespec_diff_us(&clients[i].recv_start, &clients[i].recv_end);
+                        clients[i].total_time_us = timespec_diff_us(&clients[i].connect_start, &clients[i].recv_end);
+                        clients[i].state = CLIENT_DONE;
+                        active_count--;
+                        completed_count++;
+                    } else {
+                        clients[i].state = CLIENT_FAILED;
+                        active_count--;
+                        failed_count++;
+                        if (total < 11) {
+                            printf("\n--- Client #%d FAILED (connect check) ---\n", i + 1);
+                            if (clients[i].request_data)
+                                printf("Request:\n%s\n", clients[i].request_data);
+                            if (clients[i].response_buffer && clients[i].response_bytes > 0) {
+                                printf("Response:\n");
+                                fwrite(clients[i].response_buffer, 1, clients[i].response_bytes, stdout);
+                                printf("\n");
+                            }
+                            fflush(stdout);
+                        }
+                    }
                 } else {
                     clients[i].state = CLIENT_CONNECTED;
                     clock_gettime(CLOCK_MONOTONIC, &clients[i].connect_end);
@@ -647,9 +1075,42 @@ int main(int argc, char** argv) {
                 if (sent < 0) {
                     if (errno != EAGAIN && errno != EWOULDBLOCK) {
                         close(fd);
-                        clients[i].state = CLIENT_FAILED;
-                        active_count--;
-                        failed_count++;
+                        // If we already have response bytes, consider it a completed (partial)
+                        // response. Otherwise mark as failed.
+                        if (clients[i].response_bytes > 0) {
+                            clients[i].response_buffer[clients[i].response_bytes] = '\0';
+                            clients[i].http_status =
+                                parse_http_status(clients[i].response_buffer, clients[i].response_bytes);
+                            clock_gettime(CLOCK_MONOTONIC, &clients[i].recv_end);
+                            clients[i].response_time_us =
+                                timespec_diff_us(&clients[i].recv_start, &clients[i].recv_end);
+                            clients[i].total_time_us =
+                                timespec_diff_us(&clients[i].connect_start, &clients[i].recv_end);
+                            clients[i].state = CLIENT_DONE;
+                            active_count--;
+                            completed_count++;
+                            if (total < 11) {
+                                printf("\n--- Client #%d DONE (partial, send error) ---\n", i + 1);
+                                if (clients[i].request_data)
+                                    printf("Request:\n%s\n", clients[i].request_data);
+                                if (clients[i].response_buffer && clients[i].response_bytes > 0) {
+                                    printf("Partial Response:\n");
+                                    fwrite(clients[i].response_buffer, 1, clients[i].response_bytes, stdout);
+                                    printf("\n");
+                                }
+                                fflush(stdout);
+                            }
+                        } else {
+                            clients[i].state = CLIENT_FAILED;
+                            active_count--;
+                            failed_count++;
+                            if (total < 11) {
+                                printf("\n--- Client #%d FAILED (send) ---\n", i + 1);
+                                if (clients[i].request_data)
+                                    printf("Request:\n%s\n", clients[i].request_data);
+                                fflush(stdout);
+                            }
+                        }
                     }
                 } else {
                     clients[i].sent_bytes += sent;
@@ -669,10 +1130,43 @@ int main(int argc, char** argv) {
                                             clients[i].response_capacity - clients[i].response_bytes - 1, 0);
                     if (received < 0) {
                         if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                            close(fd);
-                            clients[i].state = CLIENT_FAILED;
-                            active_count--;
-                            failed_count++;
+                            // If we already received some bytes, treat as completed (partial).
+                            if (clients[i].response_bytes > 0) {
+                                clients[i].response_buffer[clients[i].response_bytes] = '\0';
+                                clients[i].http_status =
+                                    parse_http_status(clients[i].response_buffer, clients[i].response_bytes);
+                                clock_gettime(CLOCK_MONOTONIC, &clients[i].recv_end);
+                                clients[i].response_time_us =
+                                    timespec_diff_us(&clients[i].recv_start, &clients[i].recv_end);
+                                clients[i].total_time_us =
+                                    timespec_diff_us(&clients[i].connect_start, &clients[i].recv_end);
+                                close(fd);
+                                clients[i].state = CLIENT_DONE;
+                                active_count--;
+                                completed_count++;
+                                if (total < 11) {
+                                    printf("\n--- Client #%d DONE (partial, recv error) ---\n", i + 1);
+                                    if (clients[i].request_data)
+                                        printf("Request:\n%s\n", clients[i].request_data);
+                                    if (clients[i].response_buffer && clients[i].response_bytes > 0) {
+                                        printf("Partial Response:\n");
+                                        fwrite(clients[i].response_buffer, 1, clients[i].response_bytes, stdout);
+                                        printf("\n");
+                                    }
+                                    fflush(stdout);
+                                }
+                            } else {
+                                close(fd);
+                                clients[i].state = CLIENT_FAILED;
+                                active_count--;
+                                failed_count++;
+                                if (total < 11) {
+                                    printf("\n--- Client #%d FAILED (recv) ---\n", i + 1);
+                                    if (clients[i].request_data)
+                                        printf("Request:\n%s\n", clients[i].request_data);
+                                    fflush(stdout);
+                                }
+                            }
                         }
                     } else if (received == 0) {
                         // Connection closed
@@ -686,6 +1180,19 @@ int main(int argc, char** argv) {
                         clients[i].state = CLIENT_DONE;
                         active_count--;
                         completed_count++;
+                        if (total < 11) {
+                            printf("\n--- Client #%d DONE ---\n", i + 1);
+                            if (clients[i].request_data)
+                                printf("Request:\n%s\n", clients[i].request_data);
+                            if (clients[i].response_buffer && clients[i].response_bytes > 0) {
+                                printf("Response (HTTP %d):\n", clients[i].http_status);
+                                fwrite(clients[i].response_buffer, 1, clients[i].response_bytes, stdout);
+                                printf("\n");
+                            } else {
+                                printf("(no response body)\n");
+                            }
+                            fflush(stdout);
+                        }
                     } else {
                         clients[i].response_bytes += received;
                         clients[i].state = CLIENT_RECEIVING;
@@ -697,29 +1204,39 @@ int main(int argc, char** argv) {
 
         // Progress update (single line with \r)
         long long elapsed = get_time_us() - start_time_us;
-        double rate = (completed_count + failed_count) * 1000000.0 / elapsed;
-        double percent = 100.0 * (completed_count + failed_count) / total;
+        double rate = (completed_count + failed_count) * 1000000.0 / (elapsed ? elapsed : 1);
 
-        // Get terminal width and calculate bar width (leave room for text)
-        int term_width = get_terminal_width();
-        int bar_width = term_width - 50; // Reserve ~50 chars for text
-        if (bar_width < 10)
-            bar_width = 10; // Minimum bar width
-        if (bar_width > 50)
-            bar_width = 50; // Maximum bar width
+        if (!eternal) {
+            double percent = 100.0 * (completed_count + failed_count) / total;
 
-        int filled = (int)(bar_width * (completed_count + failed_count) / total);
-        printf("\r[");
-        for (int i = 0; i < bar_width; i++) {
-            if (i < filled)
-                printf("=");
-            else if (i == filled)
-                printf(">");
-            else
-                printf(" ");
+            // Get terminal width and calculate bar width (leave room for text)
+            int term_width = get_terminal_width();
+            int bar_width = term_width - 50; // Reserve ~50 chars for text
+            if (bar_width < 10)
+                bar_width = 10; // Minimum bar width
+            if (bar_width > 50)
+                bar_width = 50; // Maximum bar width
+
+            int filled = (int)(bar_width * (completed_count + failed_count) / total);
+            printf("\r[");
+            for (int i = 0; i < bar_width; i++) {
+                if (i < filled)
+                    printf("=");
+                else if (i == filled)
+                    printf(">");
+                else
+                    printf(" ");
+            }
+            printf("] %3.0f%% | %d/%d | %.0f req/s", percent, completed_count + failed_count, total, rate);
+            fflush(stdout);
+        } else {
+            static const char spinner[] = "|/-\\";
+            static int spinner_idx = 0;
+            spinner_idx = (spinner_idx + 1) % (int)strlen(spinner);
+            printf("\r[%c] sent:%lld active:%d done:%d failed:%d | %.0f req/s", spinner[spinner_idx], requests_sent,
+                   active_count, completed_count, failed_count, rate);
+            fflush(stdout);
         }
-        printf("] %3.0f%% | %d/%d | %.0f req/s", percent, completed_count + failed_count, total, rate);
-        fflush(stdout);
     }
 
     // Clear progress line and move to next line
@@ -739,7 +1256,7 @@ int main(int argc, char** argv) {
     int num_unique_codes = 0;
 
     int metric_idx = 0;
-    for (int i = 0; i < total; i++) {
+    for (int i = 0; i < client_capacity; i++) {
         if (clients[i].state == CLIENT_DONE) {
             if (metric_idx < completed_count) {
                 connect_times[metric_idx] = clients[i].connect_time_us;
@@ -773,9 +1290,15 @@ int main(int argc, char** argv) {
 
     // Print results
     printf("\n=== Results ===\n");
-    printf("Total requests:   %d\n", total);
-    printf("Completed:        %d (%.1f%%)\n", completed_count, 100.0 * completed_count / total);
-    printf("Failed:           %d (%.1f%%)\n", failed_count, 100.0 * failed_count / total);
+    if (eternal) {
+        printf("Total requests sent: %lld\n", requests_sent);
+        printf("Completed:        %d\n", completed_count);
+        printf("Failed:           %d\n", failed_count);
+    } else {
+        printf("Total requests:   %d\n", total);
+        printf("Completed:        %d (%.1f%%)\n", completed_count, 100.0 * completed_count / total);
+        printf("Failed:           %d (%.1f%%)\n", failed_count, 100.0 * failed_count / total);
+    }
     printf("Time elapsed:     %.3f seconds\n", elapsed_sec);
     printf("Throughput:       %.0f req/sec\n", completed_count / elapsed_sec);
 
@@ -931,7 +1454,7 @@ int main(int argc, char** argv) {
         }
 
         fprintf(log_file, "\n=== Individual Request Details ===\n");
-        for (int i = 0; i < total; i++) {
+        for (int i = 0; i < client_capacity; i++) {
             fprintf(log_file, "\n--- Request #%d ---\n", i + 1);
 
             // Log request type and city (for weather requests)
@@ -975,7 +1498,7 @@ int main(int argc, char** argv) {
     }
 
     // Cleanup
-    for (int i = 0; i < total; i++) {
+    for (int i = 0; i < client_capacity; i++) {
         if (clients[i].fd >= 0) {
             shutdown(clients[i].fd, SHUT_RDWR);
             close(clients[i].fd);
@@ -994,5 +1517,11 @@ int main(int argc, char** argv) {
     free(total_times);
 
     printf("\nDone!\n");
-    return (completed_count == total) ? 0 : 1;
+    int exit_code;
+    if (eternal) {
+        exit_code = 0; // graceful stop on Ctrl-C
+    } else {
+        exit_code = (completed_count == total) ? 0 : 1;
+    }
+    return exit_code;
 }

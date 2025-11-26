@@ -40,6 +40,7 @@ int main(int argc, char* argv[]) {
         printf("Note: Server is bound to localhost. Only clients on this machine can connect.\n");
         printf("To allow external connections, use 0.0.0.0 or the server's network IP.\n");
     }
+    printf("\nAvailable endpoints: \t/cities\n\t\t\t/weather\n\t\t\t/surprise\n");
 
     // Create server configuration
     w_server_config config = {.address = address, .port = port, .listening_backlog = SOMAXCONN};

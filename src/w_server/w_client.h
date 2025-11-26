@@ -10,9 +10,14 @@ typedef enum {
     W_CLIENT_ERROR_NONE = 0,
     W_CLIENT_ERROR_READ,
     W_CLIENT_ERROR_TIMEOUT,
+    W_CLIENT_ROUTE_CITY,
     W_CLIENT_ERROR_REQUEST_TOO_LARGE,
     W_CLIENT_ERROR_MALFORMED_REQUEST,
-    W_CLIENT_ERROR_INTERNAL
+    W_CLIENT_ERROR_INTERNAL,
+    W_CLIENT_ERROR_SEND,
+    W_CLIENT_ERROR_SEND_EPIPE,
+    W_CLIENT_ERROR_SEND_ECONNRESET,
+    W_CLIENT_ERROR_SEND_EFAULT
 } w_client_error;
 
 // Per-connection state machine states
@@ -50,9 +55,12 @@ typedef struct w_client {
     uint8_t* request_body_raw;
     size_t request_body_len;
     void* parsed_request;
+    // This should be a list of multiple params and also not a separate field in the struct
+    char requested_city[128];
 
-    // Response (if these are not NULL we are ready to send)
-    char* response_data;
+    // Response
+    char* response_body;
+    size_t response_body_size;
     size_t response_len;
     size_t response_sent;
 

@@ -18,7 +18,7 @@ TESTS_FAILED=0
 
 # Check if server is running
 echo -e "${BLUE}Checking if server is running on ${HOST}:${PORT}...${NC}"
-if ! curl -s --connect-timeout 2 "${BASE_URL}/GetCities" > /dev/null 2>&1; then
+if ! curl -s --connect-timeout 2 "${BASE_URL}/cities" > /dev/null 2>&1; then
     echo -e "${RED}✗ Server is not running or not responding on ${HOST}:${PORT}${NC}"
     echo -e "${YELLOW}Please start the server first with: make run${NC}"
     echo -e "${YELLOW}Or run in another terminal: ./server${NC}"
@@ -52,9 +52,9 @@ check_status() {
     fi
 }
 
-# Test 1: GetCities endpoint
-print_test "GET /GetCities"
-RESPONSE=$(curl -s -w "\n%{http_code}" "${BASE_URL}/GetCities")
+# Test 1: cities endpoint
+print_test "GET /cities"
+RESPONSE=$(curl -s -w "\n%{http_code}" "${BASE_URL}/cities")
 HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
 BODY=$(echo "$RESPONSE" | sed '$d')
 
@@ -93,9 +93,9 @@ else
     TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 
-# Test 2: GetWeather endpoint with valid coordinates (Stockholm)
-print_test "GET /GetWeather?lat=59.3293&lon=18.0686"
-RESPONSE=$(curl -s -w "\n%{http_code}" "${BASE_URL}/GetWeather?lat=59.3293&lon=18.0686")
+# Test 2: weather endpoint with valid coordinates (Stockholm)
+print_test "GET /weather?lat=59.3293&lon=18.0686"
+RESPONSE=$(curl -s -w "\n%{http_code}" "${BASE_URL}/weather?lat=59.3293&lon=18.0686")
 HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
 BODY=$(echo "$RESPONSE" | sed '$d')
 
@@ -124,9 +124,9 @@ else
     TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 
-# Test 3: GetWeather endpoint without coordinates (should return 400)
-print_test "GET /GetWeather (missing parameters)"
-RESPONSE=$(curl -s -w "\n%{http_code}" "${BASE_URL}/GetWeather")
+# Test 3: weather endpoint without coordinates (should return 400)
+print_test "GET /weather (missing parameters)"
+RESPONSE=$(curl -s -w "\n%{http_code}" "${BASE_URL}/weather")
 HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
 BODY=$(echo "$RESPONSE" | sed '$d')
 
@@ -140,9 +140,9 @@ else
     TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 
-# Test 4: GetWeather endpoint with only latitude (should return 400)
-print_test "GET /GetWeather?lat=59.3293 (missing longitude)"
-RESPONSE=$(curl -s -w "\n%{http_code}" "${BASE_URL}/GetWeather?lat=59.3293")
+# Test 4: weather endpoint with only latitude (should return 400)
+print_test "GET /weather?lat=59.3293 (missing longitude)"
+RESPONSE=$(curl -s -w "\n%{http_code}" "${BASE_URL}/weather?lat=59.3293")
 HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
 BODY=$(echo "$RESPONSE" | sed '$d')
 
@@ -156,10 +156,10 @@ else
     TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 
-# Test 5: GetSurprise endpoint
-print_test "GET /GetSurprise"
+# Test 5: surprise endpoint
+print_test "GET /surprise"
 # Get both headers and status code
-RESPONSE=$(curl -s -D - -w "\n%{http_code}" "${BASE_URL}/GetSurprise")
+RESPONSE=$(curl -s -D - -w "\n%{http_code}" "${BASE_URL}/surprise")
 HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
 HEADERS=$(echo "$RESPONSE" | sed '$d' | sed '/^\s*$/q')
 BODY=$(echo "$RESPONSE" | sed '$d' | sed '1,/^\s*$/d')

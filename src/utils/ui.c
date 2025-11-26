@@ -1,6 +1,7 @@
 #include "ui.h"
 #include "global_defines.h"
 #include "http_parser.h"
+#include <ctype.h>
 #include <stdio.h>
 
 // ANSI color codes (48 colors ordered for maximum contrast and readability)

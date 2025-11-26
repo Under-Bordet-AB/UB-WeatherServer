@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h> // posix strings
 
 // Internal helper: Calculate body length (handles NULL)
 static size_t get_body_length(const char* body) {
@@ -209,5 +210,44 @@ char* http_msg_503_service_unavailable(int retry_after) {
 // ============================================================================
 
 size_t http_msg_get_total_size(const char* response) {
-    return response ? strlen(response) : 0;
+    if (!response)
+        return 0;
+
+    // Try to locate Content-Length header to compute exact size (works for binary)
+    const char* headers_end = strstr(response, "\r\n\r\n");
+    if (!headers_end) {
+        // Fallback to strlen if headers terminator not found
+        return strlen(response);
+    }
+
+    // Search for Content-Length header (case-insensitive)
+    const char* p = response;
+    size_t content_length = 0;
+    while (p < headers_end) {
+        const char* line_end = strstr(p, "\r\n");
+        if (!line_end || line_end > headers_end)
+            break;
+
+        // Check for "Content-Length:" at start of line (skip leading spaces)
+        const char* q = p;
+        while (q < line_end && (*q == ' ' || *q == '\t'))
+            q++;
+        if (strncasecmp(q, "Content-Length:", 15) == 0) {
+            const char* val = q + 15;
+            while (*val == ' ' || *val == '\t')
+                val++;
+            content_length = (size_t)atoi(val);
+            break;
+        }
+
+        p = line_end + 2; // move past \r\n
+    }
+
+    if (content_length > 0) {
+        size_t header_len = (headers_end - response) + 4; // include \r\n\r\n
+        return header_len + content_length;
+    }
+
+    // Fallback: use strlen (may be wrong for binary with embedded NULs)
+    return strlen(response);
 }

@@ -68,6 +68,7 @@ void w_server_listen_TCP_nonblocking_cleanup(mj_scheduler* scheduler, void* ctx)
     w_server* server = (w_server*)ctx;
 
     ui_print_server_listen_stopped(server->listen_fd);
+    free(ctx);
 }
 
 static int init_from_config(w_server* server, const w_server_config* cfg) {

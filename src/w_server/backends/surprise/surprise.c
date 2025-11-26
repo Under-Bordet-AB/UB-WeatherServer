@@ -5,11 +5,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define IMAGE_NAME "surprise.png"
+#define IMAGE_NAME "bonzi.png"
 
 size_t surprise_get_file(uint8_t** buffer_ptr) {
     // Open specified file i mode "rb" - read binary
-    FILE* fptr = fopen(IMAGE_NAME, "rb");
+    FILE* fptr = fopen("bonzi.png", "rb");
     if (!fptr)
         return -1;
 
@@ -90,27 +90,19 @@ int surprise_work(void** ctx) {
 
     w_client* client = (w_client*)surprise->ctx; // surprise->ctx is void**, which points to w_client
 
-    switch (surprise->state) {
-    case Surprise_State_Init:
-        surprise->state = Surprise_State_Load_From_Disk;
-        ui_print_backend_state(client, "Surprise", "loading image file");
-        break;
-    case Surprise_State_Load_From_Disk:
-        surprise->bytesread = surprise_get_file(&surprise->buffer);
-        if (surprise->bytesread == 0) {
-            // Failed to load file
-            surprise->buffer = NULL;
-            ui_print_backend_error(client, "Surprise", "failed to load image file");
-        } else {
-            ui_print_backend_state(client, "Surprise", "loaded image from disk");
-        }
-        surprise->state = Surprise_State_Done;
-        break;
-    case Surprise_State_Done:
-        ui_print_backend_done(client, "Surprise");
-        surprise->on_done(surprise->ctx);
-        break;
+    ui_print_backend_state(client, "Surprise", "loading image file");
+
+    surprise->bytesread = surprise_get_file(&surprise->buffer);
+    if (surprise->bytesread == 0) {
+        // Failed to load file
+        surprise->buffer = NULL;
+        ui_print_backend_error(client, "Surprise", "failed to load image file");
+    } else {
+        ui_print_backend_state(client, "Surprise", "loaded image from disk");
     }
+
+    ui_print_backend_done(client, "Surprise");
+    surprise->on_done(surprise->ctx);
 
     return 0;
 }
