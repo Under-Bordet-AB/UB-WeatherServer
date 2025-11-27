@@ -46,4 +46,4 @@ typedef struct w_server {
 } w_server;
 
 w_server* w_server_create(w_server_config* config);
-void w_server_cleanup(w_server* server);
+void w_server_destroy(w_server* server);

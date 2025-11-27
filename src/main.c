@@ -1,11 +1,8 @@
 #include "majjen.h"
-#include "srv_transport_socket.h"
 #include "w_server.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include "srv_stream.h"
 
 // Global shutdown flag (accessed by signal handler and scheduler)
 volatile sig_atomic_t shutdown_requested = 0;
@@ -99,11 +96,7 @@ int main(int argc, char* argv[]) {
         printf("Shutting down server...\n");
     }
 
-    // Clean up all remaining tasks in the scheduler
-    // Note: The listening task's ctx points to the server struct,
-    // so it will be freed during this call
-    mj_scheduler_cleanup_all_tasks(scheduler);
-
+    w_server_destroy(server);
     mj_scheduler_destroy(&scheduler);
 
     printf("Server stopped cleanly.\n");

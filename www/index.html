@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SERVER MONITOR - BTOP STYLE</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom btop-like styling */
+        body {
+            background-color: #101010; /* Deep black-gray */
+            color: #c0c5ce; /* Soft white/gray text */
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            /* No glow, clean flat look */
+        }
+
+        /* TUI Panel Styling */
+        .tui-panel {
+            background-color: #1a1b26;
+            border-radius: 8px;
+            position: relative;
+            padding: 1.5rem 1rem 1rem 1rem; /* Top padding for title */
+        }
+
+        /* The title that sits on the border */
+        .tui-title {
+            position: absolute;
+            top: -10px;
+            left: 12px;
+            background-color: #101010; /* Match body bg to "cut" the border visually if we had one, or sit on top */
+            padding: 0 8px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            color: #7aa2f7; /* Nord Blue */
+            text-transform: uppercase;
+            border-radius: 4px;
+            border: 1px solid #24283b;
+        }
+
+        /* Custom Progress Bar Container */
+        .meter-bg {
+            background-color: #24283b;
+            height: 12px;
+            border-radius: 2px;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        /* The fill of the progress bar */
+        .meter-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+
+        /* CPU Graph columns */
+        .graph-col {
+            width: 4px;
+            background-color: #24283b;
+            margin-right: 1px;
+            align-self: flex-end;
+            transition: height 0.3s ease, background-color 0.3s ease;
+            min-height: 2px;
+            border-radius: 1px;
+        }
+
+        /* Utility colors for stats */
+        .text-label { color: #565f89; }
+        .text-value { color: #c0c5ce; }
+        .text-highlight { color: #bb9af7; } /* Purple */
+        .text-success { color: #9ece6a; } /* Green */
+        .text-warn { color: #e0af68; } /* Orange */
+        .text-danger { color: #f7768e; } /* Red */
+        
+        /* Specific borders for grid gap simulation */
+        .grid-gap { gap: 1rem; }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen flex flex-col max-w-7xl mx-auto">
+
+    <!-- Top Header System Info -->
+    <div class="flex justify-between items-end mb-6 border-b border-gray-800 pb-2">
+        <div>
+            <h1 class="text-xl font-bold text-highlight">SVR-01.ALPHA</h1>
+            <div class="text-xs text-label">UPTIME: <span id="stat-uptime" class="text-value">00:00:00</span></div>
+        </div>
+        <div class="text-right">
+            <div class="text-2xl font-bold text-white" id="stat-clock">--:--:--</div>
+            <div class="text-xs text-label" id="stat-date">-- --- ----</div>
+        </div>
+    </div>
+
+    <!-- Main Grid Layout -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full h-full flex-grow">
+        
+        <!-- COLUMN 1: CPU & Processes -->
+        <div class="flex flex-col gap-4">
+            
+            <!-- CPU Panel -->
+            <div class="tui-panel border border-gray-800">
+                <div class="tui-title">cpu_total</div>
+                
+                <div class="flex justify-between items-end mb-2">
+                    <span class="text-2xl font-bold" id="cpu-percent">0%</span>
+                    <span class="text-xs text-label">Ryzen 9 5950X @ 3.4GHz</span>
+                </div>
+
+                <!-- Visual Graph (Flex container of bars) -->
+                <div class="h-24 flex items-end justify-between mb-2 p-1 bg-[#15161e] rounded" id="cpu-graph">
+                    <!-- Bars injected by JS -->
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2 text-xs mt-2">
+                    <div class="flex justify-between"><span class="text-label">USER</span> <span class="text-success" id="cpu-user">0%</span></div>
+                    <div class="flex justify-between"><span class="text-label">SYS</span> <span class="text-danger" id="cpu-sys">0%</span></div>
+                </div>
+            </div>
+
+            <!-- Processes Panel (Simulated list) -->
+            <div class="tui-panel border border-gray-800 flex-grow">
+                <div class="tui-title">processes</div>
+                <table class="w-full text-xs text-left border-collapse">
+                    <thead>
+                        <tr class="text-label border-b border-gray-800">
+                            <th class="pb-1">pid</th>
+                            <th class="pb-1">name</th>
+                            <th class="pb-1 text-right">cpu%</th>
+                            <th class="pb-1 text-right">mem%</th>
+                        </tr>
+                    </thead>
+                    <tbody id="proc-list" class="font-mono">
+                        <!-- Process rows injected by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+
+        <!-- COLUMN 2: Memory & Disks -->
+        <div class="flex flex-col gap-4">
+            
+            <!-- Memory Panel -->
+            <div class="tui-panel border border-gray-800">
+                <div class="tui-title">mem</div>
+                
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-label">RAM</span>
+                        <span id="mem-text">0GB / 16GB</span>
+                    </div>
+                    <div class="meter-bg">
+                        <div id="mem-bar" class="meter-fill bg-green-500" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-label">SWAP</span>
+                        <span id="swap-text">0GB / 4GB</span>
+                    </div>
+                    <div class="meter-bg">
+                        <div id="swap-bar" class="meter-fill bg-red-500" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+             <!-- Disks Panel -->
+             <div class="tui-panel border border-gray-800 flex-grow">
+                <div class="tui-title">disks</div>
+                <div class="flex flex-col gap-4 mt-2">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span>/ (root)</span>
+                            <span class="text-label">SSD</span>
+                        </div>
+                        <div class="meter-bg h-2">
+                            <div class="meter-fill bg-blue-500" style="width: 45%"></div>
+                        </div>
+                        <div class="flex justify-between text-[10px] mt-1 text-label">
+                            <span>used: 112GB</span>
+                            <span>free: 138GB</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span>/mnt/data</span>
+                            <span class="text-label">HDD</span>
+                        </div>
+                        <div class="meter-bg h-2">
+                            <div class="meter-fill bg-purple-500" style="width: 78%"></div>
+                        </div>
+                        <div class="flex justify-between text-[10px] mt-1 text-label">
+                            <span>used: 3.1TB</span>
+                            <span>free: 0.9TB</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 border-t border-gray-800 pt-2">
+                    <div class="text-xs font-bold mb-2 text-label">IO R/W</div>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-success">R: <span id="disk-read">0</span> MB/s</span>
+                        <span class="text-highlight">W: <span id="disk-write">0</span> MB/s</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- COLUMN 3: Network & Net Box -->
+        <div class="flex flex-col gap-4">
+            
+            <!-- Network Panel -->
+            <div class="tui-panel border border-gray-800 h-1/2">
+                <div class="tui-title">network</div>
+                
+                <div class="flex flex-col h-full justify-between">
+                    <div>
+                        <div class="text-xs text-label mb-1">DOWNLOAD</div>
+                        <div class="text-xl text-success font-bold" id="net-down">0.00 Mbps</div>
+                        <div class="meter-bg h-1 mt-1"><div id="net-down-bar" class="meter-fill bg-green-500" style="width: 10%"></div></div>
+                    </div>
+
+                    <div>
+                        <div class="text-xs text-label mb-1">UPLOAD</div>
+                        <div class="text-xl text-highlight font-bold" id="net-up">0.00 Mbps</div>
+                         <div class="meter-bg h-1 mt-1"><div id="net-up-bar" class="meter-fill bg-purple-500" style="width: 5%"></div></div>
+                    </div>
+
+                    <div class="text-[10px] text-label grid grid-cols-2 gap-2 pt-2 border-t border-gray-800">
+                        <div>Total Rx: <span class="text-white">45.2 GB</span></div>
+                        <div>Total Tx: <span class="text-white">12.1 GB</span></div>
+                        <div>Ping: <span class="text-white">12 ms</span></div>
+                        <div>IP: <span class="text-white">192.168.1.50</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Misc/Log Panel -->
+            <div class="tui-panel border border-gray-800 h-1/2 overflow-hidden flex flex-col">
+                <div class="tui-title">log</div>
+                <div class="flex-grow overflow-y-hidden text-[10px] font-mono leading-tight space-y-1" id="log-container">
+                    <!-- Logs go here -->
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        const app = (() => {
+            // -- CONFIG --
+            const GRAPH_BARS = 30;
+            const TOTAL_MEM = 16384; // MB
+            
+            // -- STATE --
+            let cpuHistory = new Array(GRAPH_BARS).fill(5); // Start with low activity
+            let uptimeSecs = 12450; // Arbitrary start
+
+            // -- ELEMENTS --
+            const els = {
+                cpuGraph: document.getElementById('cpu-graph'),
+                cpuPercent: document.getElementById('cpu-percent'),
+                cpuUser: document.getElementById('cpu-user'),
+                cpuSys: document.getElementById('cpu-sys'),
+                memBar: document.getElementById('mem-bar'),
+                memText: document.getElementById('mem-text'),
+                swapBar: document.getElementById('swap-bar'),
+                netDown: document.getElementById('net-down'),
+                netUp: document.getElementById('net-up'),
+                netDownBar: document.getElementById('net-down-bar'),
+                netUpBar: document.getElementById('net-up-bar'),
+                diskRead: document.getElementById('disk-read'),
+                diskWrite: document.getElementById('disk-write'),
+                clock: document.getElementById('stat-clock'),
+                date: document.getElementById('stat-date'),
+                uptime: document.getElementById('stat-uptime'),
+                procList: document.getElementById('proc-list'),
+                logContainer: document.getElementById('log-container')
+            };
+
+            // -- INIT GRAPH --
+            function initGraph() {
+                els.cpuGraph.innerHTML = '';
+                for(let i=0; i<GRAPH_BARS; i++) {
+                    const bar = document.createElement('div');
+                    bar.className = 'graph-col';
+                    bar.style.height = '5%';
+                    els.cpuGraph.appendChild(bar);
+                }
+            }
+
+            // -- SIMULATION LOGIC --
+            function updateStats() {
+                // 1. CPU
+                const cpuVal = Math.floor(Math.random() * 100);
+                cpuHistory.push(cpuVal);
+                cpuHistory.shift();
+
+                // Update visual graph bars
+                const bars = els.cpuGraph.children;
+                for(let i=0; i<bars.length; i++) {
+                    const h = cpuHistory[i];
+                    bars[i].style.height = `${Math.max(5, h)}%`;
+                    
+                    // Color grade based on load
+                    if(h > 80) bars[i].style.backgroundColor = '#f7768e'; // Red
+                    else if(h > 50) bars[i].style.backgroundColor = '#e0af68'; // Orange
+                    else bars[i].style.backgroundColor = '#7aa2f7'; // Blue
+                }
+
+                els.cpuPercent.textContent = `${cpuVal}%`;
+                // Split random load between user/sys
+                const user = Math.floor(cpuVal * 0.7);
+                const sys = cpuVal - user;
+                els.cpuUser.textContent = `${user}%`;
+                els.cpuSys.textContent = `${sys}%`;
+
+
+                // 2. Memory
+                const usedMem = 6000 + Math.floor(Math.random() * 4000); // 6-10GB
+                const memPct = (usedMem / TOTAL_MEM) * 100;
+                els.memText.textContent = `${(usedMem/1024).toFixed(1)}GB / ${(TOTAL_MEM/1024).toFixed(0)}GB`;
+                els.memBar.style.width = `${memPct}%`;
+                
+                // Swap (random low usage)
+                els.swapBar.style.width = `${Math.random() * 20}%`;
+
+
+                // 3. Network
+                const down = (Math.random() * 50).toFixed(1);
+                const up = (Math.random() * 10).toFixed(1);
+                els.netDown.textContent = `${down} Mbps`;
+                els.netUp.textContent = `${up} Mbps`;
+                els.netDownBar.style.width = `${Math.min(100, down*2)}%`;
+                els.netUpBar.style.width = `${Math.min(100, up*5)}%`;
+
+                // 4. Disk IO
+                els.diskRead.textContent = (Math.random() * 100).toFixed(0);
+                els.diskWrite.textContent = (Math.random() * 40).toFixed(0);
+                
+                // 5. Time
+                const now = new Date();
+                els.clock.textContent = now.toLocaleTimeString('en-GB'); // 24h
+                els.date.textContent = now.toLocaleDateString('en-GB');
+
+                // 6. Uptime
+                uptimeSecs++;
+                const h = Math.floor(uptimeSecs / 3600);
+                const m = Math.floor((uptimeSecs % 3600) / 60);
+                const s = uptimeSecs % 60;
+                els.uptime.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+            }
+
+            function pad(n) { return n.toString().padStart(2, '0'); }
+
+            // -- PROCESS LIST SIMULATION --
+            const processes = [
+                { name: 'nginx', pid: 1045, baseCpu: 5, baseMem: 2 },
+                { name: 'mysqld', pid: 882, baseCpu: 12, baseMem: 15 },
+                { name: 'php-fpm', pid: 2201, baseCpu: 8, baseMem: 8 },
+                { name: 'docker', pid: 450, baseCpu: 2, baseMem: 12 },
+                { name: 'sshd', pid: 902, baseCpu: 0.1, baseMem: 0.5 },
+                { name: 'kworker', pid: 12, baseCpu: 1, baseMem: 0.1 },
+                { name: 'redis', pid: 660, baseCpu: 1, baseMem: 6 }
+            ];
+
+            function updateProcesses() {
+                // Sort by pseudo-random CPU load variation
+                const sorted = processes.map(p => ({
+                    ...p,
+                    currCpu: (p.baseCpu + (Math.random() * 5)).toFixed(1),
+                    currMem: p.baseMem.toFixed(1)
+                })).sort((a,b) => b.currCpu - a.currCpu);
+
+                els.procList.innerHTML = sorted.map(p => `
+                    <tr class="border-b border-gray-800/50 hover:bg-gray-800/50">
+                        <td class="text-label">${p.pid}</td>
+                        <td>${p.name}</td>
+                        <td class="text-right ${p.currCpu > 10 ? 'text-warn' : 'text-success'}">${p.currCpu}%</td>
+                        <td class="text-right text-label">${p.currMem}%</td>
+                    </tr>
+                `).join('');
+            }
+
+            // -- LOGS --
+            const logMessages = [
+                "[info] GET /api/v1/stats 200 45ms",
+                "[info] Cron job 'backup' completed",
+                "[warn] High latency detected on eth0",
+                "[info] Connection closed 192.168.1.104",
+                "[debug] Cache miss for key: user_sess_22",
+                "[info] SSH connection from 10.0.0.5",
+                "[info] Health check passed"
+            ];
+            
+            function addLog() {
+                const msg = logMessages[Math.floor(Math.random() * logMessages.length)];
+                const time = new Date().toLocaleTimeString('en-GB', {hour12:false});
+                const div = document.createElement('div');
+                div.className = "truncate";
+                
+                // Colorize
+                let color = "text-gray-500";
+                if(msg.includes('[warn]')) color = "text-warn";
+                else if(msg.includes('[info]')) color = "text-success";
+                
+                div.innerHTML = `<span class="text-gray-600">[${time}]</span> <span class="${color}">${msg}</span>`;
+                
+                els.logContainer.prepend(div);
+                if(els.logContainer.children.length > 8) {
+                    els.logContainer.lastChild.remove();
+                }
+            }
+
+            return {
+                start: () => {
+                    initGraph();
+                    updateStats();
+                    updateProcesses();
+                    
+                    setInterval(updateStats, 1000);
+                    setInterval(updateProcesses, 2000); // Processes update slower
+                    setInterval(addLog, 1500);
+                }
+            };
+        })();
+
+        window.onload = app.start;
+    </script>
+</body>
+</html>

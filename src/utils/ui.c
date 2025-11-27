@@ -2,7 +2,9 @@
 #include "global_defines.h"
 #include "http_parser.h"
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 // Unified simple printing helpers
 static void ui_client_printf(w_client* client, const char* fmt, ...) {

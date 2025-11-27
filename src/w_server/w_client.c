@@ -29,7 +29,7 @@ static void response_send(w_client* c) {
         return;
     }
 
-    ssize_t bytes; // cant have declaration directly after a label
+    ssize_t bytes; // cant have declaration directly after a label (retry:)
 retry:
     // no MSG_NOSIGNAL prevents process to be killed if writing to closed socket
     bytes = send(c->fd, c->response_body + c->response_sent, remaining, MSG_NOSIGNAL);
@@ -177,12 +177,69 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         }
 
         // ROOT ROUTE
+        // TODO we can server an index.html here
         if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/") == 0) {
             client->response_body = http_msg_200_ok_text("Hello from weather server!");
-            client->response_len = strlen(client->response_body);
+            client->response_len = http_msg_get_total_size(client->response_body);
             client->response_sent = 0;
             ui_print_response_details(client, 200, "OK", client->response_len);
             client->state = W_CLIENT_SENDING;
+            break;
+        }
+
+        /* HEALTH ROUTE - simple liveness check */
+        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/health") == 0) {
+            client->response_body = http_msg_200_ok_text("OK");
+            client->response_len = http_msg_get_total_size(client->response_body);
+            client->response_sent = 0;
+            ui_print_response_details(client, 200, "OK", client->response_len);
+            client->state = W_CLIENT_SENDING;
+            break;
+        }
+
+        /* INDEX ROUTE - serve a minimal HTML index */
+        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/index.html") == 0) {
+            /* Try to open a local index.html file and serve it. Fall back to
+             * embedded HTML if the file cannot be read. */
+            FILE* f = fopen("www/index.html", "rb");
+            if (f) {
+                if (fseek(f, 0, SEEK_END) == 0) {
+                    long sz = ftell(f);
+                    if (sz >= 0) {
+                        if (fseek(f, 0, SEEK_SET) == 0) {
+                            char* buf = malloc((size_t)sz + 1);
+                            if (buf) {
+                                size_t r = fread(buf, 1, (size_t)sz, f);
+                                buf[r] = '\0';
+                                if (r == (size_t)sz) {
+                                    /* Build a proper text/html response */
+                                    client->response_body = http_msg_build_response(200, "OK", "text/html", buf, NULL);
+                                }
+                                free(buf);
+                            }
+                        }
+                    }
+                }
+                fclose(f);
+            }
+
+            if (!client->response_body) {
+                /* Fallback embedded HTML when file missing or failed to read */
+                const char* html = "<html><head><title>WeatherServer</title></head><body><h1>WeatherServer</"
+                                   "h1><p>Welcome. <br> No index.html found.</p></body></html>";
+                client->response_body = http_msg_build_response(200, "OK", "text/html", html, NULL);
+            }
+
+            if (client->response_body) {
+                client->response_len = http_msg_get_total_size(client->response_body);
+                client->response_sent = 0;
+                ui_print_response_details(client, 200, "OK", client->response_len);
+                client->state = W_CLIENT_SENDING;
+            } else {
+                client->error_code = W_CLIENT_ERROR_INTERNAL;
+                client->state = W_CLIENT_SENDING;
+            }
+
             break;
         }
 
@@ -227,6 +284,58 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 
             // Wait for task to complete
             client->state = W_CLIENT_WAITING_TASK;
+            break;
+        }
+
+        // SURPRISE ROUTE
+        // TODO cache files. Dont open and close files every time.
+        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/surprise") == 0) {
+            FILE* fptr = fopen("www/bonzi.png", "rb"); // "rb" - read binary
+            if (!fptr) {
+                client->error_code = W_CLIENT_ERROR_ROUTE_SURPRISE;
+                client->state = W_CLIENT_DONE;
+                break;
+            }
+
+            // Calculate file size
+            fseek(fptr, 0, SEEK_END);
+            long file_size_raw = ftell(fptr);
+            if (file_size_raw < 0) {
+                fclose(fptr);
+                client->error_code = W_CLIENT_ERROR_ROUTE_SURPRISE;
+                client->state = W_CLIENT_DONE;
+                break;
+            }
+            size_t file_size = (size_t)file_size_raw;
+            fseek(fptr, 0, SEEK_SET);
+
+            uint8_t* buffer = (uint8_t*)malloc(sizeof(uint8_t) * file_size);
+            if (!buffer) {
+                // Failed to allocated memory
+                fclose(fptr);
+                client->error_code = W_CLIENT_ERROR_ROUTE_SURPRISE;
+                client->state = W_CLIENT_DONE;
+                break;
+            }
+
+            size_t bytes_read = fread(buffer, 1, file_size, fptr);
+            if (bytes_read != file_size) {
+                // Failed to read file
+                free(buffer);
+                fclose(fptr);
+                client->error_code = W_CLIENT_ERROR_ROUTE_SURPRISE;
+                client->state = W_CLIENT_DONE;
+                break;
+            }
+
+            // Success!
+            fclose(fptr);
+
+            // Build response
+            client->response_body = http_msg_200_ok_binary("image/png", buffer, file_size);
+            client->response_len = http_msg_get_total_size(client->response_body);
+
+            client->state = W_CLIENT_SENDING;
             break;
         }
 
@@ -393,7 +502,7 @@ mj_task* w_client_create(int client_fd, w_server* server) {
     // Set task functions and task context
     new_task->create = NULL;
     new_task->run = w_client_run;
-    new_task->cleanup = w_client_cleanup;
+    new_task->destroy = w_client_cleanup;
     new_task->ctx = new_ctx;
 
     // Increment active client counter

@@ -1,13 +1,13 @@
 #define _GNU_SOURCE
 
 #include "geocode_weather.h"
-#include "../weather_cache/weathercache.h"
 #include "geocache.h"
 #include "global_defines.h"
 #include "http_msg_builder.h"
 #include "ui.h"
 #include "utils.h"
 #include "w_client.h"
+#include "weathercache.h"
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -182,7 +182,7 @@ mj_task* geocode_weather_task_create(struct w_client* client, struct geocache* g
     task->ctx = ctx;
     task->create = NULL;
     task->run = gw_task_run;
-    task->cleanup = gw_task_cleanup;
+    task->destroy = gw_task_cleanup;
 
     return task;
 }
@@ -246,13 +246,13 @@ mj_task* geocode_weather_task_create_with_coords(struct w_client* client,
     task->ctx = ctx;
     task->create = NULL;
     task->run = gw_task_run;
-    task->cleanup = gw_task_cleanup;
+    task->destroy = gw_task_cleanup;
 
     return task;
 }
 
 // ============================================================================
-// Task cleanup
+// Task destroy
 // ============================================================================
 
 static void gw_task_cleanup(mj_scheduler* scheduler, void* ctx) {
@@ -895,34 +895,55 @@ static void gw_task_run(mj_scheduler* scheduler, void* ctx) {
         geocache_normalize_name(name_for_cache, norm, sizeof(norm));
         char* cached_body = NULL;
         if (weathercache_get_by_coords(norm, gw->latitude, gw->longitude, &cached_body) == 0) {
-            // Parse cached API JSON, add city/requested_city fields like live path
-            json_error_t jerr;
-            json_t* root = json_loads(cached_body, 0, &jerr);
-            char* final_json = NULL;
-            if (root) {
-                json_object_set_new(root, "city",
-                                    json_string((gw->resolved_city[0] != '\0') ? gw->resolved_city : gw->city_name));
-                json_object_set_new(root, "requested_city", json_string(gw->city_name));
-                final_json = json_dumps(root, JSON_COMPACT);
-                json_decref(root);
-            }
-            free(cached_body);
-
-            if (final_json) {
-                gw->client->response_body = http_msg_200_ok_json(final_json);
-                free(final_json);
+            /*
+             * Detect cached upstream error payloads (e.g. rate-limit responses
+             * like: {"reason":"Too many concurrent requests","error":true})
+             * Some cached files may contain extra debugging/prefix data; use
+             * substring search to detect the problematic response and remove
+             * the cache so we will attempt a live fetch instead.
+             */
+            if (strstr(cached_body, "\"Too many concurrent requests\"") != NULL ||
+                strstr(cached_body, "\"reason\":\"Too many concurrent requests\"") != NULL) {
+                ui_print_backend_error(client, "GeocodeWeather",
+                                       "cached upstream rate-limit response detected; removing cache and fetching live data");
+                /* remove the offending cache file and free the loaded buffer */
+                weathercache_remove_by_coords(norm, gw->latitude, gw->longitude);
+                free(cached_body);
+                /* fall through to perform a live fetch */
             } else {
-                // Fallback: serve raw cached body
-                gw->client->response_body = http_msg_200_ok_json(cached_body);
-            }
+                /* Parse cached API JSON, add city/requested_city fields like live path */
+                json_error_t jerr;
+                json_t* root = json_loads(cached_body, 0, &jerr);
+                char* final_json = NULL;
+                if (root) {
+                    json_object_set_new(root, "city",
+                                        json_string((gw->resolved_city[0] != '\0') ? gw->resolved_city : gw->city_name));
+                    json_object_set_new(root, "requested_city", json_string(gw->city_name));
+                    final_json = json_dumps(root, JSON_COMPACT);
+                    json_decref(root);
+                }
 
-            if (gw->client->response_body) {
-                gw->client->response_len = strlen(gw->client->response_body);
-                gw->client->response_sent = 0;
-            }
+                if (final_json) {
+                    gw->client->response_body = http_msg_200_ok_json(final_json);
+                    free(final_json);
+                } else {
+                    /* Fallback: serve raw cached body */
+                    gw->client->response_body = http_msg_200_ok_json(cached_body);
+                }
 
-            gw->state = GW_STATE_DONE;
-            break;
+                free(cached_body);
+
+                if (gw->client->response_body) {
+                    gw->client->response_len = strlen(gw->client->response_body);
+                    gw->client->response_sent = 0;
+                    /* Log that we served a cached response so output matches live path */
+                    ui_print_backend_state(client, "GeocodeWeather", "served cached weather response");
+                    ui_print_backend_done(client, "GeocodeWeather");
+                }
+
+                gw->state = GW_STATE_DONE;
+                break;
+            }
         }
 
         int ret = gw_connect_nonblocking(&gw->weather_http);

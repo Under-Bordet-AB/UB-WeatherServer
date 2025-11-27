@@ -16,7 +16,7 @@ typedef struct mj_task {
     // NOTE mj_task_fn is a pointer, look at above declaration
     mj_task_fn create; // optional factory for any internally allocated data
     mj_task_fn run;
-    mj_task_fn cleanup; // optional cleanup for any internally allocated data
+    mj_task_fn destroy; // optional destroy for any internally allocated data
     void* ctx;
 } mj_task;
 

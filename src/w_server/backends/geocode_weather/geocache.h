@@ -6,7 +6,7 @@
 /*
     Geocache Module
     ---------------
-    In-memory cache of city name -> coordinates mappings, backed by a JSON file.
+    In-memory cache of city name -> coordinates mappings.
 
     Usage:
     1. Call geocache_load() at server startup (loads from disk if exists)

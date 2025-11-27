@@ -23,7 +23,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-// TODO w_server_listen_TCP_nonblocking() gets added as a task (along with a cleanup function) to the scheduler.
+// TODO w_server_listen_TCP_nonblocking() gets added as a task (along with a destroy function) to the scheduler.
 // Therfore it should be a separate module that plugs into the server. Since we can listen on many sockets in many ways.
 // Each of these ways gets its own module.
 
@@ -67,11 +67,11 @@ void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
 // TODO finish clean up function
 void w_server_listen_TCP_nonblocking_cleanup(mj_scheduler* scheduler, void* ctx) {
     w_server* server = (w_server*)ctx;
-    // Perform server-specific cleanup but do NOT free the server context here.
+    // Perform server-specific destroy but do NOT free the server context here.
     // The scheduler is responsible for freeing task contexts to avoid
     // double-free when mj_scheduler_cleanup_all_tasks() runs.
     ui_print_server_listen_stopped(server->listen_fd);
-    w_server_cleanup(server);
+    w_server_destroy(server);
 }
 
 static int init_from_config(w_server* server, const w_server_config* cfg) {
@@ -148,7 +148,7 @@ w_server* w_server_create(w_server_config* config) {
     // Configure task
     task->create = NULL;
     task->run = w_server_listen_TCP_nonblocking;
-    task->cleanup = w_server_listen_TCP_nonblocking_cleanup;
+    task->destroy = w_server_listen_TCP_nonblocking_cleanup;
     task->ctx = srv; // The listening task needs access to the whole server struct. FD, active clients etc,
 
     // Set servers listening task
@@ -167,7 +167,7 @@ w_server* w_server_create(w_server_config* config) {
     return NULL;
 }
 
-void w_server_cleanup(w_server* server) {
+void w_server_destroy(w_server* server) {
     if (!server)
         return;
 

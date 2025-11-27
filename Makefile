@@ -33,8 +33,8 @@ CFLAGS_DEBUG := $(CFLAGS_COMMON) -g -O0 -fsanitize=address -fno-omit-frame-point
 CFLAGS_RELEASE := $(CFLAGS_COMMON) -O3 -march=native -DNDEBUG \
 	              -fomit-frame-pointer -flto
 
-# Profile flags (optimized with frame pointers for perf)
-CFLAGS_PROFILE := $(CFLAGS_COMMON) -O2 -g -fno-omit-frame-pointer -DNDEBUG
+# Profile flags (2025-11-27: when using clang we must explicitly set DWARF4. DWARF5 does not work well with valgrind )
+CFLAGS_PROFILE := $(CFLAGS_COMMON) -O2 -g -fno-omit-frame-pointer -fno-lto -gdwarf-4 -fno-debug-types-section -DNDEBUG
 
 LFLAGS_COMMON := -lm
 LFLAGS_DEBUG := -fsanitize=address

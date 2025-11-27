@@ -48,9 +48,12 @@ int mj_scheduler_run(mj_scheduler* scheduler) {
 
             scheduler->current_task = current_task_slot; // Note: double pointers
 
-            // Call tasks run function with its context
-            current_task->run(scheduler, current_task->ctx);
-
+            // Run task or cleanup if shotdown signal
+            if (shutdown_requested) {
+                current_task->destroy(scheduler, current_task->ctx);
+            } else {
+                current_task->run(scheduler, current_task->ctx);
+            }
             // Reset current function since it should only be available from the task that just ran
             scheduler->current_task = NULL;
         }
@@ -108,8 +111,8 @@ int mj_scheduler_task_remove_current(mj_scheduler* scheduler) {
     mj_task* task = *scheduler->current_task;
 
     // use custom cleanup for any internal data if availible
-    if (task->cleanup && task->ctx) {
-        task->cleanup(scheduler, task->ctx);
+    if (task->destroy && task->ctx) {
+        task->destroy(scheduler, task->ctx);
     }
 
     // Free the tasks context
@@ -133,6 +136,13 @@ int mj_scheduler_task_remove_current(mj_scheduler* scheduler) {
     return 0;
 }
 
+void mj_scheduler_stop(mj_scheduler* scheduler) {
+    if (scheduler != NULL) {
+        scheduler->stop_requested = 1;
+    }
+}
+
+// Destroy the scheduler ( does not clean up tasks)
 int mj_scheduler_destroy(mj_scheduler** scheduler) {
     if (scheduler == NULL || *scheduler == NULL) {
         errno = EINVAL;
@@ -153,12 +163,6 @@ int mj_scheduler_destroy(mj_scheduler** scheduler) {
     return 0;
 }
 
-void mj_scheduler_stop(mj_scheduler* scheduler) {
-    if (scheduler != NULL) {
-        scheduler->stop_requested = 1;
-    }
-}
-
 void mj_scheduler_cleanup_all_tasks(mj_scheduler* scheduler) {
     if (scheduler == NULL) {
         return;
@@ -172,8 +176,8 @@ void mj_scheduler_cleanup_all_tasks(mj_scheduler* scheduler) {
         }
 
         // Call cleanup if available
-        if (task->cleanup && task->ctx) {
-            task->cleanup(scheduler, task->ctx);
+        if (task->destroy && task->ctx) {
+            task->destroy(scheduler, task->ctx);
         }
 
         // Free context and task

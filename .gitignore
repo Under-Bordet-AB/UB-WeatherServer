@@ -59,8 +59,7 @@ dkms.conf
 server
 stress
 
-/cities_cache
-/weather_cache
+/cache
 
 *.data
 
