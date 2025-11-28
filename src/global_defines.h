@@ -14,6 +14,10 @@
 
 //// CONNECTED CLIENTS
 #define W_CLIENT_READ_BUFFER_SIZE 8192
+// TODO fix these two so that one defines the other
+#define W_CLIENT_REQ_LOCATION_MAX_SIZE 128       // longest location to try to find
+#define W_CLIENT_REQ_LOCATION_MAX_SIZE_STR "128" // Macro to convert number to string for sscanf
+#define MAX_URL_LEN 256
 
 // For how long do we let a connected client send its request
 #define CLIENT_READING_TIMEOUT_SEC 9999

@@ -87,7 +87,7 @@ typedef struct {
     gw_error_t error;
     int cache_hit; // Whether coordinates came from cache
 
-    // Input (copied from client->requested_city)
+    // Input (copied from client->req_location)
     char city_name[128];
 
     // Geocode result
@@ -107,7 +107,7 @@ typedef struct {
 } geocode_weather_ctx_t;
 
 // Create a geocode_weather task for the given client
-// The task will read city from client->requested_city
+// The task will read city from client->req_location
 // On completion, it fills client->response_body and sets client->state to W_CLIENT_SENDING
 // geocache can be NULL (will skip caching)
 mj_task* geocode_weather_task_create(struct w_client* client, struct geocache* geocache);

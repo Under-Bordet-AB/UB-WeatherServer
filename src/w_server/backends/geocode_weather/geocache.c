@@ -164,7 +164,22 @@ int geocache_save(geocache_t* cache) {
     if (!f)
         return -1;
 
+    /* Write only the first occurrence of each normalized key to disk.
+     * This avoids duplicate lines for the same logical location when the
+     * in-memory cache contains more than one entry with the same key
+     * (which can happen if the file was edited externally or loaded from
+     * older dumps). We keep the first seen entry and skip later duplicates.
+     */
     for (size_t i = 0; i < cache->count; i++) {
+        int seen = 0;
+        for (size_t j = 0; j < i; j++) {
+            if (strcmp(cache->entries[j].key, cache->entries[i].key) == 0) {
+                seen = 1;
+                break;
+            }
+        }
+        if (seen)
+            continue;
         // Write: name,latitude,longitude
         // Use the stored display name (may contain UTF-8) without quoting
         fprintf(f, "%s,%.4f,%.4f\n", cache->entries[i].name, cache->entries[i].latitude, cache->entries[i].longitude);
@@ -174,11 +189,16 @@ int geocache_save(geocache_t* cache) {
     cache->dirty = 0;
     return 0;
 }
-
+// returns 0 on hit
 int geocache_lookup(geocache_t* cache, const char* city_name, geocache_entry_t* entry) {
     if (!cache || !city_name || !entry)
         return -1;
 
+    /* Case-insensitive lookup: normalize the provided city_name using the
+     * same normalization function used when storing keys (geocache_normalize_name)
+     * and compare that normalized key against the stored `key` field. This
+     * makes lookups insensitive to ASCII case and common Swedish letters.
+     */
     char normalized[128];
     if (!geocache_normalize_name(city_name, normalized, sizeof(normalized)))
         return -1;
@@ -203,6 +223,11 @@ int geocache_insert(geocache_t* cache,
                     const char* resolved_name) {
     if (!cache || !city_name)
         return -1;
+
+    // Reject invalid coordinates (e.g., 0.0,0.0 or near-zero indicates geocoding failure)
+    if (fabs(latitude) < 0.0001 && fabs(longitude) < 0.0001) {
+        return -1; // Don't insert invalid coords
+    }
 
     char normalized[128];
     if (!geocache_normalize_name(city_name, normalized, sizeof(normalized)))

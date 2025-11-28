@@ -194,12 +194,25 @@ static const city_t CITIES[] = {
 #define NUM_CITIES (sizeof(CITIES) / sizeof(CITIES[0]))
 
 // Request templates for backend testing
+// Index 0 is reserved for dynamic weather requests
 static const char* REQUEST_TEMPLATES[] = {
-    NULL, // Weather template - dynamically generated
-    "GET /cities HTTP/1.1\r\n"
+    NULL, // 0: Weather template - dynamically generated
+    "GET / HTTP/1.1\r\n"
     "Host: localhost\r\n"
     "User-Agent: StressTest/1.0\r\n"
-    "Accept: application/json\r\n"
+    "Accept: text/plain\r\n"
+    "Connection: close\r\n\r\n",
+
+    "GET /index.html HTTP/1.1\r\n"
+    "Host: localhost\r\n"
+    "User-Agent: StressTest/1.0\r\n"
+    "Accept: text/html\r\n"
+    "Connection: close\r\n\r\n",
+
+    "GET /health HTTP/1.1\r\n"
+    "Host: localhost\r\n"
+    "User-Agent: StressTest/1.0\r\n"
+    "Accept: text/plain\r\n"
     "Connection: close\r\n\r\n",
 
     "GET /surprise HTTP/1.1\r\n"
@@ -208,7 +221,7 @@ static const char* REQUEST_TEMPLATES[] = {
     "Accept: image/png\r\n"
     "Connection: close\r\n\r\n",
 };
-#define NUM_REQUEST_TYPES 3
+#define NUM_REQUEST_TYPES 5
 
 typedef enum {
     CLIENT_CREATED,
@@ -347,7 +360,9 @@ void print_usage(const char* prog) {
     printf("              [DEFAULT: -slow, 250ms intervals (~4 req/sec)]\n\n");
     printf("Backend Selection:\n");
     printf("  -weather        Test weather backend (cycles through major Swedish cities)\n");
-    printf("  -cities         Test cities backend (/cities)\n");
+    printf("  -root           Test root endpoint (/)\n");
+    printf("  -index          Test /index.html endpoint\n");
+    printf("  -health         Test /health endpoint\n");
     printf("  -surprise       Test surprise backend (/surprise)\n");
     printf("                  [DEFAULT: test all backends if none specified]\n\n");
     printf("Options:\n");
@@ -356,7 +371,7 @@ void print_usage(const char* prog) {
     printf("  -count <num>    Number of requests (default: %d)\n", DEFAULT_CONN);
     printf("  -count eternal  Run forever until interrupted (uses concurrency=%d)\n", DEFAULT_CONN);
     printf("  -realistic      Add random think time (100-500ms) after connection\n");
-    printf("  -msg <path>     Use custom request path (e.g. \"/weather?city=oslo\")\n");
+    printf("  -msg <path>     Use custom request path (e.g. \"/weather?location=oslo\")\n");
     printf("  -nr <N>         Concurrency for eternal runs (default: %d)\n", DEFAULT_CONN);
     printf("  -keepalive <s>  Keep connections open for N seconds (default: 0)\n");
     printf("  -h, -help       Show this help\n\n");
@@ -364,8 +379,8 @@ void print_usage(const char* prog) {
     printf("  Ctrl-C (SIGINT) stops an eternal run and prints summary\n\n");
     printf("Examples:\n");
     printf("  %s -count 100 -weather                    # Test weather backend with trickle\n", prog);
-    printf("  %s -count 50 -cities -surprise            # Test cities and surprise backends\n", prog);
-    printf("  %s -fast -weather -cities -surprise       # Fast test of all backends\n", prog);
+    printf("  %s -count 50 -root -surprise             # Test root and surprise backends\n", prog);
+    printf("  %s -fast -weather -root -surprise        # Fast test of all backends\n", prog);
     printf("  %s -burst -count 1000 -realistic          # Burst test with think time\n", prog);
     printf("  %s -custom 500000 -count 20 -surprise     # Custom 500ms intervals\n", prog);
     printf("  %s -count eternal -fast                  # Run forever until interrupted\n", prog);
@@ -391,7 +406,9 @@ int main(int argc, char** argv) {
 
     // Backend selection flags
     int test_weather = 0;
-    int test_cities = 0;
+    int test_root = 0;
+    int test_index = 0;
+    int test_health = 0;
     int test_surprise = 0;
 
     // Parse arguments
@@ -470,8 +487,12 @@ int main(int argc, char** argv) {
             msg_path = argv[i];
         } else if (strcmp(argv[i], "-weather") == 0) {
             test_weather = 1;
-        } else if (strcmp(argv[i], "-cities") == 0) {
-            test_cities = 1;
+        } else if (strcmp(argv[i], "-root") == 0) {
+            test_root = 1;
+        } else if (strcmp(argv[i], "-index") == 0) {
+            test_index = 1;
+        } else if (strcmp(argv[i], "-health") == 0) {
+            test_health = 1;
         } else if (strcmp(argv[i], "-surprise") == 0) {
             test_surprise = 1;
         } else if (strcmp(argv[i], "-keepalive") == 0) {
@@ -572,19 +593,24 @@ int main(int argc, char** argv) {
     }
 
     // If no backends specified, test all
-    if (!test_weather && !test_cities && !test_surprise) {
-        test_weather = test_cities = test_surprise = 1;
+    if (!test_weather && !test_root && !test_index && !test_health && !test_surprise) {
+        test_weather = test_root = test_index = test_health = test_surprise = 1;
     }
 
     // Create list of enabled backends
-    int enabled_backends[3] = {0};
+    // 0 = weather (dynamic), 1 = root, 2 = index, 3 = health, 4 = surprise
+    int enabled_backends[5] = {0};
     int num_enabled = 0;
     if (test_weather)
         enabled_backends[num_enabled++] = 0; // Weather
-    if (test_cities)
-        enabled_backends[num_enabled++] = 1; // Cities
+    if (test_root)
+        enabled_backends[num_enabled++] = 1; // /
+    if (test_index)
+        enabled_backends[num_enabled++] = 2; // /index.html
+    if (test_health)
+        enabled_backends[num_enabled++] = 3; // /health
     if (test_surprise)
-        enabled_backends[num_enabled++] = 2; // Surprise
+        enabled_backends[num_enabled++] = 4; // Surprise
 
     // Create log file if requested
     if (log_to_file) {
@@ -622,8 +648,12 @@ int main(int argc, char** argv) {
     printf("Backends: ");
     if (test_weather)
         printf("Weather ");
-    if (test_cities)
-        printf("Cities ");
+    if (test_root)
+        printf("Root ");
+    if (test_index)
+        printf("Index ");
+    if (test_health)
+        printf("Health ");
     if (test_surprise)
         printf("Surprise ");
     printf("\n");
@@ -646,8 +676,12 @@ int main(int argc, char** argv) {
         fprintf(log_file, "Backends: ");
         if (test_weather)
             fprintf(log_file, "Weather ");
-        if (test_cities)
-            fprintf(log_file, "Cities ");
+        if (test_root)
+            fprintf(log_file, "Root ");
+        if (test_index)
+            fprintf(log_file, "Index ");
+        if (test_health)
+            fprintf(log_file, "Health ");
         if (test_surprise)
             fprintf(log_file, "Surprise ");
         fprintf(log_file, "\n");
@@ -688,10 +722,10 @@ int main(int argc, char** argv) {
             char* enc = url_encode(city->name);
             char path[512];
             if (enc) {
-                snprintf(path, sizeof(path), "/weather?city=%s", enc);
+                snprintf(path, sizeof(path), "/weather?location=%s", enc);
             } else {
                 // fallback: raw name (may break URL)
-                snprintf(path, sizeof(path), "/weather?city=%s", city->name);
+                snprintf(path, sizeof(path), "/weather?location=%s", city->name);
             }
             char request_buf[1024];
             snprintf(request_buf, sizeof(request_buf),
@@ -829,10 +863,10 @@ int main(int argc, char** argv) {
                     char* enc = url_encode(city->name);
                     char path[512];
                     if (enc) {
-                        snprintf(path, sizeof(path), "/weather?city=%s", enc);
+                        snprintf(path, sizeof(path), "/weather?location=%s", enc);
                         free(enc);
                     } else {
-                        snprintf(path, sizeof(path), "/weather?city=%s", city->name);
+                        snprintf(path, sizeof(path), "/weather?location=%s", city->name);
                     }
                     char request_buf[1024];
                     snprintf(request_buf, sizeof(request_buf),
@@ -1460,11 +1494,17 @@ int main(int argc, char** argv) {
             const char* backend_name = "";
             if (clients[i].request_type == 0) {
                 backend_name = "Weather";
-                fprintf(log_file, "Backend: %s (City: %s)\n", backend_name, CITIES[clients[i].city_index].name);
+                fprintf(log_file, "Backend: %s (Location: %s)\n", backend_name, CITIES[clients[i].city_index].name);
             } else if (clients[i].request_type == 1) {
-                backend_name = "Cities";
+                backend_name = "Root";
                 fprintf(log_file, "Backend: %s\n", backend_name);
             } else if (clients[i].request_type == 2) {
+                backend_name = "Index";
+                fprintf(log_file, "Backend: %s\n", backend_name);
+            } else if (clients[i].request_type == 3) {
+                backend_name = "Health";
+                fprintf(log_file, "Backend: %s\n", backend_name);
+            } else if (clients[i].request_type == 4) {
                 backend_name = "Surprise";
                 fprintf(log_file, "Backend: %s\n", backend_name);
             }

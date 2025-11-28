@@ -93,7 +93,7 @@ $(BIN): $(OBJ)
 	@$(CC) $(CFLAGS) $^ -o $@ $(LFLAGS)
 	@echo ""
 	@echo "╔══════════════════════════════════╗"
-	@echo "║         BUILD SUCCESSFULL        ║"
+	@echo "║         BUILD SUCCESSFUL         ║"
 	@echo "╚══════════════════════════════════╝"
 	@echo "      Binary: $(BIN)"
 	@echo "      Mode:   $(BUILD_MODE)"

@@ -166,7 +166,7 @@ mj_task* geocode_weather_task_create(struct w_client* client, struct geocache* g
     ctx->cache_hit = 0;
 
     // Copy city name from client
-    strncpy(ctx->city_name, client->requested_city, sizeof(ctx->city_name) - 1);
+    strncpy(ctx->city_name, client->req_location, sizeof(ctx->city_name) - 1);
     ctx->city_name[sizeof(ctx->city_name) - 1] = '\0';
 
     // Initialize HTTP contexts
@@ -213,7 +213,7 @@ mj_task* geocode_weather_task_create_with_coords(struct w_client* client,
     ctx->cache_hit = 1;
 
     // Copy city name from client
-    strncpy(ctx->city_name, client->requested_city, sizeof(ctx->city_name) - 1);
+    strncpy(ctx->city_name, client->req_location, sizeof(ctx->city_name) - 1);
     ctx->city_name[sizeof(ctx->city_name) - 1] = '\0';
 
     // Set pre-resolved coordinates (normalize to 4 decimals)
@@ -277,11 +277,16 @@ static int gw_build_geocode_request(geocode_weather_ctx_t* ctx, int apply_umlaut
         return -1;
 
     // URL encode city name (%-encode any byte that is not an unreserved character)
-    // Normalize some Swedish variants first (Å/å -> Ä/ä) to improve geocoding
-    // match quality for names like "Torshälla".
+    // Decode any percent-encoded bytes and lowercase/normalize Swedish
+    // characters so upstream receives a consistent representation.
     char city_copy[512];
     strncpy(city_copy, ctx->city_name, sizeof(city_copy) - 1);
     city_copy[sizeof(city_copy) - 1] = '\0';
+    // Decode any %-encoding (so sequences like %C3%85 become raw UTF-8)
+    utils_convert_utf8_hex_to_utf8_bytes(city_copy);
+    // Lowercase only Swedish multibyte letters (Å/Ä/Ö -> å/ä/ö)
+    utils_lowercase_swedish_letters(city_copy);
+    // Optionally apply Å -> ä normalization if requested (legacy fallback)
     if (apply_umlaut_normalize) {
         utils_normalize_swedish_a_umlaut(city_copy);
     }
@@ -357,6 +362,11 @@ static int gw_city_contains_a_umlaut(const char* s) {
 static int gw_build_weather_request(geocode_weather_ctx_t* ctx) {
     if (!ctx)
         return -1;
+
+    // Never build weather request for invalid coordinates
+    if (ctx->latitude == 0.0 && ctx->longitude == 0.0) {
+        return -1;
+    }
 
     // Set host and path
     strncpy(ctx->weather_http.host, "api.open-meteo.com", sizeof(ctx->weather_http.host) - 1);
@@ -607,6 +617,17 @@ static int gw_parse_geocode_response(geocode_weather_ctx_t* ctx) {
     if (!ctx)
         return -1;
 
+    // Check HTTP status
+    const char* status_line = ctx->geocode_http.response_buffer;
+    if (!status_line || strstr(status_line, "200") == NULL) {
+        if (strstr(status_line, "404") != NULL || strstr(status_line, "400") != NULL) {
+            ctx->error = GW_ERROR_CITY_NOT_FOUND;
+        } else {
+            ctx->error = GW_ERROR_RECV_FAILED;
+        }
+        return -1;
+    }
+
     char* body = gw_extract_body(ctx->geocode_http.response_buffer);
     if (!body)
         return -1;
@@ -647,9 +668,18 @@ static int gw_parse_geocode_response(geocode_weather_ctx_t* ctx) {
     ctx->latitude = round(json_number_value(lat) * 10000.0) / 10000.0;
     ctx->longitude = round(json_number_value(lon) * 10000.0) / 10000.0;
 
+    // Reject invalid coordinates (e.g., 0.0,0.0 indicates geocoding failure)
+    if (ctx->latitude == 0.0 && ctx->longitude == 0.0) {
+        json_decref(root);
+        ctx->error = GW_ERROR_CITY_NOT_FOUND;
+        return -1;
+    }
+
     if (json_is_string(name)) {
         strncpy(ctx->resolved_city, json_string_value(name), sizeof(ctx->resolved_city) - 1);
         ctx->resolved_city[sizeof(ctx->resolved_city) - 1] = '\0';
+        /* Normalize resolved city to lowercase for consistent internal keys */
+        utils_to_lowercase(ctx->resolved_city);
     }
 
     json_decref(root);
@@ -664,6 +694,13 @@ static int gw_parse_weather_response(geocode_weather_ctx_t* ctx) {
     if (!ctx || !ctx->client)
         return -1;
 
+    // Check HTTP status
+    const char* status_line = ctx->weather_http.response_buffer;
+    if (!status_line || strstr(status_line, "200") == NULL) {
+        ctx->error = GW_ERROR_RECV_FAILED;
+        return -1;
+    }
+
     char* body = gw_extract_body(ctx->weather_http.response_buffer);
     if (!body)
         return -1;
@@ -676,9 +713,15 @@ static int gw_parse_weather_response(geocode_weather_ctx_t* ctx) {
         return -1;
     }
 
-    // Add city name to the response
+    // Add city name to the response (use lowercase versions)
+    /* Ensure we send lowercase city/req_location so downstream consumers
+     * and cache keys remain consistent. */
+    /* Ensure city/req_location fields contain normalized Swedish letters
+     * but preserve ASCII case (user's original ASCII casing). */
+    utils_lowercase_swedish_letters(ctx->city_name);
+    utils_lowercase_swedish_letters(ctx->resolved_city);
     json_object_set_new(root, "city", json_string(ctx->resolved_city));
-    json_object_set_new(root, "requested_city", json_string(ctx->city_name));
+    json_object_set_new(root, "req_location", json_string(ctx->city_name));
 
     // Convert back to string
     char* final_json = json_dumps(root, JSON_COMPACT);
@@ -687,6 +730,11 @@ static int gw_parse_weather_response(geocode_weather_ctx_t* ctx) {
 
     if (!final_json)
         return -1;
+
+    // Lowercase the final JSON payload to be defensive about upstream casing
+    if (final_json) {
+        utils_to_lowercase(final_json);
+    }
 
     // Build HTTP response for client
     ctx->client->response_body = http_msg_200_ok_json(final_json);
@@ -709,7 +757,20 @@ static void gw_build_error_response(geocode_weather_ctx_t* ctx) {
     if (!ctx || !ctx->client)
         return;
 
+    // Free any existing response body
+    if (ctx->client->response_body) {
+        free(ctx->client->response_body);
+        ctx->client->response_body = NULL;
+    }
+
     const char* error_msg = geocode_weather_error_str(ctx->error);
+    /* For misspellings / not-found results return a clearer, user-facing
+     * message rather than the internal error string. This makes it obvious
+     * to API consumers that the requested location could not be resolved.
+     */
+    if (ctx->error == GW_ERROR_CITY_NOT_FOUND) {
+        error_msg = "Location not found";
+    }
 
     // Build JSON error
     json_t* error_obj = json_object();
@@ -814,6 +875,9 @@ static void gw_task_run(mj_scheduler* scheduler, void* ctx) {
              * simply doesn't exist in the geocoding API or if we got a
              * non-JSON/forbidden response.
              */
+
+            // set lat & long to insane values so we can check later
+
             const char* path = gw->geocode_http.path[0] ? gw->geocode_http.path : "(none)";
             char snippet[512] = {0};
             char* body = gw_extract_body(gw->geocode_http.response_buffer);
@@ -868,9 +932,11 @@ static void gw_task_run(mj_scheduler* scheduler, void* ctx) {
 
         ui_print_backend_state(client, "GeocodeWeather", "parsed coordinates");
 
-        // Save to geocache for future lookups
+        // Save to geocache for future lookups. Use the exact user-provided
+        // city string as the cache key/name so lookups remain byte-for-byte
+        // exact (the caller is responsible for spelling).
         if (gw->geocache) {
-            geocache_insert(gw->geocache, gw->city_name, gw->latitude, gw->longitude, gw->resolved_city);
+            geocache_insert(gw->geocache, gw->city_name, gw->latitude, gw->longitude, gw->city_name);
             // Optionally save to disk immediately, or batch saves
             geocache_save(gw->geocache);
         }
@@ -891,8 +957,15 @@ static void gw_task_run(mj_scheduler* scheduler, void* ctx) {
     case GW_STATE_WEATHER_CONNECT: {
         // Before attempting network, check weather cache for a current entry
         char norm[128];
-        const char* name_for_cache = (gw->resolved_city[0] != '\0') ? gw->resolved_city : gw->city_name;
-        geocache_normalize_name(name_for_cache, norm, sizeof(norm));
+        /* Use the exact user-supplied city name for weather cache lookup so
+         * cache keys correspond to what the API client requested. */
+        const char* name_for_cache = gw->city_name;
+        /* Use exact city name as provided/resolved for weather cache lookup.
+         * Do not apply additional normalization; this preserves exact matching
+         * between requests and cache files (per user request).
+         */
+        strncpy(norm, name_for_cache, sizeof(norm) - 1);
+        norm[sizeof(norm) - 1] = '\0';
         char* cached_body = NULL;
         if (weathercache_get_by_coords(norm, gw->latitude, gw->longitude, &cached_body) == 0) {
             /*
@@ -904,21 +977,22 @@ static void gw_task_run(mj_scheduler* scheduler, void* ctx) {
              */
             if (strstr(cached_body, "\"Too many concurrent requests\"") != NULL ||
                 strstr(cached_body, "\"reason\":\"Too many concurrent requests\"") != NULL) {
-                ui_print_backend_error(client, "GeocodeWeather",
-                                       "cached upstream rate-limit response detected; removing cache and fetching live data");
+                ui_print_backend_error(
+                    client, "GeocodeWeather",
+                    "cached upstream rate-limit response detected; removing cache and fetching live data");
                 /* remove the offending cache file and free the loaded buffer */
                 weathercache_remove_by_coords(norm, gw->latitude, gw->longitude);
                 free(cached_body);
                 /* fall through to perform a live fetch */
             } else {
-                /* Parse cached API JSON, add city/requested_city fields like live path */
+                /* Parse cached API JSON, add city/req_location fields like live path */
                 json_error_t jerr;
                 json_t* root = json_loads(cached_body, 0, &jerr);
                 char* final_json = NULL;
                 if (root) {
-                    json_object_set_new(root, "city",
-                                        json_string((gw->resolved_city[0] != '\0') ? gw->resolved_city : gw->city_name));
-                    json_object_set_new(root, "requested_city", json_string(gw->city_name));
+                    json_object_set_new(
+                        root, "city", json_string((gw->resolved_city[0] != '\0') ? gw->resolved_city : gw->city_name));
+                    json_object_set_new(root, "req_location", json_string(gw->city_name));
                     final_json = json_dumps(root, JSON_COMPACT);
                     json_decref(root);
                 }
@@ -998,8 +1072,14 @@ static void gw_task_run(mj_scheduler* scheduler, void* ctx) {
         char* body = gw_extract_body(gw->weather_http.response_buffer);
         if (body) {
             char norm[128];
-            const char* name_for_cache = (gw->resolved_city[0] != '\0') ? gw->resolved_city : gw->city_name;
+            /* Save using the exact user-supplied city string so subsequent
+             * requests must use the same spelling to hit the cache. */
+            const char* name_for_cache = gw->city_name;
             geocache_normalize_name(name_for_cache, norm, sizeof(norm));
+            /* Cache the upstream body as-received. We already normalized the
+             * `city` and `req_location` fields injected into the live
+             * response above; storing the raw upstream body avoids corrupting
+             * the JSON and preserves numeric formatting. */
             weathercache_set_by_coords(norm, gw->latitude, gw->longitude, body);
             free(body);
         }

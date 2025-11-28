@@ -28,7 +28,7 @@ static int build_path_coords(const char* name, double lat, double lon, char* out
     char lon_s[32];
     fmt_coord4(lat, lat_s, sizeof(lat_s));
     fmt_coord4(lon, lon_s, sizeof(lon_s));
-    int n = snprintf(out, out_size, "%s/%s-%s-%s.json", WEATHERCACHE_DIR, name, lat_s, lon_s);
+    int n = snprintf(out, out_size, "%s/%s_%s_%s.json", WEATHERCACHE_DIR, name, lat_s, lon_s);
     return (n >= 0 && (size_t)n < out_size) ? 0 : -1;
 }
 
@@ -78,6 +78,13 @@ int weathercache_set_by_coords(const char* name, double latitude, double longitu
     char tmp[512];
     if (build_path_coords(name, latitude, longitude, path, sizeof(path)) != 0)
         return -1;
+    /* If a cache file already exists for these coords/name, do not overwrite it.
+     * This ensures the first successful write wins and later attempts (for
+     * different variants/duplicates) do not replace the original cached data.
+     */
+    if (access(path, F_OK) == 0) {
+        return 0; /* already present, keep original */
+    }
     // tmp path: cache/weather/.<name>-lat-lon.json.tmp
     // We don't want the tmp name to collide; instead create unique tmp per-target
     char tmp2[512];

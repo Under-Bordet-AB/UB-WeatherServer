@@ -143,7 +143,11 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
     case W_CLIENT_PARSING: {
         // Parse the complete HTTP request
         http_request* parsed = http_request_fromstring(client->read_buffer);
-
+        // Normalize here so we dont lowercase method and protocol
+        // if we know we only have lowercase location names its easier with å ä ö handling later
+        //                                                    å      ä      ö      Å      Ä      Ö
+        // NOTE: This is how "å ä ö Å Ä Ö" looks like now "%C3%A5 %C3%A4 %C3%B6 %C3%85 %C3%84% C3%96"
+        utils_to_lowercase(parsed->url);
         if (!parsed || !parsed->valid) {
             // Parse error - send 400 Bad Request
             ui_print_bad_request(client);
@@ -168,27 +172,20 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         http_request* req = (http_request*)client->parsed_request;
         ui_print_processing_request(client);
 
-        // Parse city from URL query parameter (e.g., "/weather?city=stockholm")
+        // Parse city from URL query parameter (e.g., "/weather?location=stockholm")
+        // TODO needs breaking out into function but now i just need it to work
         int city_in_url = 0;
-        if (sscanf(req->url, "%*[^=]=%s", client->requested_city) == 1) {
-            city_in_url = 1;
-            utils_decode_swedish_chars(client->requested_city);
-            utils_to_lowercase(client->requested_city);
-        }
-
-        // ROOT ROUTE
-        // TODO we can server an index.html here
-        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/") == 0) {
-            client->response_body = http_msg_200_ok_text("Hello from weather server!");
-            client->response_len = http_msg_get_total_size(client->response_body);
-            client->response_sent = 0;
-            ui_print_response_details(client, 200, "OK", client->response_len);
-            client->state = W_CLIENT_SENDING;
-            break;
+        // TODO add max location size define
+        if (sscanf(req->url, "/weather?location=%" W_CLIENT_REQ_LOCATION_MAX_SIZE_STR "s", client->req_location) == 1) {
+            if (strlen(client->req_location) < W_CLIENT_REQ_LOCATION_MAX_SIZE) {
+                city_in_url = 1;
+                // Decode %-encoding used for HTTP tranfer so we can write filenames with åäö
+                utils_convert_utf8_hex_to_utf8_bytes(client->req_location);
+            }
         }
 
         /* HEALTH ROUTE - simple liveness check */
-        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/health") == 0) {
+        if (req->method == REQUEST_METHOD_GET && strncmp(req->url, "/health", 7) == 0) {
             client->response_body = http_msg_200_ok_text("OK");
             client->response_len = http_msg_get_total_size(client->response_body);
             client->response_sent = 0;
@@ -197,68 +194,24 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             break;
         }
 
-        /* INDEX ROUTE - serve a minimal HTML index */
-        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/index.html") == 0) {
-            /* Try to open a local index.html file and serve it. Fall back to
-             * embedded HTML if the file cannot be read. */
-            FILE* f = fopen("www/index.html", "rb");
-            if (f) {
-                if (fseek(f, 0, SEEK_END) == 0) {
-                    long sz = ftell(f);
-                    if (sz >= 0) {
-                        if (fseek(f, 0, SEEK_SET) == 0) {
-                            char* buf = malloc((size_t)sz + 1);
-                            if (buf) {
-                                size_t r = fread(buf, 1, (size_t)sz, f);
-                                buf[r] = '\0';
-                                if (r == (size_t)sz) {
-                                    /* Build a proper text/html response */
-                                    client->response_body = http_msg_build_response(200, "OK", "text/html", buf, NULL);
-                                }
-                                free(buf);
-                            }
-                        }
-                    }
-                }
-                fclose(f);
-            }
-
-            if (!client->response_body) {
-                /* Fallback embedded HTML when file missing or failed to read */
-                const char* html = "<html><head><title>WeatherServer</title></head><body><h1>WeatherServer</"
-                                   "h1><p>Welcome. <br> No index.html found.</p></body></html>";
-                client->response_body = http_msg_build_response(200, "OK", "text/html", html, NULL);
-            }
-
-            if (client->response_body) {
-                client->response_len = http_msg_get_total_size(client->response_body);
-                client->response_sent = 0;
-                ui_print_response_details(client, 200, "OK", client->response_len);
-                client->state = W_CLIENT_SENDING;
-            } else {
-                client->error_code = W_CLIENT_ERROR_INTERNAL;
-                client->state = W_CLIENT_SENDING;
-            }
-
-            break;
-        }
-
         // WEATHER ROUTE, uses geocode_weather task to get coordinates from location name
-        if (req->method == REQUEST_METHOD_GET && city_in_url) {
+        if (req->method == REQUEST_METHOD_GET && strncmp(req->url, "/weather?location=", 18) == 0 && city_in_url == 1) {
 
             // Check geocache first - if we have cached coordinates, pass them to the task
             geocache_entry_t cached_entry;
             int cache_hit = 0;
             if (client->server->geocache) {
-                if (geocache_lookup(client->server->geocache, client->requested_city, &cached_entry) == 0) {
-                    cache_hit = 1;
-                    ui_print_backend_state(client, "GeocodeWeather", "geocache hit");
+                cache_hit = geocache_lookup(client->server->geocache, client->req_location, &cached_entry);
+                if (cache_hit != -1) {
+                    ui_print_backend_state(client, "GeocodeWeather", "geocache HIT");
+                } else {
+                    ui_print_backend_state(client, "GeocodeWeather", "geocache MISS");
                 }
             }
 
-            // Create geocode_weather task to fetch coordinates then weather
+            // Create geocode_weather task to fetch coordinates then weathera
             mj_task* gw_task;
-            if (cache_hit) {
+            if (cache_hit != -1) {
                 // Pass cached coordinates - task will skip geocode API call
                 gw_task = geocode_weather_task_create_with_coords(
                     client, client->server->geocache, cached_entry.latitude, cached_entry.longitude, cached_entry.name);
@@ -339,6 +292,58 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             break;
         }
 
+        /* INDEX ROUTE - serve a minimal HTML index */
+        if (req->method == REQUEST_METHOD_GET && strncmp(req->url, "/index", 6) == 0) {
+            /* Try to open a local index.html file and serve it. Fall back to
+             * embedded HTML if the file cannot be read. */
+            FILE* f = fopen("www/index.html", "rb");
+            if (f) {
+                if (fseek(f, 0, SEEK_END) == 0) {
+                    long sz = ftell(f);
+                    if (sz >= 0) {
+                        if (fseek(f, 0, SEEK_SET) == 0) {
+                            char* buf = malloc((size_t)sz + 1);
+                            if (buf) {
+                                size_t r = fread(buf, 1, (size_t)sz, f);
+                                buf[r] = '\0';
+                                if (r == (size_t)sz) {
+                                    /* Build a proper text/html response */
+                                    client->response_body = http_msg_build_response(200, "OK", "text/html", buf, NULL);
+                                }
+                                free(buf);
+                            }
+                        }
+                    }
+                }
+                fclose(f);
+            }
+            if (!client->response_body) {
+                /* Fallback embedded HTML when file missing or failed to read */
+                const char* html = "<html><head><title>WeatherServer</title></head><body><h1>WeatherServer</"
+                                   "h1><p>Welcome. <br> No index.html found.</p></body></html>";
+                client->response_body = http_msg_build_response(200, "OK", "text/html", html, NULL);
+            }
+            if (client->response_body) {
+                client->response_len = http_msg_get_total_size(client->response_body);
+                client->response_sent = 0;
+                ui_print_response_details(client, 200, "OK", client->response_len);
+                client->state = W_CLIENT_SENDING;
+            } else {
+                client->error_code = W_CLIENT_ERROR_INTERNAL;
+                client->state = W_CLIENT_SENDING;
+            }
+            break;
+        }
+        // ROOT ROUTE
+        if (req->method == REQUEST_METHOD_GET && strcmp(req->url, "/") == 0) {
+            client->response_body = http_msg_200_ok_text("Hello from weather server!");
+            client->response_len = http_msg_get_total_size(client->response_body);
+            client->response_sent = 0;
+            ui_print_response_details(client, 200, "OK", client->response_len);
+            client->state = W_CLIENT_SENDING;
+            break;
+        }
+
         // No valid route matched
         client->error_code = W_CLIENT_ERROR_MALFORMED_REQUEST;
         client->state = W_CLIENT_SENDING;
@@ -355,6 +360,10 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
     case W_CLIENT_SENDING: {
         // handle any errors from prev state
         if (client->error_code != W_CLIENT_ERROR_NONE) {
+            if (client->response_body) {
+                free(client->response_body);
+                client->response_body = NULL;
+            }
             switch (client->error_code) {
             case W_CLIENT_ERROR_REQUEST_TOO_LARGE: {
                 client->response_body = http_msg_413_content_too_large(NULL);

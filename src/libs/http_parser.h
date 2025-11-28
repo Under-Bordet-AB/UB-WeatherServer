@@ -76,7 +76,8 @@ typedef struct {
     invalid_reason reason; // Why parsing failed (if valid == 0)
     request_method method;
     protocol_version protocol;
-    const char* url;     // Heap-allocated, freed by http_request_dispose
+    char* url; // Heap-allocated, freed by http_request_dispose (JJ: removed const since i need to convert between
+               // byte<->hex for saving proper filenames or sending over http))
     LinkedList* headers; // List of HTTPHeader*, freed by http_request_dispose
 } http_request;
 

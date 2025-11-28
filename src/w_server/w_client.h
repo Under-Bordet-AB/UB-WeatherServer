@@ -48,7 +48,7 @@ typedef struct w_client {
     size_t request_body_len;
     void* parsed_request;
     // This should be a list of multiple params and also not a separate field in the struct
-    char requested_city[128];
+    char req_location[W_CLIENT_REQ_LOCATION_MAX_SIZE];
 
     // Response
     char* response_body;
