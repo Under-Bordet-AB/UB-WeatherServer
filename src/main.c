@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Global shutdown flag (accessed by signal handler and scheduler)
 volatile sig_atomic_t shutdown_requested = 0;
@@ -30,14 +31,24 @@ int main(int argc, char* argv[]) {
     }
 
     printf("\033[2J\033[H"); // Clear terminal and move cursor to top-left
-    printf("Configuring server...\n");
-    printf("Bind address: %s\n", address);
-    printf("Port: %s\n", port);
-    if (address[0] == '1' && address[1] == '2' && address[2] == '7') {
-        printf("Note: Server is bound to localhost. Only clients on this machine can connect.\n");
-        printf("To allow external connections, use 0.0.0.0 or the server's network IP.\n");
+    printf("=== UB Weather Server ===\n\n");
+    printf("Configuration:\n");
+    printf("  Bind address : %s\n", address);
+    printf("  Port         : %s\n", port);
+
+    if (strcmp(address, "127.0.0.1") == 0 || strcmp(address, "localhost") == 0) {
+        printf("  Note         : Listening on localhost only. Only clients on this machine can connect.\n");
+        printf("                 To allow external connections, use 0.0.0.0 or the server's network IP.\n");
     }
-    printf("\nAvailable endpoints: \t/cities\n\t\t\t/weather\n\t\t\t/surprise\n");
+
+    printf("\nAvailable endpoints:\n");
+    printf("  /weather?location=<x>  - Weather lookup for <x>\n");
+    printf("  /index.html            - Server monitoring webpage\n");
+    printf("  /surprise              - Surprise endpoint\n");
+    printf("  /health                - Returns \"OK\" if the server is alive\n");
+    printf("  /                      - Hello message\n");
+
+    fflush(stdout);
 
     // Create server configuration
     w_server_config config = {.address = address, .port = port, .listening_backlog = SOMAXCONN};
@@ -96,7 +107,8 @@ int main(int argc, char* argv[]) {
         printf("Shutting down server...\n");
     }
 
-    w_server_destroy(server);
+    w_server_destroy(&server);
+
     mj_scheduler_destroy(&scheduler);
 
     printf("Server stopped cleanly.\n");

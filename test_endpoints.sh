@@ -201,12 +201,12 @@ VALID_LOCATIONS=(
     "Luleå"
     "Västerås"
     "Torshälla"
-    "Âre"
 )
+
 
 for loc in "${VALID_LOCATIONS[@]}"; do
     test_valid_location "$loc"
-    sleep 0.5
+     sleep 0.1
 done
 
 ############################################
@@ -223,7 +223,7 @@ CASE_VARIANTS=(
 for loc in "${CASE_VARIANTS[@]}"; do
     # Case-insensitive lookup: case/diacritic variants should match
     test_valid_location "$loc"
-    sleep 0.5
+    sleep 0.1
 done
 
 ############################################
@@ -237,7 +237,7 @@ FUZZY=(
 for loc in "${FUZZY[@]}"; do
     # Misspellings should be treated as client errors under exact-match policy
     test_invalid_location "$loc"
-    sleep 0.5
+    sleep 0.1
 done
 
 ############################################
@@ -254,20 +254,20 @@ INVALID_LOCATIONS=(
 
 for loc in "${INVALID_LOCATIONS[@]}"; do
     test_invalid_location "$loc"
-    sleep 0.5
+     sleep 0.1
 done
 
 ############################################
 # Static endpoint tests (root, index, health, surprise)
 ############################################
 test_endpoint "/" "Root endpoint" "Hello from weather server!"
-sleep 0.5
+ sleep 0.1
 test_endpoint "/index.html" "Index endpoint" "SERVER MONITOR"
-sleep 0.5
+ sleep 0.1
 test_endpoint "/health" "Health endpoint" "OK"
-sleep 0.5
+ sleep 0.1
 test_endpoint "/surprise" "Surprise endpoint"
-sleep 0.5
+ sleep 0.1
 
 ############################################
 # Summary

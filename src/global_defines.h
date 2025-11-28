@@ -5,7 +5,7 @@
 
 //// UI
 // UI printing control flag
-#define UI_PRINT_ENABLED 1
+#define UI_PRINT_ENABLED 0
 
 //// SERVER
 // How many times to call accept4() per tick / entry into the listening function

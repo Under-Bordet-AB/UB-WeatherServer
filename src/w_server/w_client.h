@@ -46,7 +46,7 @@ typedef struct w_client {
     char* request_body;
     uint8_t* request_body_raw;
     size_t request_body_len;
-    void* parsed_request;
+    void* parsed_request; // This a http_request struct
     // This should be a list of multiple params and also not a separate field in the struct
     char req_location[W_CLIENT_REQ_LOCATION_MAX_SIZE];
 

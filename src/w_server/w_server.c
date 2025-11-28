@@ -45,6 +45,18 @@ void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
                 // No clients waiting, just return
                 return;
             }
+            if (errno == EINTR) {
+                // interrupted
+                break;
+            }
+            if (errno == EMFILE || errno == ENFILE) {
+                // process or system ran out of fds
+                fprintf(stderr, "accept4: out of fds: %s\n", strerror(errno));
+                break;
+            }
+            // unexpected error
+            fprintf(stderr, "accept4 error: %s\n", strerror(errno), errno);
+
             ui_print_server_listen_error("W_SERVER_ERROR_SOCKET_LISTEN");
             return;
         }
@@ -66,12 +78,42 @@ void w_server_listen_TCP_nonblocking(mj_scheduler* scheduler, void* ctx) {
 
 // TODO finish clean up function
 void w_server_listen_TCP_nonblocking_cleanup(mj_scheduler* scheduler, void* ctx) {
+    /*
+          TODO Here we see that it was a bad idea to give the listening task access to the whole server as a context.
+
+          1. It can now destroy the server if we accidentally free context here.
+          2. But worse: we MUST set ctx to null before exiting this function since this will happen next in the
+       scheduler:
+
+                        ** From scheduler, where all destroy function are called **
+                            if (task->destroy) {
+                                task->destroy(scheduler, task->ctx);      <---- We are here now
+                            }
+                            free(task->ctx);                              <---- Here we will nuke the server!
+                            task->ctx = NULL;
+
+        CURRENT SOLUTION IS TO JUST DESTROY THE SERVER HERE.
+     */
+
     w_server* server = (w_server*)ctx;
-    // Perform server-specific destroy but do NOT free the server context here.
-    // The scheduler is responsible for freeing task contexts to avoid
-    // double-free when mj_scheduler_cleanup_all_tasks() runs.
-    ui_print_server_listen_stopped(server->listen_fd);
-    w_server_destroy(server);
+    if (server == NULL) {
+        return;
+    }
+    int remember_socket_for_print = server->listen_fd;
+
+    if (server->listen_fd >= 0) {
+        // Stop accepting new connections and close the listening socket.
+        // shutdown is optional for listening sockets but polite to notify the stack.
+        shutdown(server->listen_fd, SHUT_RDWR);
+        close(server->listen_fd);
+        server->listen_fd = -1;
+        ui_print_server_listen_stopped(remember_socket_for_print);
+    } else {
+        // TODO print error message here "could not close socket"
+    }
+
+    // Ugly reach around to disconnect the main server from the listening task
+    server->w_server_listen_task->ctx = NULL;
 }
 
 static int init_from_config(w_server* server, const w_server_config* cfg) {
@@ -167,19 +209,14 @@ w_server* w_server_create(w_server_config* config) {
     return NULL;
 }
 
-void w_server_destroy(w_server* server) {
-    if (!server)
+void w_server_destroy(w_server** server) {
+    if (server == NULL || *server == NULL) {
         return;
-
-    if (server->listen_fd >= 0) {
-        close(server->listen_fd);
-        server->listen_fd = -1;
     }
 
-    // Save and cleanup geocache
-    if (server->geocache) {
-        geocache_save(server->geocache);
-        geocache_destroy(server->geocache);
-        server->geocache = NULL;
-    }
+    geocache_destroy((*server)->geocache); // frees geocache
+    (*server)->geocache = NULL;
+
+    free(*server);
+    *server = NULL;
 }

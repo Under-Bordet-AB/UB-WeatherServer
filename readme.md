@@ -1,6 +1,6 @@
 # UB-WeatherServer
 
-HTTP server that resolves city names to coordinates and serves weather data via (Open‑Meteo).
+HTTP server that resolves city names to coordinates and serves weather data via Open‑Meteo.
 
 ## Usage
 
@@ -24,13 +24,13 @@ HTTP server that resolves city names to coordinates and serves weather data via 
   - Specific IP: `./server 10480 192.168.1.100` (replace with your actual IP)
 - **Security note**: Binding to `0.0.0.0` or a public IP exposes the server to the internet. Ensure your firewall allows only necessary traffic, and consider using HTTPS or a reverse proxy in production.
 
-### Endpoints
+### Available endpoints
 
-- `/`: Simple hello text
-- `/index.html`: Serves `index.html` from working directory (falls back to embedded HTML)
-- `/health`: Liveness check; returns `OK`
-- `/weather?location=<name>`: Resolve location name to coordinates and return weather JSON with current and forecast weather
-- `/surprise`: Returns a binary surprise
+- `/weather?location=<x>` - Weather lookup for `<x>`
+- `/index.html` - Server monitoring webpage
+- `/surprise` - Surprise endpoint
+- `/health` - Returns `"OK"` if the server is alive
+- `/` - Hello message
 
 ### Testing with curl
 
@@ -55,13 +55,36 @@ curl -i http://localhost:10480/surprise --output surprise.png
 
 - `make run`: Build and run debug binary
 - `make run-release`: Build and run release binary
-- `make stress`: Build stress test binary (`./stress -insane -count 5000`)
-- `make fuzz-http` / `make fuzz-client`: Build AFL fuzz harnesses
-- `make fuzz-run`: Run fuzz harnesses (requires AFL)
+- `make stress`: Build stress test binary (`./stress -count eternal -burst -realistic -nr 1022`)
 - `make perf-record`: Record perf profile (requires sudo)
 - `make perf-report`: View perf profile
 - `make clean`: Remove build artifacts
 - `make help`: Print full Makefile usage
+- Fuzz is not finished.
+
+### Stress testing
+
+- The project includes a small stress test program (`stress`) intended to exercise the server under high connection/concurrency loads. Build it with `make stress` (or run the built binary directly).
+
+Example usage (one of the presets used during development):
+
+```bash
+./stress -count eternal -burst -realistic -nr 1022
+```
+
+This will run an eternal burst-style test using all backends. Adjust concurrency and other flags as needed; run `./stress -help` for available options.
+
+### Endpoint test script
+
+- There's a endpoint test script at the project root, it checks for correct replies from all endpoints using curl. `test_endpoints.sh`
+
+Usage:
+
+```bash
+./test_endpoints.sh [host] [port]
+```
+
+If no host/port are supplied the script will target `localhost:10480`.
 
 ### Profiling and Debugging
 
@@ -71,11 +94,131 @@ curl -i http://localhost:10480/surprise --output surprise.png
   ```
 - **Perf**: Use `make profile`, then `make perf-record` and `make perf-report`
 
-## Notes
+#### Flamegraphs (perf + FlameGraph)
 
-- Cache: Geocoding and weather results stored under `cache/`
-- Logs: Backend events printed to stderr
-- Webroot: Place `index.html` in working directory or `static/` (convention)
-- Production: Bind to `0.0.0.0` and run behind a supervisor
+To get a flamegraph from `perf` (useful to visualise where CPU time is spent):
 
-License: MIT
+1. Build a profiling-friendly binary (DWARF symbols, no inlining/optimizations as needed):
+
+```bash
+make profile
+```
+
+2. Record perf data (sample at e.g. 99Hz, capture call graphs):
+
+```bash
+# may need sudo depending on your system
+sudo perf record -F 99 -g -- ./server
+```
+
+3. Convert perf.data to folded stacks and generate a flamegraph SVG using Brendan Gregg's FlameGraph tools:
+
+```bash
+# install FlameGraph if you don't have it
+git clone https://github.com/brendangregg/FlameGraph.git /tmp/FlameGraph
+
+# convert perf data to text and collapse stacks
+sudo perf script | /tmp/FlameGraph/stackcollapse-perf.pl > out.folded
+
+# generate the flamegraph
+/tmp/FlameGraph/flamegraph.pl out.folded > flamegraph.svg
+
+# open flamegraph.svg in a browser or image viewer
+```
+
+Notes:
+
+- There are several GUI frontends to inspect the graph data.
+- You can use `perf report` interactively to inspect hotspots before making a flamegraph.
+- On some distributions you must install `linux-tools-common` / `linux-tools-$(uname -r)` to get `perf`.
+- If `perf record` fails due to permission issues, run it with `sudo` or enable perf_event_paranoid (see `man perf`).
+
+## Suggested next steps
+
+### Better UI
+
+Something like this that just tracks info over time.
+Can also connect the server to the html page served from index.html.
+
+```
+────────────────────────────────── SERVER ──────────────────────────────────
+Address:     0.0.0.0:8080
+Uptime:      01:23:44
+Active:      12 clients
+Total:       842 accepted
+Failed:      31 total
+Cache:       553 hits / 1342 lookups  (41%)
+
+────────────────────────────── BACKEND ACTIVITY ─────────────────────────────
+Geocode requests:   417 total   (fail 6)
+Meteo requests:     389 total   (fail 3)
+Cache:              553 hits / 1342 lookups  (41%)
+
+──────────────────────────────── ERROR COUNTS ──────────────────────────────
+GW_OK:              1253
+GW_TIMEOUT:         4
+GW_HTTP_ERROR:      12
+GW_PARSE_FAIL:      6
+GW_BAD_REQUEST:     9
+GW_INTERNAL:        2
+
+Client errors:      10 total   (parse 4, timeout 3, bad_req 3)
+Backend errors:     11 total   (geo 6, meteo 3, internal 2)
+```
+
+### Refactor main w_client state machine mega-function
+
+Sugested solution is detailed under/improvments folder
+
+### OS setup from main.c
+
+The server currently throttles because of lack of FDs. Set all these OS settings from main.
+
+### Random list of improvments
+
+- Epoll!
+- Timers in the scheduler so tasks can sleep when they are waiting.
+- Better cache handling. Kind of wonky now. Just stores first geo lookup hit.
+- Filter incoming IPs, we just accept everything now.
+- Pools for constantly used data. Clients and served files are currently malloced and freed per connection.
+
+## Known bugs
+
+### "Åre" is cache with correct name but with cordinates somewhere in puerto rico.
+
+### The debug build segfaults at startup sometimes
+
+Probably a ASAN or sockets issue.
+
+```
+jimmy@pop-os:~/progg/chas/UB-WeatherServer$ ./server
+Segmentation fault (core dumped)
+jimmy@pop-os:~/progg/chas/UB-WeatherServer$ ./server
+Segmentation fault (core dumped)
+jimmy@pop-os:~/progg/chas/UB-WeatherServer$ ./server
+
+=== UB Weather Server ===
+
+Configuration:
+  Bind address : 127.0.0.1
+  Port         : 10480
+  Note         : Listening on localhost only. Only clients on this machine can connect.
+                 To allow external connections, use 0.0.0.0 or the server's network IP.
+
+Available endpoints:
+  /weather?location=<x>  - Weather lookup for <x>
+  /index.html            - Server monitoring webpage
+  /surprise              - Surprise endpoint
+  /health                - Returns "OK" if the server is alive
+  /                      - Hello message
+
+Server starting...
+Listening on 127.0.0.1:10480
+Use a client like `curl http://127.0.0.1:10480` to connect
+Press Ctrl+C to stop the server
+
+^C
+Shutdown signal received. Cleaning up...
+Server stopped cleanly.
+jimmy@pop-os:~/progg/chas/UB-WeatherServer$
+```

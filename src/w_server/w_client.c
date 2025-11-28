@@ -246,7 +246,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             FILE* fptr = fopen("www/bonzi.png", "rb"); // "rb" - read binary
             if (!fptr) {
                 client->error_code = W_CLIENT_ERROR_ROUTE_SURPRISE;
-                client->state = W_CLIENT_DONE;
+                client->state = W_CLIENT_SENDING;
                 break;
             }
 
@@ -256,7 +256,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             if (file_size_raw < 0) {
                 fclose(fptr);
                 client->error_code = W_CLIENT_ERROR_ROUTE_SURPRISE;
-                client->state = W_CLIENT_DONE;
+                client->state = W_CLIENT_SENDING;
                 break;
             }
             size_t file_size = (size_t)file_size_raw;
@@ -267,7 +267,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
                 // Failed to allocated memory
                 fclose(fptr);
                 client->error_code = W_CLIENT_ERROR_ROUTE_SURPRISE;
-                client->state = W_CLIENT_DONE;
+                client->state = W_CLIENT_SENDING;
                 break;
             }
 
@@ -277,7 +277,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
                 free(buffer);
                 fclose(fptr);
                 client->error_code = W_CLIENT_ERROR_ROUTE_SURPRISE;
-                client->state = W_CLIENT_DONE;
+                client->state = W_CLIENT_SENDING;
                 break;
             }
 
@@ -287,7 +287,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
             // Build response
             client->response_body = http_msg_200_ok_binary("image/png", buffer, file_size);
             client->response_len = http_msg_get_total_size(client->response_body);
-
+            free(buffer);
             client->state = W_CLIENT_SENDING;
             break;
         }
@@ -361,7 +361,6 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
         // handle any errors from prev state
         if (client->error_code != W_CLIENT_ERROR_NONE) {
             if (client->response_body) {
-                free(client->response_body);
                 client->response_body = NULL;
             }
             switch (client->error_code) {
@@ -429,7 +428,7 @@ void w_client_run(mj_scheduler* scheduler, void* ctx) {
 void w_client_cleanup(mj_scheduler* scheduler, void* ctx) {
     w_client* client = (w_client*)ctx;
 
-    // Decrement active client counter
+    // Decrement the servers active client counter
     if (client->server) {
         client->server->active_count--;
     }
@@ -441,20 +440,27 @@ void w_client_cleanup(mj_scheduler* scheduler, void* ctx) {
         client->fd = -1;
     }
 
-    // Free parsed HTTP request
-    if (client->parsed_request) {
-        http_request* req = (http_request*)client->parsed_request;
-        http_request_dispose(&req);
+    client->read_buffer[0] = '\0';
+    client->req_location[0] = '\0';
+
+    if (client->request_body != NULL) {
+        free(client->request_body);
+        client->request_body = NULL;
+        client->request_body_len = 0;
+    }
+    if (client->request_body_raw != NULL) {
+        free(client->request_body_raw);
+        client->request_body_raw = NULL;
+    }
+    if (client->parsed_request != NULL) {
+        http_request_dispose((http_request**)&client->parsed_request);
         client->parsed_request = NULL;
     }
-
-    // Free response data
-    if (client->response_body) {
+    if (client->response_body != NULL) {
         free(client->response_body);
         client->response_body = NULL;
+        client->response_len = 0;
     }
-
-    // Deallocate any buffers and resources here, the instances ctx gets deallocated by the scheduler.
 }
 
 // Create a client

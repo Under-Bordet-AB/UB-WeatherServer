@@ -1,28 +1,3 @@
-/* --------------------------------------------------------------------
- *  stress_test_enhanced.c – Realistic REST API stress testing tool
- *
- *  Author:       GitHub Copilot
- *  Created:      2025-11-19
- *  Description:  Enhanced stress testing tool that simulates real client
- *                behavior including response reading, timing metrics,
- *                varied traffic patterns, and comprehensive statistics.
- *
- *  Features:
- *      - Reads and parses HTTP responses
- *      - Tracks latency (connect, send, response, total)
- *      - Multiple request types (GET, POST, random endpoints)
- *      - Realistic timing with random think time
- *      - Percentile metrics (p50, p95, p99)
- *      - Response validation and status code tracking
- *      - Graceful connection handling
- *
- *  Usage:
- *      ./stress -fast -count 100 -ip 127.0.0.1 -port 10480
- *      ./stress -burst -realistic -count 1000
- *      ./stress -h
- *
- * ------------------------------------------------------------------- */
-
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -56,11 +31,14 @@ static void sigint_handler(int signum) {
 
 // Get terminal width, fallback to 80 if unable to detect
 static int get_terminal_width() {
-    struct winsize w;
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0 && w.ws_col > 0) {
-        return w.ws_col;
-    }
-    return 80; // fallback
+    /*  struct winsize w;
+     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0 && w.ws_col > 0) {
+         return w.ws_col;
+     }
+     return 80; // fallback
+     */
+    // sätter till 99 så man får json på en rad
+    return 999;
 }
 
 // City data structure for weather requests

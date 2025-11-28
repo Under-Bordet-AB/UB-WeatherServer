@@ -82,7 +82,6 @@ static int gw_http_ctx_init(gw_http_ctx_t* http) {
 
     memset(http, 0, sizeof(gw_http_ctx_t));
     http->sockfd = -1;
-    // TODO perhaps set remote port elsewhere
     http->port = 80;
 
     http->response_buffer = malloc(HTTP_BUFFER_INITIAL_SIZE);

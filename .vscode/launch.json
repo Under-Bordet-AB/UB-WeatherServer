@@ -18,6 +18,11 @@
             "miDebuggerPath": "gdb", // kör från ditt systems PATH, ska funka på windows, wsl, linux. Hårdkoda ej en path.
             "preLaunchTask": "build",
             "setupCommands": [
+                 {
+                    "description": "break on free for specific pointer (adjust address)",
+                    "text": "break free if (void*) $rdi == (void*) 0x0",
+                    "ignoreFailures": false
+                },
                 {
                     "description": "Enable pretty-printing for gdb",
                     "text": "-enable-pretty-printing",
@@ -31,8 +36,12 @@
                 {
                     "description": "Skip system libraries",
                     "text": "skip -gfi /usr/lib/x86_64-linux-gnu/*"
-                }
-            ]
+                },
+                { "description": "Enable pretty-printing", "text": "-enable-pretty-printing", "ignoreFailures": true },
+                { "description": "stop on SIGINT", "text": "handle SIGINT stop print pass", "ignoreFailures": true }
+     
+            ],
+             "logging": { "engineLogging": true }
         }
     ]
 }

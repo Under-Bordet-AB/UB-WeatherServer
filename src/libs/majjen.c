@@ -50,7 +50,7 @@ int mj_scheduler_run(mj_scheduler* scheduler) {
 
             // Run task or cleanup if shotdown signal
             if (shutdown_requested) {
-                current_task->destroy(scheduler, current_task->ctx);
+                mj_scheduler_task_remove_current(scheduler);
             } else {
                 current_task->run(scheduler, current_task->ctx);
             }
@@ -63,6 +63,7 @@ int mj_scheduler_run(mj_scheduler* scheduler) {
 }
 
 mj_scheduler* mj_scheduler_create(void) {
+    // TODO ASAN complains
     mj_scheduler* scheduler = calloc(1, sizeof(*scheduler));
     if (!scheduler) {
         errno = ENOMEM;
@@ -111,7 +112,7 @@ int mj_scheduler_task_remove_current(mj_scheduler* scheduler) {
     mj_task* task = *scheduler->current_task;
 
     // use custom cleanup for any internal data if availible
-    if (task->destroy && task->ctx) {
+    if (task->destroy) {
         task->destroy(scheduler, task->ctx);
     }
 
@@ -142,17 +143,19 @@ void mj_scheduler_stop(mj_scheduler* scheduler) {
     }
 }
 
-// Destroy the scheduler ( does not clean up tasks)
+// Destroy the scheduler (does not clean up tasks)
+// NOTE: send in double pointer (&scheduler) so we can set it to NULL in here
 int mj_scheduler_destroy(mj_scheduler** scheduler) {
     if (scheduler == NULL || *scheduler == NULL) {
         errno = EINVAL;
         return -1;
     }
 
-    // Don't cleanup if tasks are left
+    // Log if tasks are left
     if ((*scheduler)->task_count > 0) {
-        errno = EBUSY; // resource busy
-        return 1;
+        // TODO make proper UI printout
+        size_t n = (*scheduler)->task_count;
+        printf("WARNING: %zu %s %s in scheduler\n", n, (n == 1) ? "task" : "tasks", (n == 1) ? "remains" : "remain");
     }
 
     free(*scheduler);

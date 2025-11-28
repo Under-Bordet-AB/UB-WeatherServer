@@ -21,7 +21,7 @@ struct geocache {
     struct geocache_entry* entries;
     size_t count;
     size_t capacity;
-    int dirty;
+    int dirty; // just means it needs to be saved
 };
 
 // Normalize name to lowercase, trimmed
