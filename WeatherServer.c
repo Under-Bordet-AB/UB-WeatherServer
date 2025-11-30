@@ -77,6 +77,7 @@ void WeatherServer_TaskWork(void* _Context, uint64_t _MonTime)
 		
 		if (instance->state == WeatherServerInstance_State_Dispose)
 		{
+			printf("Removing weatherserver_instance\n");
 			LinkedList_remove(_Server->instances, node, (void (*)(void*))WeatherServerInstance_Dispose);
 		}
 		
