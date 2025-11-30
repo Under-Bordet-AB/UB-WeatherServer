@@ -462,6 +462,8 @@ int weather_get_buffer(void** ctx, char** buffer) {
 int weather_work(void** ctx) {
     weather_t* weather = (weather_t*)(*ctx);
     if (!weather) { return -1; }
+    char* json_str = NULL;
+    char* client_response = NULL;
 
     switch (weather->state) {
     case Weather_State_Init:
@@ -478,7 +480,6 @@ int weather_work(void** ctx) {
         printf("Weather: Validating File\n");
         break;
     case Weather_State_LoadFromDisk:
-        char* json_str = NULL;
         if (load_weather_from_cache(weather->latitude, weather->longitude, &json_str) == 0) {
             weather->buffer = json_str;
         } else {
@@ -528,7 +529,6 @@ int weather_work(void** ctx) {
         weather->state = Weather_State_ProcessResponse;
         break;
     case Weather_State_ProcessResponse:
-        char* client_response = NULL;
         if (process_openmeteo_response(weather->buffer, &client_response) != 0) {
             weather->state = Weather_State_Done;
             printf("Weather: Processing Response Failed\n");
