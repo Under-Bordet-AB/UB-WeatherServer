@@ -97,126 +97,35 @@ int save_weather_to_cache(double latitude, double longitude, const char* json_st
     return result == 0 ? 0 : -1;
 }
 
-int write_memory_callback(void* contents, size_t size, size_t nmemb, void* user_p) {
-    size_t real_size = size * nmemb;
-
-    struct memory_struct* mem = (struct memory_struct*)user_p;
-
-    char* ptr = realloc(mem->memory, mem->size + real_size + 1);
-    if (ptr == NULL) { return 0; }
-
-    mem->memory = ptr;
-    memcpy(&(mem->memory[mem->size]), contents, real_size);
-    mem->size += real_size;
-    mem->memory[mem->size] = 0;
-
-    return real_size;
-}
-
 int fetch_weather_from_openmeteo(double latitude, double longitude, char** api_response) {
-    CURL* curl;
-    CURLcode res;
+    // CURL* curl;
+    // CURLcode res;
 
-    struct memory_struct chunk;
-    chunk.memory = malloc(1);
-    chunk.size = 0;
+    // struct memory_struct chunk;
+    // chunk.memory = malloc(1);
+    // chunk.size = 0;
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-    if (!curl) {
-        free(chunk.memory);
-        return -1;
-    }
+    // curl_global_init(CURL_GLOBAL_DEFAULT);
+    // curl = curl_easy_init();
+    // if (!curl) {
+    //     free(chunk.memory);
+    //     return -1;
+    // }
 
-    char url[256];
-    snprintf(url, sizeof(url), METEO_FORECAST_URL, latitude, longitude);
-    curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&chunk);
-    res = curl_easy_perform(curl);
-    if (res != CURLE_OK) {
-        curl_easy_cleanup(curl);
-        free(chunk.memory);
-        return -1;
-    }
+    // char url[256];
+    // snprintf(url, sizeof(url), METEO_FORECAST_URL, latitude, longitude);
+    // curl_easy_setopt(curl, CURLOPT_URL, url);
+    // curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory_callback);
+    // curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&chunk);
+    // res = curl_easy_perform(curl);
+    // if (res != CURLE_OK) {
+    //     curl_easy_cleanup(curl);
+    //     free(chunk.memory);
+    //     return -1;
+    // }
 
-    curl_easy_cleanup(curl);
-    *api_response = chunk.memory;
-
-    return 0;
-}
-
-int openmeteo_init(weather_t** weather) {
-    CURLcode res = curl_global_init(CURL_GLOBAL_DEFAULT);
-    if (res != CURLE_OK) { return -1; }
-
-    (*weather)->curl_handle = curl_easy_init();
-    if (!(*weather)->curl_handle) { return -1; }
-
-    (*weather)->curl_multi_handle = curl_multi_init();
-    if (!(*weather)->curl_multi_handle) {
-        curl_easy_cleanup((*weather)->curl_handle);
-        return -1;
-    }
-
-    /* Initialize memory buffer for the multi interface and set write callback */
-    (*weather)->mem.memory = malloc(1);
-    if (!(*weather)->mem.memory) {
-        curl_multi_cleanup((*weather)->curl_multi_handle);
-        curl_easy_cleanup((*weather)->curl_handle);
-        return -1;
-    }
-    (*weather)->mem.size = 0;
-
-    curl_easy_setopt((*weather)->curl_handle, CURLOPT_WRITEFUNCTION, write_memory_callback);
-    curl_easy_setopt((*weather)->curl_handle, CURLOPT_WRITEDATA, (void*)&((*weather)->mem));
-
-    return 0;
-}
-
-int openmeteo_make_request(weather_t** weather) {
-    char url[256];
-    snprintf(url, sizeof(url), METEO_FORECAST_URL, (*weather)->latitude, (*weather)->longitude);
-    curl_easy_setopt((*weather)->curl_handle, CURLOPT_URL, url);
-    curl_multi_add_handle((*weather)->curl_multi_handle, (*weather)->curl_handle);
-
-    return 0;
-}
-
-int openmeteo_poll(weather_t** weather) {
-    CURLMcode mc = curl_multi_perform((*weather)->curl_multi_handle, &(*weather)->curl_still_running);
-    if (mc != CURLM_OK) { return -1; }
-
-    return 0;
-}
-
-int openmeteo_read_response(weather_t** weather) {
-    /* After multi perform indicates transfer complete, the data will be in weather->mem */
-    if ((*weather)->mem.memory == NULL) return -1;
-
-    (*weather)->buffer = (*weather)->mem.memory;
-    (*weather)->bytesread = (int)(*weather)->mem.size;
-
-    /* Take ownership of mem memory; prevent double-free */
-    (*weather)->mem.memory = NULL;
-    (*weather)->mem.size = 0;
-
-    /* Remove the easy handle from the multi handle now that we're done with it */
-    curl_multi_remove_handle((*weather)->curl_multi_handle, (*weather)->curl_handle);
-
-    return 0;
-}
-
-int openmeteo_cleanup(weather_t** weather) {
-    if ((*weather)->curl_handle) {
-        curl_easy_cleanup((*weather)->curl_handle);
-        (*weather)->curl_handle = NULL;
-    }
-    if ((*weather)->curl_multi_handle) {
-        curl_multi_cleanup((*weather)->curl_multi_handle);
-        (*weather)->curl_multi_handle = NULL;
-    }
-    curl_global_cleanup();
+    // curl_easy_cleanup(curl);
+    // *api_response = chunk.memory;
 
     return 0;
 }
@@ -526,10 +435,18 @@ int weather_init(void** ctx, void** ctx_struct, void (*ondone)(void* context)) {
     if (!weather) { return -1; }
     memset(weather, 0, sizeof(weather_t));
     weather->ctx = ctx;
-    weather->state = Weather_State_Init;
+    weather->on_done = ondone;
+
+    weather->latitude = 0.0;
+    weather->longitude = 0.0;
+
+    weather->curl_client = (curl_client_t*)malloc(sizeof(curl_client_t));
+    memset(weather->curl_client, 0, sizeof(curl_client_t));
+
     weather->buffer = NULL;
     weather->bytesread = 0;
-    weather->on_done = ondone;
+
+    weather->state = Weather_State_Init;
     *ctx_struct = (void*)weather;
 
     return 0;
@@ -571,7 +488,7 @@ int weather_work(void** ctx) {
         printf("Weather: Loading From Disk\n");
         break;
     case Weather_State_FetchFromAPI_Init:
-        if (openmeteo_init(&weather) != 0) {
+        if (curl_client_init(&weather->curl_client) != 0) {
             weather->state = Weather_State_Done;
             break;
         }
@@ -579,29 +496,35 @@ int weather_work(void** ctx) {
         printf("Weather: Fetching From API\n");
         break;
     case Weather_State_FetchFromAPI_Request:
-        if (openmeteo_make_request(&weather) != 0) {
+        printf("Weather: Making API Request\n");
+        char url[256];
+        snprintf(url, sizeof(url), METEO_FORECAST_URL, weather->latitude, weather->longitude);
+
+        if (curl_client_make_request(&weather->curl_client, url) != 0) {
             weather->state = Weather_State_Done;
             break;
         }
         weather->state = Weather_State_FetchFromAPI_Poll;
         break;
     case Weather_State_FetchFromAPI_Poll:
-        if (openmeteo_poll(&weather) != 0) {
+        printf("Weather: Polling API Response\n");
+        if (curl_client_poll(&weather->curl_client) != 0) {
             weather->state = Weather_State_Done;
             break;
         }
-        if (weather->curl_still_running) {
+        if (weather->curl_client->still_running) {
             break;
         } else {
             weather->state = Weather_State_FetchFromAPI_Read;
         }
         break;
     case Weather_State_FetchFromAPI_Read:
-        if (openmeteo_read_response(&weather) != 0) {
+        printf("Weather: Reading API Response\n");
+        if (curl_client_read_response(&weather->curl_client, &weather->buffer) != 0) {
             weather->state = Weather_State_Done;
             break;
         }
-        openmeteo_cleanup(&weather);
+        curl_client_cleanup(&weather->curl_client);
         weather->state = Weather_State_ProcessResponse;
         break;
     case Weather_State_ProcessResponse:
@@ -617,7 +540,9 @@ int weather_work(void** ctx) {
         }
         break;
     case Weather_State_SaveToDisk:
-        if (save_weather_to_cache(weather->latitude, weather->longitude, weather->buffer) != 0) { printf("Weather: Saving To Disk Failed\n"); }
+        if (save_weather_to_cache(weather->latitude, weather->longitude, weather->buffer) != 0) { 
+            printf("Weather: Saving To Disk Failed\n"); 
+        }
         weather->state = Weather_State_Done;
         break;
     case Weather_State_Done:
@@ -633,18 +558,8 @@ int weather_dispose(void** ctx) {
     weather_t* weather = (weather_t*)(*ctx);
     if (!weather) return -1;
 
-    // Cleanup curl handles if not already cleaned up
-    if (weather->curl_multi_handle) {
-        curl_multi_cleanup(weather->curl_multi_handle);
-        weather->curl_multi_handle = NULL;
-    }
-    if (weather->curl_handle) {
-        curl_easy_cleanup(weather->curl_handle);
-        weather->curl_handle = NULL;
-    }
-
-    if (weather->mem.memory) free(weather->mem.memory);
-    if (weather->buffer) free(weather->buffer);
+    // curl_client_cleanup(&weather->curl_client);
+    
     free(weather);
     *ctx = NULL;
 
