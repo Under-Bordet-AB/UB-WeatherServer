@@ -1,20 +1,16 @@
 #ifndef WEATHER_H
 #define WEATHER_H
 
-#include <curl/curl.h>
 #include <jansson.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "utilities/curl_client.h"
 
 #define METEO_FORECAST_URL                                                                                                                                     \
     "https://api.open-meteo.com/v1/"                                                                                                                           \
     "forecast?latitude=%f&longitude=%f&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_"   \
     "code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
-
-struct memory_struct {
-    char* memory;
-    size_t size;
-};
 
 typedef enum {
     Weather_State_Init,
@@ -36,14 +32,12 @@ typedef struct weather_t {
     double latitude;
     double longitude;
 
-    CURLM* curl_multi_handle;
-    CURL* curl_handle;
-    int curl_still_running;
-    struct memory_struct mem;
+    curl_client_t* curl_client;
 
-    weather_state state;
     char* buffer;
     int bytesread;
+
+    weather_state state;
 } weather_t;
 
 typedef struct {

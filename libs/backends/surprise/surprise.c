@@ -147,11 +147,14 @@ int surprise_work(void** ctx)
 
 int surprise_dispose(void** ctx)
 {
+  if (!ctx || !*ctx) return 0; // Already disposed or NULL
+  
   surprise_t* surprise = (surprise_t*)(*ctx);
-  if (!surprise) return -1; // Memory allocation failed
 
-  free(surprise->buffer);
-  surprise->buffer = NULL;
+  if (surprise->buffer) {
+    free(surprise->buffer);
+    surprise->buffer = NULL;
+  }
 
   free(surprise);
   *ctx = NULL;
