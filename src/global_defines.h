@@ -5,7 +5,7 @@
 
 //// UI
 // UI printing control flag
-#define UI_PRINT_ENABLED 0
+#define UI_PRINT_ENABLED 1
 
 //// SERVER
 // How many times to call accept4() per tick / entry into the listening function
@@ -20,11 +20,11 @@
 #define MAX_URL_LEN 256
 
 // For how long do we let a connected client send its request
-#define CLIENT_READING_TIMEOUT_SEC 9999
+#define CLIENT_READING_TIMEOUT_SEC 10
 // TODO [ NOT IMPLEMENTED ] How many connections can be active per IP
 #define CLIENT_MAX_CONNECTIONS_PER_IP
 // TODO [ NOT IMPLEMENTED ] How many connections per second can a IP perform
 #define CLIENT_MAX_CONNECTIONS_PER_IP_PER_SECOND
 
 //// BACKEND
-#define BACKEND_METEO_CALL_TIMEOUT_SECONDS 9999
+#define BACKEND_METEO_CALL_TIMEOUT_SECONDS 60

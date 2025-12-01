@@ -186,6 +186,49 @@ The server currently throttles because of lack of FDs. Set all these OS settings
 
 ### "Åre" is cache with correct name but with cordinates somewhere in puerto rico.
 
+### GeoCodeWeather hänger inte med när man kör många requests
+
+Blir JSON parse error. KOlla om vi blir limitade?
+
+### Även när man kör långsamt och träffar cachen så kan man misslyckas, undersök nedanstående
+
+Kommando: "./stress -slow -count 100 -weather"
+
+```bash
+Client 93 (active: 2, total: 93) Received 143 bytes (total: 286)
+Client 93 (active: 2, total: 93) GET /weather?location=%C3%84lmhult HTTP/1.1
+Client 93 (active: 2, total: 93) Request: GET /weather?location=%c3%a4lmhult HTTP/1.1
+Client 93 (active: 2, total: 93) Processing request...
+[GeocodeWeather] geocache HIT
+[GeocodeWeather] ❌ ERROR: weather connect failed
+[GeocodeWeather] ❌ ERROR: Connection failed
+Client 94 (active: 2, total: 94) Received 141 bytes (total: 282)
+Client 94 (active: 2, total: 94) GET /weather?location=Timr%C3%A5 HTTP/1.1
+Client 94 (active: 2, total: 94) Request: GET /weather?location=timr%c3%a5 HTTP/1.1
+Client 94 (active: 2, total: 94) Processing request...
+[GeocodeWeather] geocache HIT
+[GeocodeWeather] ❌ ERROR: weather connect failed
+[GeocodeWeather] ❌ ERROR: Connection failed
+Client 95 (active: 2, total: 95) Received 139 bytes
+```
+
+AHA! När man kör:
+
+```bash
+curl -i http://localhost:10480/weather?location=timrå
+Client    1 (active:    1, total:    1) Received 102 bytes (total: 204)
+Client    1 (active:    1, total:    1) GET /weather?location=timrå HTTP/1.1
+Client    1 (active:    1, total:    1) Request: GET /weather?location=timrå HTTP/1.1
+Client    1 (active:    1, total:    1) Processing request...
+          [GeocodeWeather] geocache HIT
+          [GeocodeWeather] connected to weather API
+          [GeocodeWeather] sent weather request
+          [GeocodeWeather] received weather response
+          [GeocodeWeather] ✓ completed
+```
+
+Notera att timrå strängana är olika "Timr%C3%A5 vs timrå". Jag glömmer nog att koda tillbaks dem om jag träffar cachen. Samma sak med älmhult.
+
 ### The debug build segfaults at startup sometimes
 
 Probably a ASAN or sockets issue.
