@@ -7,7 +7,7 @@ int geolocation_set_parameters(void** ctx, const char* location_name, int locati
     if (!geolocation) return -1;
 
     if (location_name) {
-        geolocation->location_name = location_name;
+        geolocation->location_name = strdup(location_name);
     } else return -1;
 
     if (location_count) {
@@ -17,7 +17,7 @@ int geolocation_set_parameters(void** ctx, const char* location_name, int locati
     }
 
     if (country_code) {
-        geolocation->country_code = country_code;
+        geolocation->country_code = strdup(country_code);
     }
 
     return 0;
@@ -253,7 +253,7 @@ int geolocation_work(void** ctx) {
         }
         case GeoLocation_State_FetchFromAPI_Request: {
             printf("GeoLocation: Making API Request\n");
-            char url[512];
+            char url[4096];
             snprintf(url, sizeof(url), METEO_GEOLOCATION_URL, geolocation->location_name, geolocation->location_count);
             
             // Append country code if provided
