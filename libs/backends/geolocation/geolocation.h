@@ -53,9 +53,9 @@ typedef struct geolocation_t {
 
     curl_client_t* curl_client;
 
-    const char* location_name;
+    char* location_name;
     int location_count;
-    const char* country_code;
+    char* country_code;
 
     geolocation_state state;
     char* buffer;
@@ -63,7 +63,7 @@ typedef struct geolocation_t {
 } geolocation_t;
 
 // Server functions
-int geolocation_set_parameters(void** ctx, const char* location_name, int location_count, const char* country_code);
+int geolocation_set_parameters(void** ctx, char* location_name, int location_count, char* country_code);
 
 int geolocation_init(void** ctx, void** ctx_struct, void (*on_done)(void* context));
 int geolocation_work(void** ctx);

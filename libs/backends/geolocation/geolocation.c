@@ -2,7 +2,7 @@
 
 int process_openmeteo_geo_response(const char* api_response, char** client_response);
 
-int geolocation_set_parameters(void** ctx, const char* location_name, int location_count, const char* country_code) {
+int geolocation_set_parameters(void** ctx, char* location_name, int location_count, char* country_code) {
     geolocation_t* geolocation = (geolocation_t*)(*ctx);
     if (!geolocation) return -1;
 
@@ -289,7 +289,7 @@ int geolocation_work(void** ctx) {
                 geolocation->state = GeoLocation_State_Done;
                 break;
             }
-            curl_client_cleanup(&geolocation->curl_client);
+            // curl_client_cleanup(&geolocation->curl_client);
             geolocation->state = GeoLocation_State_ProcessResponse;
             break;
         }
@@ -327,7 +327,13 @@ int geolocation_dispose(void** ctx) {
     geolocation_t* geolocation = (geolocation_t*)(*ctx);
     if (!geolocation) { return -1; }
 
-    // curl_client_cleanup(&geolocation->curl_client);
+    curl_client_cleanup(&geolocation->curl_client);
+    free(geolocation->curl_client);
+    geolocation->curl_client = NULL;
+
+    free(geolocation->buffer);
+    free(geolocation->location_name);
+    free(geolocation->country_code);
 
     free(geolocation);
     *ctx = NULL;

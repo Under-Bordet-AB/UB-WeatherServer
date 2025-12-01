@@ -525,7 +525,7 @@ int weather_work(void** ctx) {
             weather->state = Weather_State_Done;
             break;
         }
-        curl_client_cleanup(&weather->curl_client);
+        // curl_client_cleanup(&weather->curl_client);
         weather->state = Weather_State_ProcessResponse;
         break;
     case Weather_State_ProcessResponse:
@@ -558,7 +558,10 @@ int weather_dispose(void** ctx) {
     weather_t* weather = (weather_t*)(*ctx);
     if (!weather) return -1;
 
-    // curl_client_cleanup(&weather->curl_client);
+    curl_client_cleanup(&weather->curl_client);
+    free(weather->curl_client);
+    weather->curl_client = NULL;
+    free(weather->buffer);
     
     free(weather);
     *ctx = NULL;
