@@ -4,6 +4,7 @@
 #include <math.h>
 
 #include "backends/cities/cities.h"
+#include "backends/geolocation/geolocation.h"
 #include "backends/surprise/surprise.h"
 #include "backends/weather/weather.h"
 
@@ -67,6 +68,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
         if (backend->backend_struct != NULL && backend->backend_dispose != NULL) {
             backend->backend_dispose(&backend->backend_struct);
         }
+        _Server->state = WeatherServerInstance_State_This_Is_Actually_The_State_Where_We_Want_This_Struct_To_Be_Disposed;
         return;
     }
     
@@ -82,7 +84,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
     if (!query || !query->Path) {
         if (_Server->connection) { HTTPServerConnection_SendResponse(_Server->connection, 400, "Bad Request: malformed URL\n", "text/plain"); }
         if (query) HTTPQuery_Dispose(&query);
-        _Server->state = WeatherServerInstance_State_Dispose;
+        _Server->state = WeatherServerInstance_State_Sending;
         return;
     }
 
@@ -99,7 +101,29 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
             backend->backend_work = cities_work;
             backend->backend_dispose = cities_dispose;
             backend->binary_mode = 0;
-        } else if (strcmp(query->Path, "/GetWeather") == 0) {
+
+        } else if (strcmp(query->Path, "/GetLocation") == 0) {
+            geolocation_init((void*)_Server, &backend->backend_struct, WeatherServerInstance_OnDone);
+            backend->backend_get_buffer = geolocation_get_buffer;
+            backend->backend_work = geolocation_work;
+            backend->backend_dispose = geolocation_dispose;
+            backend->binary_mode = 0;
+
+            char* location_name = (char*)HTTPQuery_getParameter(query, "name");
+            char* location_count_string = (char*)HTTPQuery_getParameter(query, "count");
+            char* country_code = (char*)HTTPQuery_getParameter(query, "countryCode");
+            
+            if (location_name == NULL) {
+                HTTPServerConnection_SendResponse(_Server->connection, 400, "Bad Request: Missing 'name' parameter\n", "text/plain");
+                _Server->state = WeatherServerInstance_State_Sending;
+                break;
+            }
+            
+            int location_count = location_count_string ? (int)strtol(location_count_string, NULL, 10) : 5;
+
+            geolocation_set_parameters(&backend->backend_struct, location_name, location_count, country_code);
+
+        }  else if (strcmp(query->Path, "/GetWeather") == 0) {
             weather_init((void*)_Server, &backend->backend_struct, WeatherServerInstance_OnDone);
             backend->backend_get_buffer = weather_get_buffer;
             backend->backend_work = weather_work;
@@ -110,13 +134,14 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
             const char* lon_str = HTTPQuery_getParameter(query, "lon");
             if (lat_str == NULL || lon_str == NULL) {
                 HTTPServerConnection_SendResponse(_Server->connection, 400, "Bad Request: Missing parameters\n", "text/plain");
-                _Server->state = WeatherServerInstance_State_Dispose;
+                _Server->state = WeatherServerInstance_State_Sending;
                 break;
             }
 
             double latitude = round(strtod(lat_str, NULL) * 100.0) / 100.0;
             double longitude = round(strtod(lon_str, NULL) * 100.0) / 100.0;
             weather_set_location(&backend->backend_struct, latitude, longitude);
+
         } else if (strcmp(query->Path, "/GetSurprise") == 0) {
             surprise_init((void*)_Server, &backend->backend_struct, WeatherServerInstance_OnDone);
             backend->backend_get_buffer = surprise_get_buffer;
@@ -124,9 +149,10 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
             backend->backend_work = surprise_work;
             backend->backend_dispose = surprise_dispose;
             backend->binary_mode = 1;
+            
         } else {
             HTTPServerConnection_SendResponse(_Server->connection, 404, "Not Found\n", "text/plain");
-            _Server->state = WeatherServerInstance_State_Dispose;
+            _Server->state = WeatherServerInstance_State_Sending;
             break;
         }
         _Server->state = WeatherServerInstance_State_Work;
@@ -144,30 +170,40 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
         if (backend->binary_mode == 1) {
             if (buffer == NULL) {
                 HTTPServerConnection_SendResponse(_Server->connection, 500, "Internal Server Error\n", "text/plain");
-                _Server->state = WeatherServerInstance_State_Dispose;
+                _Server->state = WeatherServerInstance_State_Sending;
                 break;
             }
             size_t buffer_size;
             backend->backend_get_buffer_size(&backend->backend_struct, &buffer_size);
             HTTPServerConnection_SendResponse_Binary(_Server->connection, 200, (uint8_t*)buffer, buffer_size, "image/png");
-            _Server->state = WeatherServerInstance_State_Dispose;
+            _Server->state = WeatherServerInstance_State_Sending;
             printf("WeatherServerInstance: Done.\n");
             break;
         } else {
             if (buffer == NULL) {
                 HTTPServerConnection_SendResponse(_Server->connection, 500, "Internal Server Error\n", "text/plain");
-                _Server->state = WeatherServerInstance_State_Dispose;
+                _Server->state = WeatherServerInstance_State_Sending;
                 break;
             }
 
             HTTPServerConnection_SendResponse(_Server->connection, 200, buffer, "application/json");
-            _Server->state = WeatherServerInstance_State_Dispose;
+            _Server->state = WeatherServerInstance_State_Sending;
             printf("WeatherServerInstance: Done.\n");
             break;
         }
 
         break;
     }
+    case WeatherServerInstance_State_Sending:
+        if (_Server->connection->state == HTTPServerConnection_State_Dispose)
+        {
+            _Server->state = WeatherServerInstance_State_Dispose;
+            break;
+        }
+        break;
+    case WeatherServerInstance_State_This_Is_Actually_The_State_Where_We_Want_This_Struct_To_Be_Disposed:
+
+        break;
     default: {
         break;
     }

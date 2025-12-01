@@ -61,12 +61,25 @@ void WeatherServer_TaskWork(void* _Context, uint64_t _MonTime)
 {
 	WeatherServer* _Server = (WeatherServer*)_Context;
 
+	LinkedList *done = LinkedList_create();
+	// First pass: work on all instances
 	LinkedList_foreach(_Server->instances, node)
 	{
 		WeatherServerInstance* instance = (WeatherServerInstance*)node->item;
 		WeatherServerInstance_Work(instance, _MonTime);
+
+		if (instance->state == WeatherServerInstance_State_This_Is_Actually_The_State_Where_We_Want_This_Struct_To_Be_Disposed)
+		{
+			LinkedList_append(done, node);
+		}
+
 	}
-	
+
+	LinkedList_foreach(done, node){
+		LinkedList_remove(_Server->instances, node->item, (void (*)(void*))WeatherServerInstance_Dispose);
+	}
+
+	LinkedList_dispose(&done, NULL);
 }
 
 void WeatherServer_Dispose(WeatherServer* _Server)

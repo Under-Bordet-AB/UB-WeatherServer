@@ -10,7 +10,9 @@ typedef enum {
     WeatherServerInstance_State_Init,
     WeatherServerInstance_State_Work,
     WeatherServerInstance_State_Done,
-    WeatherServerInstance_State_Dispose
+    WeatherServerInstance_State_Sending,
+    WeatherServerInstance_State_Dispose,
+    WeatherServerInstance_State_This_Is_Actually_The_State_Where_We_Want_This_Struct_To_Be_Disposed
 } WeatherServerInstance_State;
 
 typedef struct {
