@@ -25,8 +25,8 @@ typedef enum {
 typedef struct location_t {
     int id;
     char* name;
-    int longitude;
-    int latitude;
+    double longitude;
+    double latitude;
     double elevation;
     char* feature_code;
     char* country_code;
