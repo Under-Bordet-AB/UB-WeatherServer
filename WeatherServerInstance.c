@@ -7,6 +7,7 @@
 #include "backends/geolocation/geolocation.h"
 #include "backends/surprise/surprise.h"
 #include "backends/weather/weather.h"
+#include "global_defines.h"
 
 //-----------------Internal Functions-----------------
 
@@ -119,7 +120,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
                 break;
             }
             
-            int location_count = location_count_string ? (int)strtol(location_count_string, NULL, 10) : 5;
+            int location_count = location_count_string ? (int)strtol(location_count_string, NULL, 10) : WeatherServerInstance_DEFAULT_LOCATION_COUNT;
 
             geolocation_set_parameters(&backend->backend_struct, location_name, location_count, country_code);
 

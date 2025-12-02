@@ -4,8 +4,11 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define IMAGE_NAME "surprise.png"
-#define SURPRISE_FOLDER "./surprise/"
+#include "../../../global_defines.h"
+
+// Map local names to central test configuration values
+#define IMAGE_NAME Surprise_IMAGE_NAME // From global_defines.h (original: libs/backends/surprise/surprise.c)
+#define SURPRISE_FOLDER Surprise_FOLDER // From global_defines.h (original: libs/backends/surprise/surprise.c)
 
 int surprise_get_file(uint8_t **buffer_ptr, const char *file_name) {
   // Open specified file i mode "rb" - read binary

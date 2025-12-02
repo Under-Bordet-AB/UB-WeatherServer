@@ -1,6 +1,8 @@
 #include "HTTPServer.h"
 #include <stdlib.h>
 
+#include "../../global_defines.h"
+
 //-----------------Internal Functions-----------------
 
 void HTTPServer_TaskWork(void *_Context, uint64_t _MonTime);
@@ -12,7 +14,8 @@ int HTTPServer_Initiate(HTTPServer *_Server,
                         HTTPServer_OnConnection _OnConnection) {
   _Server->onConnection = _OnConnection;
 
-  TCPServer_Initiate(&_Server->tcpServer, "10480", HTTPServer_OnAccept, _Server);
+  // Use centralized listen port for easy configuration during testing
+  TCPServer_Initiate(&_Server->tcpServer, WeatherServer_LISTEN_PORT, HTTPServer_OnAccept, _Server);
 
   _Server->task = smw_createTask(_Server, HTTPServer_TaskWork);
 

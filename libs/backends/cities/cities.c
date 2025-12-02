@@ -7,7 +7,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CACHE_DIR "cities_cache"
+#include "../../../global_defines.h"
+
+// Use centralized cache dir name for easier test configuration
+#define CACHE_DIR Cities_CACHE_DIR // From global_defines.h (original: libs/backends/cities/cities.c)
 
 const char* cities_list = "Stockholm:59.3293:18.0686\n"
                           "Göteborg:57.7089:11.9746\n"

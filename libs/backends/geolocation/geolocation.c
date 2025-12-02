@@ -219,8 +219,8 @@ int geolocation_init(void** ctx, void** ctx_struct, void (*on_done)(void* contex
     geolocation->ctx = ctx;
     geolocation->on_done = on_done;
 
-    geolocation->curl_client = (curl_client_t*)malloc(sizeof(curl_client_t));
-    memset(geolocation->curl_client, 0, sizeof(curl_client_t));
+    geolocation->curl_client = (curl_client*)malloc(sizeof(curl_client));
+    memset(geolocation->curl_client, 0, sizeof(curl_client));
 
     geolocation->location_name = NULL;
     geolocation->location_count = 0;
