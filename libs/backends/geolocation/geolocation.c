@@ -37,10 +37,10 @@ int parse_openmeteo_geo_json_to_location(const json_t* json_obj, location_t* loc
     location->name = (json_is_string(val) && json_string_value(val)) ? strdup(json_string_value(val)) : NULL;
 
     val = json_object_get(json_obj, "latitude");
-    location->latitude = json_is_real(val) ? (int)json_real_value(val) : (json_is_integer(val) ? (int)json_integer_value(val) : 0);
+    location->latitude = json_is_real(val) ? json_real_value(val) : (json_is_integer(val) ? (double)json_integer_value(val) : 0.0);
 
     val = json_object_get(json_obj, "longitude");
-    location->longitude = json_is_real(val) ? (int)json_real_value(val) : (json_is_integer(val) ? (int)json_integer_value(val) : 0);
+    location->longitude = json_is_real(val) ? json_real_value(val) : (json_is_integer(val) ? (double)json_integer_value(val) : 0.0);
 
     val = json_object_get(json_obj, "elevation");
     location->elevation = json_is_real(val) ? json_real_value(val) : (json_is_integer(val) ? (double)json_integer_value(val) : 0.0);
@@ -112,8 +112,8 @@ int serialize_location_to_json(const location_t* location, json_t** json_obj) {
 
     json_object_set_new(*json_obj, "id", json_integer(location->id));
     json_object_set_new(*json_obj, "name", location->name ? json_string(location->name) : json_null());
-    json_object_set_new(*json_obj, "latitude", json_integer(location->latitude));
-    json_object_set_new(*json_obj, "longitude", json_integer(location->longitude));
+    json_object_set_new(*json_obj, "latitude", json_real(location->latitude));
+    json_object_set_new(*json_obj, "longitude", json_real(location->longitude));
     json_object_set_new(*json_obj, "elevation", json_real(location->elevation));
     json_object_set_new(*json_obj, "feature_code", location->feature_code ? json_string(location->feature_code) : json_null());
     json_object_set_new(*json_obj, "country_code", location->country_code ? json_string(location->country_code) : json_null());

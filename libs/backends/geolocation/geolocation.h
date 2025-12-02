@@ -12,11 +12,13 @@
 
 typedef enum {
     GeoLocation_State_Init,
+    // GeoLocation_State_LoadFromDisk,
     GeoLocation_State_FetchFromAPI_Init,
     GeoLocation_State_FetchFromAPI_Request,
     GeoLocation_State_FetchFromAPI_Poll,
     GeoLocation_State_FetchFromAPI_Read,
     GeoLocation_State_ProcessResponse,
+    // GeoLocation_State_SaveToDisk,
     GeoLocation_State_Done
 } geolocation_state;
 
