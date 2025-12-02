@@ -32,7 +32,7 @@ typedef struct weather_t {
     double latitude;
     double longitude;
 
-    curl_client_t* curl_client;
+    curl_client* curl_client;
 
     char* buffer;
     int bytesread;

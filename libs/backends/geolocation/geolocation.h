@@ -51,7 +51,7 @@ typedef struct geolocation_t {
     void* ctx;
     void (*on_done)(void* ctx);
 
-    curl_client_t* curl_client;
+    curl_client* curl_client;
 
     char* location_name;
     int location_count;

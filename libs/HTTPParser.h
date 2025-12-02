@@ -7,15 +7,69 @@ Important defines that control the behavior of the HTTPParser library.
 For most use cases, the default values should work perfectly fine.
 */
 
-#define HTTP_VERSION "HTTP/1.1" // The protocol used with all HTTP responses.
-#define CLOSE_CONNECTIONS 1 // Auto-add `Connection: close` header to all HTTPResponse structs. Tells clients to disconnect after receiving a response.
-#define MAX_URL_LEN 256
-#define STRICT_VALIDATION 1 // The parser immediately gives up on the first sign of an unknown request method or protocol.
+// Prefer centralized G_ parser defines from `global_defines.h` when available.
+#include "../global_defines.h"
+
+// HTTP version
+#ifndef HTTP_VERSION
+#  ifdef G_HTTP_VERSION
+#    define HTTP_VERSION G_HTTP_VERSION
+#  else
+#    define HTTP_VERSION "HTTP/1.1"
+#  endif
+#endif
+
+// Auto-close connections
+#ifndef CLOSE_CONNECTIONS
+#  ifdef G_CLOSE_CONNECTIONS
+#    define CLOSE_CONNECTIONS G_CLOSE_CONNECTIONS
+#  else
+#    define CLOSE_CONNECTIONS 1
+#  endif
+#endif
+
+// URL length limit
+#ifndef MAX_URL_LEN
+#  ifdef G_MAX_URL_LEN
+#    define MAX_URL_LEN G_MAX_URL_LEN
+#  else
+#    define MAX_URL_LEN 256
+#  endif
+#endif
+
+// Strict validation
+#ifndef STRICT_VALIDATION
+#  ifdef G_STRICT_VALIDATION
+#    define STRICT_VALIDATION G_STRICT_VALIDATION
+#  else
+#    define STRICT_VALIDATION 1
+#  endif
+#endif
 
 // Variables to control preflight responses for CORS.
-#define CORS_ALLOWED_ORIGIN "*" // This string is returned as an Access-Control-Allow-Origin header.
-#define CORS_ALLOWED_METHODS "GET, OPTIONS" // Add onto this if we ever add POST endpoints.
-#define CORS_ALLOWED_HEADERS "" // Add header names you need to receive.
+#ifndef CORS_ALLOWED_ORIGIN
+#  ifdef G_CORS_ALLOWED_ORIGIN
+#    define CORS_ALLOWED_ORIGIN G_CORS_ALLOWED_ORIGIN
+#  else
+#    define CORS_ALLOWED_ORIGIN "*"
+#  endif
+#endif
+
+#ifndef CORS_ALLOWED_METHODS
+#  ifdef G_CORS_ALLOWED_METHODS
+#    define CORS_ALLOWED_METHODS G_CORS_ALLOWED_METHODS
+#  else
+#    define CORS_ALLOWED_METHODS "GET, OPTIONS"
+#  endif
+#endif
+
+#ifndef CORS_ALLOWED_HEADERS
+#  ifdef G_CORS_ALLOWED_HEADERS
+#    define CORS_ALLOWED_HEADERS G_CORS_ALLOWED_HEADERS
+#  else
+#    define CORS_ALLOWED_HEADERS ""
+#  endif
+#endif
 // (not required for Accept, Accept-Language, Content-Language or Content-Type for form data or text/plain)
 
 /*

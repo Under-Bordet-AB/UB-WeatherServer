@@ -14,9 +14,11 @@
 
 #include "smw.h"
 
-#define MAX_CLIENTS 10
-#define MAX_CONNECTIONS_PER_WINDOW 10
-#define MAX_CONNECTIONS_WINDOW_SECONDS 10
+#include "../global_defines.h"
+
+#define MAX_CLIENTS TCPServer_MAX_CLIENTS // From global_defines.h (original: libs/TCPServer.h)
+#define MAX_CONNECTIONS_PER_WINDOW TCPServer_MAX_CONNECTIONS_PER_WINDOW // From global_defines.h (original: libs/TCPServer.h)
+#define MAX_CONNECTIONS_WINDOW_SECONDS TCPServer_MAX_CONNECTIONS_WINDOW_SECONDS // From global_defines.h (original: libs/TCPServer.h)
 
 typedef int (*TCPServer_OnAccept)(int client_fd, void* context);
 

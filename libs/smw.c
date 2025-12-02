@@ -1,5 +1,6 @@
 #include "smw.h"
 #include <string.h>
+#include "utilities/misc_utils.h"
 
 smw g_smw;
 
@@ -55,9 +56,14 @@ void smw_work(uint64_t _MonTime)
 	int i;
 	for(i = 0; i < smw_max_tasks; i++)
 	{
+		
 		// TODO: make linked list
 		if(g_smw.tasks[i].callback != NULL)
+		{
 			g_smw.tasks[i].callback(g_smw.tasks[i].context, _MonTime);
+			/* Throttle worker loop slightly to avoid busy spins */
+			misc_sleep_1ms();
+		}
 
 	}
 }
