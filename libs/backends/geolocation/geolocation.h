@@ -5,20 +5,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "utils.h"
+#include "tinydir.h"
 
 #include "utilities/curl_client.h"
 
+#define GEOLOCATIONS_CACHE_DIR "geolocations_cache"
 #define METEO_GEOLOCATION_URL "https://geocoding-api.open-meteo.com/v1/search?name=%s&count=%d&language=en&format=json"
 
 typedef enum {
     GeoLocation_State_Init,
-    // GeoLocation_State_LoadFromDisk,
+    GeoLocation_State_SearchForCandidates, //(loop through disk files, if dotp is close enough, add to response-list)
     GeoLocation_State_FetchFromAPI_Init,
     GeoLocation_State_FetchFromAPI_Request,
     GeoLocation_State_FetchFromAPI_Poll,
     GeoLocation_State_FetchFromAPI_Read,
     GeoLocation_State_ProcessResponse,
-    // GeoLocation_State_SaveToDisk,
+    GeoLocation_State_SaveToDisk,
     GeoLocation_State_Done
 } geolocation_state;
 
@@ -58,6 +61,8 @@ typedef struct geolocation_t {
     char* location_name;
     int location_count;
     char* country_code;
+
+    location_t* locations;
 
     geolocation_state state;
     char* buffer;

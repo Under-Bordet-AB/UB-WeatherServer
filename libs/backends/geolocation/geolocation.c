@@ -1,27 +1,152 @@
 #include "geolocation.h"
 
+// Forward declaration
+
+int min(int a, int b, int c) {
+    return a < b ? (a < c ? a : c) : (b < c ? b : c);
+}
+
 int process_openmeteo_geo_response(const char* api_response, char** client_response);
 
-int geolocation_set_parameters(void** ctx, char* location_name, int location_count, char* country_code) {
-    geolocation_t* geolocation = (geolocation_t*)(*ctx);
-    if (!geolocation) return -1;
+// name can be "s"/"st"/"stoc"/"stockho"/"stockholm"
+// ska vara fuzzy matching, liksom bara närhet i allmänhet, och ha minsta möjliga för att något ska bli en candidate
+// om vi hittar 5 candidates, skicka tillbaks dem
+// om vi hittar t.ex 3 candidates, hämta fler från openmeteo, kör igen, och skicka dem vi lyckas fixa
 
-    if (location_name) {
-        geolocation->location_name = strdup(location_name);
-    } else return -1;
+// int does_location_exist(char* name);
 
-    if (location_count) {
-        geolocation->location_count = location_count;
-    } else {
-        geolocation->location_count = 5;
+int levenshtein(const char *s1, const char *s2);
+// int location_delta(char* nameA, char* nameB);
+
+// int add_location_to_list(location_t* location);
+int save_location_to_disk(location_t* location);
+
+int look_for_candidates();
+
+int levenshtein(const char *s1, const char *s2) {
+    int len1 = strlen(s1), len2 = strlen(s2);
+    int *prev = malloc((len2 + 1) * sizeof(int));
+    int *curr = malloc((len2 + 1) * sizeof(int));
+
+    for (int j = 0; j <= len2; j++)
+        prev[j] = j;
+
+    for (int i = 1; i <= len1; i++) {
+        curr[0] = i;
+        for (int j = 1; j <= len2; j++) {
+            int cost = (s1[i-1] == s2[j-1]) ? 0 : 1;
+            curr[j] = min(
+                prev[j] + 1,      // deletion
+                curr[j-1] + 1,    // insertion
+                prev[j-1] + cost  // substitution
+            );
+        }
+        int *temp = prev;
+        prev = curr;
+        curr = temp;
     }
 
-    if (country_code) {
-        geolocation->country_code = strdup(country_code);
+    int distance = prev[len2];
+    free(prev);
+    free(curr);
+    return distance;
+}
+
+// Cache functions:
+
+int look_for_candidates(geolocation_t* geolocation) {
+    tinydir_dir dir;
+    if (tinydir_open(&dir, GEOLOCATIONS_CACHE_DIR) == -1) {
+        return -1; // Failed to open directory
     }
+
+    typedef struct loc_candidate_t {
+        char* name;
+        int distance;
+    } loc_candidate_t;
+
+    size_t capacity = 4;
+    size_t count = 0;
+    loc_candidate_t* candidates = malloc(capacity * sizeof(loc_candidate_t));
+    if (!candidates) {
+        tinydir_close(&dir);
+        return -1;
+    }
+
+    while (dir.has_next) {
+        tinydir_file file;
+        if (tinydir_readfile(&dir, &file) == -1) {
+            tinydir_close(&dir);
+            free(candidates);
+            return -1;
+        }
+
+        if (!file.is_dir) {
+            json_t* location_json = json_load_file(file.path, 0, NULL);
+            if (location_json) {
+                const char* name = json_string_value(json_object_get(location_json, "name"));
+                int distance = levenshtein(name, geolocation->location_name);
+                if (distance <= 3) {  // Keep similar names (small distance)
+                    if (count >= capacity) {  // Expand before running out of space
+                        capacity *= 2;
+                        loc_candidate_t* new_candidates = realloc(candidates, capacity * sizeof(loc_candidate_t));
+                        if (!new_candidates) {
+                            json_decref(location_json);
+                            tinydir_close(&dir);
+                            for (size_t i = 0; i < count; i++) {
+                                free(candidates[i].name);
+                            }
+                            free(candidates);
+                            return -1;
+                        }
+                        candidates = new_candidates;
+                    }
+                    loc_candidate_t candidate;
+                    candidate.name = strdup(name);
+                    candidate.distance = distance;
+                    candidates[count] = candidate;
+                    
+                    count++;
+                }
+
+                json_decref(location_json);
+            }
+        }
+
+        if (tinydir_next(&dir) == -1) {
+            tinydir_close(&dir);
+            for (size_t i = 0; i < count; i++) {
+                free(candidates[i].name);
+            }
+            free(candidates);
+            return -1;
+        }
+    }
+
+    tinydir_close(&dir);
+
+    // Sort candidates by distance (ascending - closest first)
+    for (size_t i = 0; i < count - 1; i++) {
+        for (size_t j = 0; j < count - i - 1; j++) {
+            if (candidates[j].distance > candidates[j + 1].distance) {
+                loc_candidate_t temp = candidates[j];
+                candidates[j] = candidates[j + 1];
+                candidates[j + 1] = temp;
+            }
+        }
+    }
+
+    // TODO: Store or use the candidates array
+    // For now, just clean up
+    for (size_t i = 0; i < count; i++) {
+        free(candidates[i].name);
+    }
+    free(candidates);
 
     return 0;
 }
+
+// Openmeteo API functions:
 
 int parse_openmeteo_geo_json_to_location(const json_t* json_obj, location_t* location) {
     if (!json_obj || !location) return -1;
@@ -188,6 +313,19 @@ int process_openmeteo_geo_response(const char* api_response, char** client_respo
     return 0;
 }
 
+// Memory management:
+
+int save_location_to_disk(location_t* location) {
+    if (location == NULL) return -1;
+    json_t* json_obj;
+    serialize_location_to_json(location, &json_obj);
+
+    int result = json_dump_file(json_obj, GEOLOCATIONS_CACHE_DIR, JSON_INDENT(2));
+    json_decref(json_obj);
+
+    return result;
+}
+
 void free_location(location_t* location) {
     if (!location) return;
 
@@ -211,9 +349,43 @@ void free_location(location_t* location) {
     memset(location, 0, sizeof(location_t));
 }
 
+// Basics:
+
+int geolocation_set_parameters(void** ctx, char* location_name, int location_count, char* country_code) {
+    geolocation_t* geolocation = (geolocation_t*)(*ctx);
+    if (!geolocation) return -1;
+
+    if (location_name) {
+        geolocation->location_name = strdup(location_name);
+    } else return -1;
+
+    if (location_count && location_count > 0 && location_count <= 10) {
+        geolocation->location_count = location_count;
+    } else {
+        geolocation->location_count = 5;
+    }
+
+    if (country_code) {
+        geolocation->country_code = strdup(country_code);
+    }
+
+    geolocation->locations = malloc(sizeof(location_t) * geolocation->location_count);
+    if (!geolocation->locations) {
+        return -1;
+    }
+
+    return 0;
+}
+
 int geolocation_init(void** ctx, void** ctx_struct, void (*on_done)(void* context)) {
     geolocation_t* geolocation = (geolocation_t*)malloc(sizeof(geolocation_t));
     if (!geolocation) { return -1; }
+
+    if (create_folder(GEOLOCATIONS_CACHE_DIR) < 0) {
+        printf("Geolocation: Failed to create cache folder\n");
+        free(geolocation);
+        return -1;
+    }
 
     memset(geolocation, 0, sizeof(geolocation_t));
     geolocation->ctx = ctx;
@@ -239,6 +411,12 @@ int geolocation_work(void** ctx) {
     switch (geolocation->state) {
         case GeoLocation_State_Init: {
             printf("GeoLocation: Initialized\n");
+            geolocation->state = GeoLocation_State_SearchForCandidates;
+            break;
+        }
+        case GeoLocation_State_SearchForCandidates: {
+            printf("GeoLocation: Searching for Candidates\n");
+            look_for_candidates(geolocation);
             geolocation->state = GeoLocation_State_FetchFromAPI_Init;
             break;
         }
@@ -301,9 +479,19 @@ int geolocation_work(void** ctx) {
             } else {
                 free(geolocation->buffer);
                 geolocation->buffer = client_response;
-                geolocation->state = GeoLocation_State_Done;
+                geolocation->state = GeoLocation_State_SaveToDisk;
                 printf("GeoLocation: Processing Response Succeeded\n");
             }
+            break;
+        }
+        case GeoLocation_State_SaveToDisk: {
+            printf("GeoLocation: Saving locations to disk\n");
+            // if (geolocation->locations != NULL) {
+            //     for (int i = 0; i < geolocation->location_count; i++) {
+            //         save_location_to_disk(&geolocation->locations[i]);
+            //     }
+            // }
+            geolocation->state = GeoLocation_State_Done;
             break;
         }
         case GeoLocation_State_Done: {
