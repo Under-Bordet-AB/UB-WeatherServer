@@ -17,8 +17,6 @@ MiB Swap:   4096.0 total,   4096.0 free,      0.0 used.  13701.8 avail Mem
 
 Let me check your current main.c to see what you have: 
 
-Read [](file:///home/jimmy/UB-WeatherServer/main.c)
-
 Perfect! So you removed the `usleep(10000)` and now it's a tight loop calling `smw_work(now)` repeatedly. Here's why CPU usage is still low:
 
 ## Why CPU Usage is Low (~1-2%)
