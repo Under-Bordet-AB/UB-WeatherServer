@@ -12,19 +12,21 @@
 
 typedef enum {
     GeoLocation_State_Init,
+    // GeoLocation_State_LoadFromDisk,
     GeoLocation_State_FetchFromAPI_Init,
     GeoLocation_State_FetchFromAPI_Request,
     GeoLocation_State_FetchFromAPI_Poll,
     GeoLocation_State_FetchFromAPI_Read,
     GeoLocation_State_ProcessResponse,
+    // GeoLocation_State_SaveToDisk,
     GeoLocation_State_Done
 } geolocation_state;
 
 typedef struct location_t {
     int id;
     char* name;
-    int longitude;
-    int latitude;
+    double longitude;
+    double latitude;
     double elevation;
     char* feature_code;
     char* country_code;
@@ -51,11 +53,11 @@ typedef struct geolocation_t {
     void* ctx;
     void (*on_done)(void* ctx);
 
-    curl_client_t* curl_client;
+    curl_client* curl_client;
 
-    const char* location_name;
+    char* location_name;
     int location_count;
-    const char* country_code;
+    char* country_code;
 
     geolocation_state state;
     char* buffer;
@@ -63,7 +65,7 @@ typedef struct geolocation_t {
 } geolocation_t;
 
 // Server functions
-int geolocation_set_parameters(void** ctx, const char* location_name, int location_count, const char* country_code);
+int geolocation_set_parameters(void** ctx, char* location_name, int location_count, char* country_code);
 
 int geolocation_init(void** ctx, void** ctx_struct, void (*on_done)(void* context));
 int geolocation_work(void** ctx);

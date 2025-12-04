@@ -8,7 +8,10 @@
 #include "utils.h"
 #include "weather.h"
 
-#define CACHE_DIR "weather_cache"
+#include "../../../global_defines.h"
+
+// Use centralized cache dir name for easier test configuration
+#define CACHE_DIR Weather_CACHE_DIR // From global_defines.h (original: libs/backends/weather/weather.c)
 
 int parse_openmeteo_json_to_weather(const json_t* json_obj, weather_data_t* weather);
 int serialize_weather_to_json(const weather_data_t* weather, json_t** json_obj);
@@ -16,7 +19,7 @@ int serialize_weather_to_json(const weather_data_t* weather, json_t** json_obj);
 static void get_cache_file_path(double latitude, double longitude, char* path, size_t path_size) {
     long long lat_key = llround(latitude * 1000000.0);
     long long lon_key = llround(longitude * 1000000.0);
-    snprintf(path, path_size, "weather_cache/%lld_%lld.json", lat_key, lon_key);
+    snprintf(path, path_size, "%s/%lld_%lld.json", CACHE_DIR, lat_key, lon_key);
 }
 
 int does_weather_cache_exist(double latitude, double longitude) {
@@ -440,8 +443,8 @@ int weather_init(void** ctx, void** ctx_struct, void (*ondone)(void* context)) {
     weather->latitude = 0.0;
     weather->longitude = 0.0;
 
-    weather->curl_client = (curl_client_t*)malloc(sizeof(curl_client_t));
-    memset(weather->curl_client, 0, sizeof(curl_client_t));
+    weather->curl_client = (curl_client*)malloc(sizeof(curl_client));
+    memset(weather->curl_client, 0, sizeof(curl_client));
 
     weather->buffer = NULL;
     weather->bytesread = 0;
@@ -525,7 +528,7 @@ int weather_work(void** ctx) {
             weather->state = Weather_State_Done;
             break;
         }
-        curl_client_cleanup(&weather->curl_client);
+        // curl_client_cleanup(&weather->curl_client);
         weather->state = Weather_State_ProcessResponse;
         break;
     case Weather_State_ProcessResponse:
@@ -558,7 +561,10 @@ int weather_dispose(void** ctx) {
     weather_t* weather = (weather_t*)(*ctx);
     if (!weather) return -1;
 
-    // curl_client_cleanup(&weather->curl_client);
+    curl_client_cleanup(&weather->curl_client);
+    free(weather->curl_client);
+    weather->curl_client = NULL;
+    free(weather->buffer);
     
     free(weather);
     *ctx = NULL;

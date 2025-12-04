@@ -3,6 +3,7 @@
 
 #include "smw.h"
 #include "utils.h"
+#include "global_defines.h"
 
 #include "WeatherServer.h"
 
@@ -15,18 +16,21 @@ static void signal_handler(int signum)
 }
 
 int main() {
+    
     smw_init();
 
     WeatherServer server;
     WeatherServer_Initiate(&server);
 
+    /* Print startup info from central defines so we know where server is bound */
+    printf("Info: server started on port %s\n", WeatherServer_LISTEN_PORT);
+
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
     while (g_running) {
-        uint64_t now = SystemMonotonicMS(); // debuggern kliver aldrig in i smw_work i vscode om vi inte gör så här
+        uint64_t now = SystemMonotonicMS(); 
         smw_work(now);
-        // usleep(10000);
     }
 
     WeatherServer_Dispose(&server);
@@ -35,6 +39,3 @@ int main() {
 
     return 0;
 }
-
-// TODO: Write function: "HTTPServerConnection_SendResponse()".
-// TODO: Write WeatherServerInstance state-machine with mock-responses.

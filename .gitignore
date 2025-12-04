@@ -57,6 +57,7 @@ dkms.conf
 
 /build
 server
+stress
 
 /cities_cache
 /weather_cache

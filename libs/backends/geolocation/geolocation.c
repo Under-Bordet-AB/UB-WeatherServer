@@ -2,12 +2,12 @@
 
 int process_openmeteo_geo_response(const char* api_response, char** client_response);
 
-int geolocation_set_parameters(void** ctx, const char* location_name, int location_count, const char* country_code) {
+int geolocation_set_parameters(void** ctx, char* location_name, int location_count, char* country_code) {
     geolocation_t* geolocation = (geolocation_t*)(*ctx);
     if (!geolocation) return -1;
 
     if (location_name) {
-        geolocation->location_name = location_name;
+        geolocation->location_name = strdup(location_name);
     } else return -1;
 
     if (location_count) {
@@ -17,7 +17,7 @@ int geolocation_set_parameters(void** ctx, const char* location_name, int locati
     }
 
     if (country_code) {
-        geolocation->country_code = country_code;
+        geolocation->country_code = strdup(country_code);
     }
 
     return 0;
@@ -37,10 +37,10 @@ int parse_openmeteo_geo_json_to_location(const json_t* json_obj, location_t* loc
     location->name = (json_is_string(val) && json_string_value(val)) ? strdup(json_string_value(val)) : NULL;
 
     val = json_object_get(json_obj, "latitude");
-    location->latitude = json_is_real(val) ? (int)json_real_value(val) : (json_is_integer(val) ? (int)json_integer_value(val) : 0);
+    location->latitude = json_is_real(val) ? json_real_value(val) : (json_is_integer(val) ? (double)json_integer_value(val) : 0.0);
 
     val = json_object_get(json_obj, "longitude");
-    location->longitude = json_is_real(val) ? (int)json_real_value(val) : (json_is_integer(val) ? (int)json_integer_value(val) : 0);
+    location->longitude = json_is_real(val) ? json_real_value(val) : (json_is_integer(val) ? (double)json_integer_value(val) : 0.0);
 
     val = json_object_get(json_obj, "elevation");
     location->elevation = json_is_real(val) ? json_real_value(val) : (json_is_integer(val) ? (double)json_integer_value(val) : 0.0);
@@ -112,8 +112,8 @@ int serialize_location_to_json(const location_t* location, json_t** json_obj) {
 
     json_object_set_new(*json_obj, "id", json_integer(location->id));
     json_object_set_new(*json_obj, "name", location->name ? json_string(location->name) : json_null());
-    json_object_set_new(*json_obj, "latitude", json_integer(location->latitude));
-    json_object_set_new(*json_obj, "longitude", json_integer(location->longitude));
+    json_object_set_new(*json_obj, "latitude", json_real(location->latitude));
+    json_object_set_new(*json_obj, "longitude", json_real(location->longitude));
     json_object_set_new(*json_obj, "elevation", json_real(location->elevation));
     json_object_set_new(*json_obj, "feature_code", location->feature_code ? json_string(location->feature_code) : json_null());
     json_object_set_new(*json_obj, "country_code", location->country_code ? json_string(location->country_code) : json_null());
@@ -219,8 +219,8 @@ int geolocation_init(void** ctx, void** ctx_struct, void (*on_done)(void* contex
     geolocation->ctx = ctx;
     geolocation->on_done = on_done;
 
-    geolocation->curl_client = (curl_client_t*)malloc(sizeof(curl_client_t));
-    memset(geolocation->curl_client, 0, sizeof(curl_client_t));
+    geolocation->curl_client = (curl_client*)malloc(sizeof(curl_client));
+    memset(geolocation->curl_client, 0, sizeof(curl_client));
 
     geolocation->location_name = NULL;
     geolocation->location_count = 0;
@@ -253,7 +253,7 @@ int geolocation_work(void** ctx) {
         }
         case GeoLocation_State_FetchFromAPI_Request: {
             printf("GeoLocation: Making API Request\n");
-            char url[512];
+            char url[4096];
             snprintf(url, sizeof(url), METEO_GEOLOCATION_URL, geolocation->location_name, geolocation->location_count);
             
             // Append country code if provided
@@ -289,7 +289,7 @@ int geolocation_work(void** ctx) {
                 geolocation->state = GeoLocation_State_Done;
                 break;
             }
-            curl_client_cleanup(&geolocation->curl_client);
+            // curl_client_cleanup(&geolocation->curl_client);
             geolocation->state = GeoLocation_State_ProcessResponse;
             break;
         }
@@ -327,7 +327,13 @@ int geolocation_dispose(void** ctx) {
     geolocation_t* geolocation = (geolocation_t*)(*ctx);
     if (!geolocation) { return -1; }
 
-    // curl_client_cleanup(&geolocation->curl_client);
+    curl_client_cleanup(&geolocation->curl_client);
+    free(geolocation->curl_client);
+    geolocation->curl_client = NULL;
+
+    free(geolocation->buffer);
+    free(geolocation->location_name);
+    free(geolocation->country_code);
 
     free(geolocation);
     *ctx = NULL;

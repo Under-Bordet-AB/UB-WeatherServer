@@ -6,6 +6,8 @@
 #include "HTTPParser.h"
 #include "smw.h"
 
+#include "../../global_defines.h"
+
 typedef int (*HTTPServerConnection_OnRequest)(void *_Context);
 
 typedef enum {
@@ -20,9 +22,9 @@ typedef enum {
   HTTPServerConnection_State_Failed
 } HTTPServerConnection_State;
 
-#define READBUFFER_SIZE 4096
-#define WRITEBUFFER_SIZE 4096
-#define HTTPSERVER_TIMEOUT_MS 1000
+#define READBUFFER_SIZE HTTPServerConnection_READBUFFER_SIZE // From global_defines.h (original: libs/HTTPServer/HTTPServerConnection.h)
+#define WRITEBUFFER_SIZE HTTPServerConnection_WRITEBUFFER_SIZE // From global_defines.h (original: libs/HTTPServer/HTTPServerConnection.h)
+#define HTTPSERVER_TIMEOUT_MS HTTPServerConnection_HTTPSERVER_TIMEOUT_MS // From global_defines.h (original: libs/HTTPServer/HTTPServerConnection.h)
 
 typedef struct {
   TCPClient tcpClient;

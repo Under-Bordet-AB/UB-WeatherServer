@@ -7,6 +7,7 @@
 #include "backends/geolocation/geolocation.h"
 #include "backends/surprise/surprise.h"
 #include "backends/weather/weather.h"
+#include "global_defines.h"
 
 //-----------------Internal Functions-----------------
 
@@ -109,9 +110,9 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
             backend->backend_dispose = geolocation_dispose;
             backend->binary_mode = 0;
 
-            const char* location_name = HTTPQuery_getParameter(query, "name");
-            const char* location_count_string = HTTPQuery_getParameter(query, "count");
-            const char* country_code = HTTPQuery_getParameter(query, "countryCode");
+            char* location_name = (char*)HTTPQuery_getParameter(query, "name");
+            char* location_count_string = (char*)HTTPQuery_getParameter(query, "count");
+            char* country_code = (char*)HTTPQuery_getParameter(query, "countryCode");
             
             if (location_name == NULL) {
                 HTTPServerConnection_SendResponse(_Server->connection, 400, "Bad Request: Missing 'name' parameter\n", "text/plain");
@@ -119,7 +120,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
                 break;
             }
             
-            int location_count = location_count_string ? (int)strtol(location_count_string, NULL, 10) : 5;
+            int location_count = location_count_string ? (int)strtol(location_count_string, NULL, 10) : WeatherServerInstance_DEFAULT_LOCATION_COUNT;
 
             geolocation_set_parameters(&backend->backend_struct, location_name, location_count, country_code);
 
