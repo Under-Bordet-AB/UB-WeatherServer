@@ -63,6 +63,39 @@ make clean
     }
     ```
 
+## Retrieve a list of locations
+*   **Method:** `GET`
+*   **Path:** `/GetLocation`
+*   **Example Request:**
+    ```bash
+    curl -X GET http://localhost:8080/GetLocation?name=Stockholm&count=5
+    ```
+*   **Expected Response(JSON):**
+    ```json
+    [
+        {
+            "id": 2711537,
+            "name": "Gothenburg",
+            "latitude": 57,
+            "longitude": 11,
+            "elevation": 10,
+            "feature_code": "PPLA",
+            "country_code": "SE",
+            "..."
+        },
+        {
+            "id": 2730934,
+            "name": "Göteborgnuten",
+            "latitude": 79,
+            "longitude": 11,
+            "elevation": 190,
+            "feature_code": "MT",
+            "country_code": "SJ",
+            "..."
+        }
+    ]
+    ```
+
 ## Retrieve current weather data for a specified location.
 *   **Method:** `GET`
 *   **Path:** `/GetWeather?lat=59.3293&lon=18.0686`
