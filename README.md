@@ -15,10 +15,10 @@ make MODE=debug
 ./server
 
 # Test endpoints
-curl http://localhost:8080/GetCities
-curl http://localhost:8080/GetLocation?name=Stockholm&count=5
-curl http://localhost:8080/GetWeather?lon=59.16&lat=29.14
-curl http://localhost:8080/GetSurprise
+curl http://localhost:10480/GetCities
+curl http://localhost:10480/GetLocation?name=Stockholm&count=5
+curl http://localhost:10480/GetWeather?lon=59.16&lat=29.14
+curl http://localhost:10480/GetSurprise
 ```
 
 ## 🔧 Development
@@ -41,7 +41,7 @@ make clean
 *   **Path:** `/GetCities`
 *   **Example Request:**
     ```bash
-    curl -X GET http://localhost:8080/GetCities
+    curl -X GET http://localhost:10480/GetCities
     ```
 *   **Expected Response (JSON):**
     ```json
@@ -59,7 +59,7 @@ make clean
 *   **Path:** `/GetLocation`
 *   **Example Request:**
     ```bash
-    curl -X GET http://localhost:8080/GetLocation?name=Stockholm&count=5
+    curl -X GET http://localhost:10480/GetLocation?name=Stockholm&count=5
     ```
 *   **Expected Response(JSON):**
     ```json
@@ -91,11 +91,11 @@ make clean
 *   **Method:** `GET`
 *   **Path:** `/GetWeather?lat=59.3293&lon=18.0686`
 *   **URL Parameters:**
-    *   `lat` (double, required): The latitude of the city or location.
-    *   `lon` (double, required): The longitude of the city or location.
+    *   `lat` (float, required): The latitude of the city or location.
+    *   `lon` (float, required): The longitude of the city or location.
 *   **Example Request:**
     ```bash
-    curl -X GET http://localhost:8080/GetWeather?lat=59.3293&lon=18.0686
+    curl -X GET http://localhost:10480/GetWeather?lat=59.3293&lon=18.0686
     ```
 *   **Expected Response (JSON):**
     ```json
@@ -115,7 +115,7 @@ make clean
 *   **Path:** `/surprise`
 *   **Example Request:**
     ```bash
-    curl -X GET http://localhost:8080/GetSurprise
+    curl -X GET http://localhost:10480/GetSurprise
     ```
 *   **Expected Response (JSON):**
     ```json
