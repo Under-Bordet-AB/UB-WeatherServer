@@ -19,8 +19,8 @@ typedef struct
 } WeatherServer;
 
 
-int WeatherServer_Initiate(WeatherServer* _Server);
-int WeatherServer_InitiatePtr(WeatherServer** _ServerPtr);
+int WeatherServer_Initiate(WeatherServer* _Server, char *port);
+int WeatherServer_InitiatePtr(WeatherServer** _ServerPtr, char *port);
 
 
 void WeatherServer_Dispose(WeatherServer* _Server);

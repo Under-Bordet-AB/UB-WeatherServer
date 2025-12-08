@@ -8,9 +8,9 @@ int WeatherServer_OnHTTPConnection(void* _Context, HTTPServerConnection* _Connec
 
 //----------------------------------------------------
 
-int WeatherServer_Initiate(WeatherServer* _Server)
+int WeatherServer_Initiate(WeatherServer* _Server, char *port)
 {
-	HTTPServer_Initiate(&_Server->httpServer, WeatherServer_OnHTTPConnection);
+	HTTPServer_Initiate(&_Server->httpServer, WeatherServer_OnHTTPConnection, port);
 
 	_Server->instances = LinkedList_create();
 
@@ -19,7 +19,7 @@ int WeatherServer_Initiate(WeatherServer* _Server)
 	return 0;
 }
 
-int WeatherServer_InitiatePtr(WeatherServer** _ServerPtr)
+int WeatherServer_InitiatePtr(WeatherServer** _ServerPtr, char *port)
 {
 	if(_ServerPtr == NULL)
 		return -1;
@@ -28,7 +28,7 @@ int WeatherServer_InitiatePtr(WeatherServer** _ServerPtr)
 	if(_Server == NULL)
 		return -2;
 
-	int result = WeatherServer_Initiate(_Server);
+	int result = WeatherServer_Initiate(_Server, port);
 	if(result != 0)
 	{
 		free(_Server);
