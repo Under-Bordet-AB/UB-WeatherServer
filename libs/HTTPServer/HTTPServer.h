@@ -18,8 +18,8 @@ typedef struct
 } HTTPServer;
 
 
-int HTTPServer_Initiate(HTTPServer* _Server, HTTPServer_OnConnection _OnConnection);
-int HTTPServer_InitiatePtr(HTTPServer_OnConnection _OnConnection, HTTPServer** _ServerPtr);
+int HTTPServer_Initiate(HTTPServer* _Server, HTTPServer_OnConnection _OnConnection, char *port);
+int HTTPServer_InitiatePtr(HTTPServer_OnConnection _OnConnection, HTTPServer** _ServerPtr, char *port);
 
 
 void HTTPServer_Dispose(HTTPServer* _Server);

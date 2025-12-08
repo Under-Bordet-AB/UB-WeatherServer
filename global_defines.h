@@ -44,7 +44,9 @@
 
 // Server listen configuration
 // Port used by the HTTP server (originally hardcoded in libs/HTTPServer/HTTPServer.c)
-#define WeatherServer_LISTEN_PORT "10480" // From libs/HTTPServer/HTTPServer.c
+//#define WeatherServer_LISTEN_PORT "10480" // From libs/HTTPServer/HTTPServer.c
+#define LISTEN_PORT_MAX_SIZE 16
+#define LISTEN_PORT_RANGE 65535
 
 
 // External API timeouts (seconds)
