@@ -6,7 +6,7 @@
 #include "HTTPParser.h"
 #include "smw.h"
 
-#include "../../global_defines.h"
+#include "global_defines.h"
 
 typedef int (*HTTPServerConnection_OnRequest)(void *_Context);
 

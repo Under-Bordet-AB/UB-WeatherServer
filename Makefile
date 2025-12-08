@@ -3,7 +3,7 @@ CC=gcc
 OPTIMIZE=-ffunction-sections -fdata-sections -O2 -flto -Wno-unused-result -fno-strict-aliasing
 DEBUG_FLAGS=-g -O0 -Wfatal-errors -Werror -Wno-unused-function -Wno-format-truncation
 LIBS=-lcurl -pthread -lm
-INCLUDES = -Ilibs/jansson
+INCLUDES = -I. -Isrc -Iinclude -Ilibs -Ilibs/jansson
 
 #   -DWALLOCATOR_DEBUG -DWALLOCATOR_DEBUG_BORDERCHECK
 # AddressSanitizer flags (used for debug builds)
@@ -13,7 +13,7 @@ SANITIZE_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer
 MODE ?= debug
 
 # Base warnings/defs
-CFLAGS_BASE=-Wall -Wno-psabi -Wfatal-errors -Werror -Ilibs
+CFLAGS_BASE=-Wall -Wno-psabi -Wfatal-errors -Werror
 
 # Select flags per mode
 ifeq ($(MODE),debug)

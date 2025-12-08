@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
 	{
 		printf("Port: %d, is not within range 1 - %d\n", port_range, LISTEN_PORT_RANGE);
 		return -1;
-	}	
+	}
     
     smw_init();
     WeatherServer server;

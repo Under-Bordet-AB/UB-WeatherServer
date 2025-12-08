@@ -8,7 +8,7 @@ For most use cases, the default values should work perfectly fine.
 */
 
 // Prefer centralized G_ parser defines from `global_defines.h` when available.
-#include "../global_defines.h"
+#include "global_defines.h"
 
 // HTTP version
 #ifndef HTTP_VERSION

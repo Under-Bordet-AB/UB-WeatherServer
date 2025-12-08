@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#include "../global_defines.h"
+#include "global_defines.h"
 
 // `smw_max_tasks` can be set in `global_defines.h` for test configuration. If
 // not defined there, keep the existing default behavior.

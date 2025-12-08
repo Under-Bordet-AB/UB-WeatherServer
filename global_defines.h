@@ -33,11 +33,11 @@
 
 // Surprise backend files
 #define Surprise_IMAGE_NAME "surprise.png" // From libs/backends/surprise/surprise.c
-#define Surprise_FOLDER "./surprise/" // From libs/backends/surprise/surprise.c
+#define Surprise_FOLDER "./resources/surprise/" // From libs/backends/surprise/surprise.c
 
 // Cache directories used by backends
-#define Cities_CACHE_DIR "cities_cache" // From libs/backends/cities/cities.c
-#define Weather_CACHE_DIR "weather_cache" // From libs/backends/weather/weather.c
+#define Cities_CACHE_DIR "cache/cities" // From libs/backends/cities/cities.c
+#define Weather_CACHE_DIR "cache/weather" // From libs/backends/weather/weather.c
 
 // Defaults used by WeatherServerInstance for geolocation searches
 #define WeatherServerInstance_DEFAULT_LOCATION_COUNT 5 // From WeatherServerInstance.c
@@ -47,7 +47,6 @@
 //#define WeatherServer_LISTEN_PORT "10480" // From libs/HTTPServer/HTTPServer.c
 #define LISTEN_PORT_MAX_SIZE 16
 #define LISTEN_PORT_RANGE 65535
-
 
 // External API timeouts (seconds)
 // General curl timeouts used by `libs/utilities/curl_client.c` and backend clients

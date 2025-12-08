@@ -1,7 +1,7 @@
-#include "HTTPServer.h"
+#include "HTTPServer/HTTPServer.h"
 #include <stdlib.h>
 
-#include "../../global_defines.h"
+#include "global_defines.h"
 
 //-----------------Internal Functions-----------------
 

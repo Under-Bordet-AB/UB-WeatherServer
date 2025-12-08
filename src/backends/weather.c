@@ -6,9 +6,9 @@
 #include <unistd.h>
 
 #include "utils.h"
-#include "weather.h"
+#include "backends/weather.h"
 
-#include "../../../global_defines.h"
+#include "global_defines.h"
 
 // Use centralized cache dir name for easier test configuration
 #define CACHE_DIR Weather_CACHE_DIR // From global_defines.h (original: libs/backends/weather/weather.c)
