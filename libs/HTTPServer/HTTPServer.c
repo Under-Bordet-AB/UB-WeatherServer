@@ -11,11 +11,11 @@ int HTTPServer_OnAccept(int _FD, void *_Context);
 //----------------------------------------------------
 
 int HTTPServer_Initiate(HTTPServer *_Server,
-                        HTTPServer_OnConnection _OnConnection) {
+                        HTTPServer_OnConnection _OnConnection, char *port) {
   _Server->onConnection = _OnConnection;
 
   // Use centralized listen port for easy configuration during testing
-  TCPServer_Initiate(&_Server->tcpServer, WeatherServer_LISTEN_PORT, HTTPServer_OnAccept, _Server);
+  TCPServer_Initiate(&_Server->tcpServer, port, HTTPServer_OnAccept, _Server);
 
   _Server->task = smw_createTask(_Server, HTTPServer_TaskWork);
 
@@ -23,7 +23,7 @@ int HTTPServer_Initiate(HTTPServer *_Server,
 }
 
 int HTTPServer_InitiatePtr(HTTPServer_OnConnection _OnConnection,
-                           HTTPServer **_ServerPtr) {
+                           HTTPServer **_ServerPtr, char *port) {
   if (_ServerPtr == NULL)
     return -1;
 
@@ -31,7 +31,7 @@ int HTTPServer_InitiatePtr(HTTPServer_OnConnection _OnConnection,
   if (_Server == NULL)
     return -2;
 
-  int result = HTTPServer_Initiate(_Server, _OnConnection);
+  int result = HTTPServer_Initiate(_Server, _OnConnection, port);
   if (result != 0) {
     free(_Server);
     return result;
