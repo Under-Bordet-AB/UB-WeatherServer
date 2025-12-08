@@ -4,6 +4,8 @@
 
 #include "HTTPServer/HTTPServerConnection.h"
 #include "smw.h"
+#include "mbedtls/ssl.h"
+#include "mbedtls/net_sockets.h"
 
 typedef enum {
     WeatherServerInstance_State_Waiting,
@@ -26,6 +28,10 @@ typedef struct {
 
 typedef struct {
     HTTPServerConnection* connection;
+
+    mbedtls_ssl_context ssl;
+    mbedtls_net_context client_fd;
+
     WeatherServerInstance_State state;
 
     WeatherServerBackend backend;

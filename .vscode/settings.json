@@ -1,7 +1,7 @@
 {
     "C_Cpp.clang_format_fallbackStyle": "LLVM",
     "C_Cpp.clang_format_style": "file",
-    "editor.formatOnSave": false,
+    "editor.formatOnSave": true,
     "[c]": {
         "editor.defaultFormatter": "ms-vscode.cpptools"
     },
