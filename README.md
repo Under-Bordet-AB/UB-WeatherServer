@@ -53,15 +53,6 @@ make clean
         ]
     }
     ```
-*   **Expected Error Response (JSON):**
-    ```json
-    {
-        "error": {
-            "code": 404,
-            "message": "Location not found"
-        }
-    }
-    ```
 
 ## Retrieve a list of locations
 *   **Method:** `GET`
@@ -118,15 +109,6 @@ make clean
         "wind_speed_10m": 24.1,
     }
     ```
-*   **Expected Error Response (JSON):**
-    ```json
-    {
-        "error": {
-            "code": 400,
-            "message": "Bad request: missing or invalid location parameter"
-        }
-    }
-    ```
 
 ## Retrieve surprise.
 *   **Method:** `GET`
@@ -139,5 +121,3 @@ make clean
     ```json
     "?"
     ```
-    
-    *Note: The actual response format may vary slightly once implemented.*
