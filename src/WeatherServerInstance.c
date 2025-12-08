@@ -7,6 +7,7 @@
 #include "backends/geolocation.h"
 #include "backends/surprise.h"
 #include "backends/weather.h"
+#include "utils.h"
 #include "global_defines.h"
 
 //-----------------Internal Functions-----------------
@@ -91,19 +92,21 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
 
     WeatherServerBackend* backend = &_Server->backend;
 
+    const char* lowerURL = create_lowercase_copy(query->Path);
+
     switch (_Server->state) {
     case WeatherServerInstance_State_Waiting: {
         break;
     }
     case WeatherServerInstance_State_Init: {
-        if (strcmp(query->Path, "/GetCities") == 0) {
+        if (strcmp(lowerURL, "/getcities") == 0) {
             cities_init((void*)_Server, &backend->backend_struct, WeatherServerInstance_OnDone);
             backend->backend_get_buffer = cities_get_buffer;
             backend->backend_work = cities_work;
             backend->backend_dispose = cities_dispose;
             backend->binary_mode = 0;
 
-        } else if (strcmp(query->Path, "/GetLocation") == 0) {
+        } else if (strcmp(lowerURL, "/getlocation") == 0) {
             geolocation_init((void*)_Server, &backend->backend_struct, WeatherServerInstance_OnDone);
             backend->backend_get_buffer = geolocation_get_buffer;
             backend->backend_work = geolocation_work;
@@ -124,7 +127,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
 
             geolocation_set_parameters(&backend->backend_struct, location_name, location_count, country_code);
 
-        }  else if (strcmp(query->Path, "/GetWeather") == 0) {
+        }  else if (strcmp(lowerURL, "/getweather") == 0) {
             weather_init((void*)_Server, &backend->backend_struct, WeatherServerInstance_OnDone);
             backend->backend_get_buffer = weather_get_buffer;
             backend->backend_work = weather_work;
@@ -143,7 +146,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
             double longitude = round(strtod(lon_str, NULL) * 100.0) / 100.0;
             weather_set_location(&backend->backend_struct, latitude, longitude);
 
-        } else if (strcmp(query->Path, "/GetSurprise") == 0) {
+        } else if (strcmp(lowerURL, "/getsurprise") == 0) {
             surprise_init((void*)_Server, &backend->backend_struct, WeatherServerInstance_OnDone);
             backend->backend_get_buffer = surprise_get_buffer;
             backend->backend_get_buffer_size = surprise_get_buffer_size;
@@ -210,6 +213,7 @@ void WeatherServerInstance_Work(WeatherServerInstance* _Server, uint64_t _MonTim
     }
     }
 
+    if (lowerURL) free((void*)lowerURL);
     if (query) HTTPQuery_Dispose(&query);
 }
 
