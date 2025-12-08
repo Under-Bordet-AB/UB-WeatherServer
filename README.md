@@ -2,12 +2,6 @@
 
 Simple HTTP weather API server using cooperative multitasking.
 
-## 📚 Documentation
-
-- **[Architecture Analysis](ARCHITECTURE_ANALYSIS.md)** — comprehensive design pattern analysis, bugs, and improvement roadmap
-- **[Quick Task Checklist](QUICK_TASK_CHECKLIST.md)** — actionable todo list with priorities
-- **[V2 Scaffold README](V2/README_V2.md)** — next-generation architecture proposal
-
 ## 🚀 Quick Start
 
 ```bash
@@ -21,9 +15,10 @@ make MODE=debug
 ./server
 
 # Test endpoints
-curl http://localhost:8080/health
-curl http://localhost:8080/cities
-curl http://localhost:8080/weather/Stockholm
+curl http://localhost:8080/GetCities
+curl http://localhost:8080/GetLocation?name=Stockholm&count=5
+curl http://localhost:8080/GetWeather?lon=59.16&lat=29.14
+curl http://localhost:8080/GetSurprise
 ```
 
 ## 🔧 Development
@@ -40,25 +35,13 @@ valgrind --leak-check=full ./server
 make clean
 ```
 
-## 📋 Current Status
-
-**Critical issues identified (see ARCHITECTURE_ANALYSIS.md):**
-- ⚠️ Memory leaks in connection lifecycle
-- ⚠️ CPU waste from busy-loop polling
-- ⚠️ State machine bugs
-
-**Priority fixes in progress:**
-1. Fix memory leaks
-2. Add epoll-based event loop
-3. Improve error handling
-
 ## 🌐 API Documentation
-## Retrieve list of available locations.
+## Retrieve list of default locations.
 *   **Method:** `GET`
-*   **Path:** `/cities`
+*   **Path:** `/GetCities`
 *   **Example Request:**
     ```bash
-    curl -X GET http://localhost:8080/cities
+    curl -X GET http://localhost:8080/GetCities
     ```
 *   **Expected Response (JSON):**
     ```json
@@ -82,25 +65,24 @@ make clean
 
 ## Retrieve current weather data for a specified location.
 *   **Method:** `GET`
-*   **Path:** `/weather/{location}`
+*   **Path:** `/GetWeather?lat=59.3293&lon=18.0686`
 *   **URL Parameters:**
-    *   `location` (string, required): The name of the city or location (e.g., `Stockholm`, `London`, `New%20York`).
+    *   `lat` (double, required): The latitude of the city or location.
+    *   `lon` (double, required): The longitude of the city or location.
 *   **Example Request:**
     ```bash
-    curl -X GET http://localhost:8080/weather/Stockholm
+    curl -X GET http://localhost:8080/GetWeather?lat=59.3293&lon=18.0686
     ```
 *   **Expected Response (JSON):**
     ```json
     {
         "latitude": "59.3293",
         "longitude": "18.0686",
-        "location": "Stockholm",
-        "temperature": 15.2,
-        "unit": "celsius",
-        "condition": "Partly Cloudy",
-        "humidity": 70,
-        "wind_speed": 10.5,
-        "wind_direction": "NW"
+        "...",
+        "time": "2025-12-08T12:45",
+        "temperature_2m": 15.2,
+        "precipitation": 0.2,
+        "wind_speed_10m": 24.1,
     }
     ```
 *   **Expected Error Response (JSON):**
@@ -118,7 +100,7 @@ make clean
 *   **Path:** `/surprise`
 *   **Example Request:**
     ```bash
-    curl -X GET http://localhost:8080/weather/surprise
+    curl -X GET http://localhost:8080/GetSurprise
     ```
 *   **Expected Response (JSON):**
     ```json
