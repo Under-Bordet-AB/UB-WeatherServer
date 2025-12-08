@@ -1,4 +1,4 @@
-#include "cities.h"
+#include "backends/cities.h"
 
 #include "tinydir.h"
 #include "utils.h"
@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../../../global_defines.h"
+#include "global_defines.h"
 
 // Use centralized cache dir name for easier test configuration
 #define CACHE_DIR Cities_CACHE_DIR // From global_defines.h (original: libs/backends/cities/cities.c)
@@ -226,7 +226,7 @@ int cities_save_to_disk(cities_t* cities) {
         city_t* city = (city_t*)node->item;
         if (city && city->name) {
             char filepath[256];
-            snprintf(filepath, sizeof(filepath), "cities_cache/%s.json", city->name);
+            snprintf(filepath, sizeof(filepath), "%s/%s.json", Cities_CACHE_DIR, city->name);
             FILE* file = fopen(filepath, "w");
             if (file) {
                 json_t* city_json = json_object();

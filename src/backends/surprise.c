@@ -1,10 +1,10 @@
-#include "surprise.h"
+#include "backends/surprise.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#include "../../../global_defines.h"
+#include "global_defines.h"
 
 // Map local names to central test configuration values
 #define IMAGE_NAME Surprise_IMAGE_NAME // From global_defines.h (original: libs/backends/surprise/surprise.c)

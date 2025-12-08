@@ -3,10 +3,10 @@
 #include <string.h>
 #include <math.h>
 
-#include "backends/cities/cities.h"
-#include "backends/geolocation/geolocation.h"
-#include "backends/surprise/surprise.h"
-#include "backends/weather/weather.h"
+#include "backends/cities.h"
+#include "backends/geolocation.h"
+#include "backends/surprise.h"
+#include "backends/weather.h"
 #include "global_defines.h"
 
 //-----------------Internal Functions-----------------

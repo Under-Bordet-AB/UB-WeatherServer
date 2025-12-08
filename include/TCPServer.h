@@ -14,7 +14,7 @@
 
 #include "smw.h"
 
-#include "../global_defines.h"
+#include "global_defines.h"
 
 #define MAX_CLIENTS TCPServer_MAX_CLIENTS // From global_defines.h (original: libs/TCPServer.h)
 #define MAX_CONNECTIONS_PER_WINDOW TCPServer_MAX_CONNECTIONS_PER_WINDOW // From global_defines.h (original: libs/TCPServer.h)

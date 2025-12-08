@@ -1,4 +1,4 @@
-#include "geolocation.h"
+#include "backends/geolocation.h"
 
 int process_openmeteo_geo_response(const char* api_response, char** client_response);
 

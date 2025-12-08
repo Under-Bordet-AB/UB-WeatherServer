@@ -1,5 +1,5 @@
-#include "curl_client.h"
-#include "../../global_defines.h"
+#include "utilities/curl_client.h"
+#include "global_defines.h"
 
 int write_memory_callback(void* contents, size_t size, size_t nmemb, void* user_p) {
     size_t real_size = size * nmemb;
