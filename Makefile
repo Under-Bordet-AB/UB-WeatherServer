@@ -27,6 +27,7 @@ endif
 # Directories
 SRC_DIR=.
 BUILD_DIR=build
+CACHE_DIR=cache
 
 # Find all .c files (following symlinks)
 SOURCES=$(shell find -L $(SRC_DIR) -type f -name '*.c')
@@ -44,6 +45,7 @@ EXECUTABLES=server client stress
 # Default target
 all: $(EXECUTABLES)
 	@echo "Build complete ($(MODE))."
+	@mkdir -p $(CACHE_DIR)/cities $(CACHE_DIR)/weather
 
 # Debug helpers
 debug-server:
