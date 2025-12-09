@@ -16,12 +16,6 @@
 typedef struct {
     HTTPServer httpServer;
 
-    mbedtls_net_context net;           // TCP-socket
-    mbedtls_ssl_context ssl;           // TLS-sessionens tillstånd
-    mbedtls_ssl_config conf;           // TLS inställningar
-    mbedtls_ctr_drbg_context ctr_drbg; // pseudo-slumptalsgenerator
-    mbedtls_entropy_context entropy;   // entropikälla
-
     LinkedList* instances;
 
     smw_task* task;
