@@ -1,4 +1,4 @@
-#include "TSLServer.h"
+#include "TLSServer.h"
 #include <stdlib.h>
 
 #include "mbedtls/ctr_drbg.h"
@@ -9,18 +9,18 @@
 
 //-----------------Internal Functions-----------------
 
-void TSLServer_TaskWork(void* _Context, uint64_t _MonTime);
+void TLSServer_TaskWork(void* _Context, uint64_t _MonTime);
 
 //----------------------------------------------------
 
-int TSLServer_Initiate(TSLServer* _Server, const char* _Port, TSLServer_OnAccept _OnAccept, void* _Context) {
+int TLSServer_Initiate(TLSServer* _Server, const char* _Port, TLSServer_OnAccept _OnAccept, void* _Context) {
     _Server->recent_connections = 0;
     _Server->recent_connections_time = 0;
 
     _Server->onAccept = _OnAccept;
     _Server->context = _Context;
 
-    // Starta upp TSL listening socket
+    // Starta upp TLS listening socket
 
     struct addrinfo hints = {0}, *res = NULL;
     hints.ai_family = AF_UNSPEC;
@@ -45,12 +45,12 @@ int TSLServer_Initiate(TSLServer* _Server, const char* _Port, TSLServer_OnAccept
     freeaddrinfo(res);
     if (fd < 0) return -1;
 
-    if (listen(fd, TSLServer_MAX_CLIENTS) < 0) {
+    if (listen(fd, TLSServer_MAX_CLIENTS) < 0) {
         close(fd);
         return -1;
     }
 
-    TSLServer_Nonblocking(fd);
+    TLSServer_Nonblocking(fd);
 
     _Server->listen_fd = fd;
 
@@ -89,7 +89,6 @@ int TSLServer_Initiate(TSLServer* _Server, const char* _Port, TSLServer_OnAccept
     }
 
     mbedtls_ssl_conf_rng(&_Server->conf, mbedtls_ctr_drbg_random, &_Server->ctr_drbg);
-
     mbedtls_ssl_conf_ca_chain(&_Server->conf, _Server->cert.next, NULL);
 
     ret = mbedtls_ssl_conf_own_cert(&_Server->conf, &_Server->cert, &_Server->pkey);
@@ -98,18 +97,18 @@ int TSLServer_Initiate(TSLServer* _Server, const char* _Port, TSLServer_OnAccept
         return -1;
     }
 
-    _Server->task = smw_createTask(_Server, TSLServer_TaskWork);
+    _Server->task = smw_createTask(_Server, TLSServer_TaskWork);
 
     return 0;
 }
 
-int TSLServer_InitiatePtr(const char* _Port, TSLServer_OnAccept _OnAccept, void* _Context, TSLServer** _ServerPtr) {
+int TLSServer_InitiatePtr(const char* _Port, TLSServer_OnAccept _OnAccept, void* _Context, TLSServer** _ServerPtr) {
     if (_ServerPtr == NULL) return -1;
 
-    TSLServer* _Server = (TSLServer*)malloc(sizeof(TSLServer));
+    TLSServer* _Server = (TLSServer*)malloc(sizeof(TLSServer));
     if (_Server == NULL) return -2;
 
-    int result = TSLServer_Initiate(_Server, _Port, _OnAccept, _Context);
+    int result = TLSServer_Initiate(_Server, _Port, _OnAccept, _Context);
     if (result != 0) {
         free(_Server);
         return result;
@@ -120,13 +119,13 @@ int TSLServer_InitiatePtr(const char* _Port, TSLServer_OnAccept _OnAccept, void*
     return 0;
 }
 
-int TSLServer_Accept(TSLServer* _Server, uint64_t _MonTime) {
-    if (_MonTime >= _Server->recent_connections_time + TSLServer_MAX_CONNECTIONS_WINDOW_SECONDS * 1000) {
+int TLSServer_Accept(TLSServer* _Server, uint64_t _MonTime) {
+    if (_MonTime >= _Server->recent_connections_time + TLSServer_MAX_CONNECTIONS_WINDOW_SECONDS * 1000) {
         _Server->recent_connections = 0;
         _Server->recent_connections_time = _MonTime;
     }
 
-    if (_Server->recent_connections >= TSLServer_MAX_CONNECTIONS_PER_WINDOW) { return -1; }
+    if (_Server->recent_connections >= TLSServer_MAX_CONNECTIONS_PER_WINDOW) { return -1; }
 
     int socket_fd = accept(_Server->listen_fd, NULL, NULL);
     if (socket_fd < 0) {
@@ -136,7 +135,7 @@ int TSLServer_Accept(TSLServer* _Server, uint64_t _MonTime) {
         return -1;
     }
 
-    TSLServer_Nonblocking(socket_fd);
+    TLSServer_Nonblocking(socket_fd);
 
     int result = _Server->onAccept(socket_fd, _Server->context);
     if (result != 0) close(socket_fd);
@@ -145,13 +144,13 @@ int TSLServer_Accept(TSLServer* _Server, uint64_t _MonTime) {
     return 0;
 }
 
-void TSLServer_TaskWork(void* _Context, uint64_t _MonTime) {
-    TSLServer* _Server = (TSLServer*)_Context;
+void TLSServer_TaskWork(void* _Context, uint64_t _MonTime) {
+    TLSServer* _Server = (TLSServer*)_Context;
 
-    TSLServer_Accept(_Server, _MonTime);
+    TLSServer_Accept(_Server, _MonTime);
 }
 
-void TSLServer_Dispose(TSLServer* _Server) {
+void TLSServer_Dispose(TLSServer* _Server) {
     mbedtls_pk_free(&_Server->pkey);
     mbedtls_x509_crt_free(&_Server->cert);
     mbedtls_ssl_config_free(&_Server->conf);
@@ -161,10 +160,10 @@ void TSLServer_Dispose(TSLServer* _Server) {
     smw_destroyTask(_Server->task);
 }
 
-void TSLServer_DisposePtr(TSLServer** _ServerPtr) {
+void TLSServer_DisposePtr(TLSServer** _ServerPtr) {
     if (_ServerPtr == NULL || *(_ServerPtr) == NULL) return;
 
-    TSLServer_Dispose(*(_ServerPtr));
+    TLSServer_Dispose(*(_ServerPtr));
     free(*(_ServerPtr));
     *(_ServerPtr) = NULL;
 }

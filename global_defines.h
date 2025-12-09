@@ -18,14 +18,14 @@
 #ifndef GLOBAL_DEFINES_H
 #define GLOBAL_DEFINES_H
 
-// TCP / TSL Server limits
+// TCP / TLS Server limits
 #define TCPServer_MAX_CLIENTS 10                    // From libs/TCPServer.h
 #define TCPServer_MAX_CONNECTIONS_PER_WINDOW 10     // From libs/TCPServer.h
 #define TCPServer_MAX_CONNECTIONS_WINDOW_SECONDS 10 // From libs/TCPServer.h
 
-#define TSLServer_MAX_CLIENTS TCPServer_MAX_CLIENTS
-#define TSLServer_MAX_CONNECTIONS_PER_WINDOW TCPServer_MAX_CONNECTIONS_PER_WINDOW
-#define TSLServer_MAX_CONNECTIONS_WINDOW_SECONDS TCPServer_MAX_CONNECTIONS_WINDOW_SECONDS
+#define TLSServer_MAX_CLIENTS TCPServer_MAX_CLIENTS
+#define TLSServer_MAX_CONNECTIONS_PER_WINDOW TCPServer_MAX_CONNECTIONS_PER_WINDOW
+#define TLSServer_MAX_CONNECTIONS_WINDOW_SECONDS TCPServer_MAX_CONNECTIONS_WINDOW_SECONDS
 
 // HTTP server connection buffers/timeouts
 #define HTTPServerConnection_READBUFFER_SIZE 4096       // From libs/HTTPServer/HTTPServerConnection.h

@@ -1,5 +1,5 @@
-#ifndef __TSLServer_h_
-#define __TSLServer_h_
+#ifndef __TLSServer_h_
+#define __TLSServer_h_
 
 #define _POSIX_C_SOURCE 200809L
 #include "../global_defines.h"
@@ -19,7 +19,7 @@
 #include "mbedtls/net_sockets.h"
 #include "mbedtls/ssl.h"
 
-typedef int (*TSLServer_OnAccept)(int client_fd, void* context);
+typedef int (*TLSServer_OnAccept)(int client_fd, void* context);
 
 typedef struct {
     int listen_fd;
@@ -27,7 +27,7 @@ typedef struct {
     int recent_connections;
     uint64_t recent_connections_time;
 
-    TSLServer_OnAccept onAccept;
+    TLSServer_OnAccept onAccept;
     void* context;
 
     smw_task* task;
@@ -38,19 +38,19 @@ typedef struct {
     mbedtls_x509_crt cert;
     mbedtls_pk_context pkey;
 
-} TSLServer;
+} TLSServer;
 
-int TSLServer_Initiate(TSLServer* _Server, const char* _Port, TSLServer_OnAccept _OnAccept, void* _Context);
-int TSLServer_InitiatePtr(const char* _Port, TSLServer_OnAccept _OnAccept, void* _Context, TSLServer** _ServerPtr);
+int TLSServer_Initiate(TLSServer* _Server, const char* _Port, TLSServer_OnAccept _OnAccept, void* _Context);
+int TLSServer_InitiatePtr(const char* _Port, TLSServer_OnAccept _OnAccept, void* _Context, TLSServer** _ServerPtr);
 
-void TSLServer_Dispose(TSLServer* _Server);
-void TSLServer_DisposePtr(TSLServer** _ServerPtr);
+void TLSServer_Dispose(TLSServer* _Server);
+void TLSServer_DisposePtr(TLSServer** _ServerPtr);
 
-static inline int TSLServer_Nonblocking(int fd) {
+static inline int TLSServer_Nonblocking(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
     if (flags < 0) return -1;
 
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-#endif //__TSLServer_h_
+#endif //__TLSServer_h_
