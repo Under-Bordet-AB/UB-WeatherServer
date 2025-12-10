@@ -264,6 +264,7 @@ int geolocation_work(void** ctx) {
             }
 
             if (curl_client_make_request(&geolocation->curl_client, url) != 0) {
+                printf("GeoLocation: Failed to make API request\n");
                 geolocation->state = GeoLocation_State_Done;
                 break;
             }
@@ -273,6 +274,7 @@ int geolocation_work(void** ctx) {
         case GeoLocation_State_FetchFromAPI_Poll: {
             printf("GeoLocation: Polling API Response\n");
             if (curl_client_poll(&geolocation->curl_client) != 0) {
+                printf("GeoLocation: Polling failed\n");
                 geolocation->state = GeoLocation_State_Done;
                 break;
             }
@@ -286,18 +288,21 @@ int geolocation_work(void** ctx) {
         case GeoLocation_State_FetchFromAPI_Read: {
             printf("GeoLocation: Reading API Response\n");
             if (curl_client_read_response(&geolocation->curl_client, &geolocation->buffer)) {
+                printf("GeoLocation: Failed to read response\n");
                 geolocation->state = GeoLocation_State_Done;
                 break;
             }
-            // curl_client_cleanup(&geolocation->curl_client);
+            curl_client_cleanup(&geolocation->curl_client);
             geolocation->state = GeoLocation_State_ProcessResponse;
             break;
         }
         case GeoLocation_State_ProcessResponse: {
             char* client_response = NULL;
             if (process_openmeteo_geo_response(geolocation->buffer, &client_response) != 0) {
-                geolocation->state = GeoLocation_State_Done;
                 printf("GeoLocation: Processing Response Failed\n");
+                free(geolocation->buffer);
+                geolocation->buffer = NULL;
+                geolocation->state = GeoLocation_State_Done;
             } else {
                 free(geolocation->buffer);
                 geolocation->buffer = client_response;
