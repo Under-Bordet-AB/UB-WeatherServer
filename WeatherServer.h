@@ -9,7 +9,7 @@
 
 typedef struct {
     HTTPServer httpServer;
-    HTTPServer httpServer_TLS;
+    HTTPServer httpServerTLS;
 
     LinkedList* instances;
 

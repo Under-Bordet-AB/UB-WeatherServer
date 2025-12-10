@@ -51,6 +51,11 @@
 #define WeatherServer_TCP_LISTEN_PORT "10480" // From libs/HTTPServer/HTTPServer.c
 #define WeatherServer_TLS_LISTEN_PORT "10443" // From libs/HTTPServer/HTTPServer.c
 
+// TLS/SSL configuration
+#define WeatherServer_TLS_CERT_PATH "./server.crt" // Path to TLS certificate
+#define WeatherServer_TLS_KEY_PATH "./server.key"  // Path to TLS private key
+#define WeatherServer_TLS_ENABLED 1                // Enable TLS server on port 10443
+
 // External API timeouts (seconds)
 // General curl timeouts used by `libs/utilities/curl_client.c` and backend clients
 #define CURL_CONNECT_TIMEOUT_SEC 3  // From libs/utilities/curl_client.c (choose sensible default)

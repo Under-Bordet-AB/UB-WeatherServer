@@ -18,11 +18,13 @@ int main() {
 
     smw_init();
 
-    WeatherServer server;
-    WeatherServer_Initiate(&server);
+    WeatherServer* server = NULL;
+    WeatherServer_InitiatePtr(&server);
 
-    /* Print startup info from central defines so we know where server is bound */
-    printf("Info: server started on port %s\n", WeatherServer_TCP_LISTEN_PORT);
+    if (server == NULL) {
+        printf("Error: Failed to initialize WeatherServer\n");
+        return 1;
+    }
 
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
@@ -32,7 +34,7 @@ int main() {
         smw_work(now);
     }
 
-    WeatherServer_Dispose(&server);
+    WeatherServer_DisposePtr(&server);
 
     smw_dispose();
 

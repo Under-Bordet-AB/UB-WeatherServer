@@ -1,5 +1,8 @@
 #include "WeatherServer.h"
 #include <stdlib.h>
+#include <string.h>
+
+#include "global_defines.h"
 
 //-----------------Internal Functions-----------------
 
@@ -9,7 +12,26 @@ int WeatherServer_OnHTTPConnection(void* _Context, HTTPServerConnection* _Connec
 //----------------------------------------------------
 
 int WeatherServer_Initiate(WeatherServer* _Server) {
+    // Don't memset the entire struct - just initialize the fields we need
+    // (memset is failing due to large TLS structures in HTTPServer)
+    _Server->instances = NULL;
+    _Server->task = NULL;
+
+    // Initialize plain HTTP server
     HTTPServer_Initiate(&_Server->httpServer, WeatherServer_OnHTTPConnection);
+    HTTPServer_SetUserContext(&_Server->httpServer, (void*)_Server);
+
+    // Initialize TLS/HTTPS server if enabled
+    if (WeatherServer_TLS_ENABLED) {
+        int ret = HTTPServer_InitiateTLS(&_Server->httpServerTLS, WeatherServer_OnHTTPConnection, WeatherServer_TLS_CERT_PATH, WeatherServer_TLS_KEY_PATH);
+        if (ret != 0) {
+            printf("Warning: Failed to initialize TLS server (code %d). Running HTTP-only.\n", ret);
+            // Continue anyway - HTTP server still works
+        } else {
+            // Set the WeatherServer as user context so callbacks receive it
+            HTTPServer_SetUserContext(&_Server->httpServerTLS, (void*)_Server);
+        }
+    }
 
     _Server->instances = LinkedList_create();
 
@@ -73,6 +95,10 @@ void WeatherServer_TaskWork(void* _Context, uint64_t _MonTime) {
 void WeatherServer_Dispose(WeatherServer* _Server) {
     // Free HTTP server and related resources
     HTTPServer_Dispose(&_Server->httpServer);
+
+    // Free TLS server if it was initialized
+    if (WeatherServer_TLS_ENABLED && _Server->httpServerTLS.use_tls) { HTTPServer_Dispose(&_Server->httpServerTLS); }
+
     smw_destroyTask(_Server->task);
     LinkedList_dispose(&_Server->instances, (void (*)(void*))WeatherServerInstance_Dispose);
 }
