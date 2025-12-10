@@ -52,7 +52,6 @@ int WeatherServer_OnHTTPConnection(void* _Context, HTTPServerConnection* _Connec
 
 void WeatherServer_TaskWork(void* _Context, uint64_t _MonTime) {
     WeatherServer* _Server = (WeatherServer*)_Context;
-
     LinkedList* done = LinkedList_create();
     // First pass: work on all instances
     LinkedList_foreach(_Server->instances, node) {
