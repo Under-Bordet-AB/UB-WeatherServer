@@ -48,8 +48,8 @@
 #define LISTEN_PORT_MAX_SIZE 16
 #define LISTEN_PORT_RANGE 65535
 #define TLS_PORT "10443"
-#define CERT_FILE_PATH "/home/drone/Documents/dump/UB-WeatherServer/cert/fullchain.pem"
-#define PRIVKEY_FILE_PATH "/home/drone/Documents/dump/UB-WeatherServer/cert/privkey.pem"
+#define CERT_FILE_PATH "/home/stockholm1/UB-WeatherServer/cert/fullchain.pem"
+#define PRIVKEY_FILE_PATH "/home/stockholm1/UB-WeatherServer/cert/privkey.pem"
 
 // External API timeouts (seconds)
 // General curl timeouts used by `libs/utilities/curl_client.c` and backend clients
