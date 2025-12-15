@@ -2024,7 +2024,7 @@ static int ssl_get_ecdh_params_from_cert(mbedtls_ssl_context *ssl)
 
     tls_id = mbedtls_ssl_get_tls_id_from_ecp_group_id(grp_id);
     if (tls_id == 0) {
-        MBEDTLS_SSL_DEBUG_MSG(1, ("ECC group %u not supported",
+        MBEDTLS_SSL_DEBUG_MSG(1, ("ECC group %u not suported",
                                   grp_id));
         return MBEDTLS_ERR_SSL_ILLEGAL_PARAMETER;
     }
@@ -2764,7 +2764,7 @@ static int ssl_write_client_key_exchange(mbedtls_ssl_context *ssl)
 
         header_len = 4;
 
-        MBEDTLS_SSL_DEBUG_MSG(3, ("Perform PSA-based ECDH computation."));
+        MBEDTLS_SSL_DEBUG_MSG(1, ("Perform PSA-based ECDH computation."));
 
         /*
          * Generate EC private key for ECDHE exchange.
@@ -2936,7 +2936,7 @@ ecdh_calc_secret:
 
         header_len += ssl->conf->psk_identity_len;
 
-        MBEDTLS_SSL_DEBUG_MSG(3, ("Perform PSA-based ECDH computation."));
+        MBEDTLS_SSL_DEBUG_MSG(1, ("Perform PSA-based ECDH computation."));
 
         /*
          * Generate EC private key for ECDHE exchange.

@@ -9,6 +9,13 @@
  */
 #ifndef MBEDTLS_SSL_H
 #define MBEDTLS_SSL_H
+
+#ifdef WSYSTEM_CORETYPE_ILON
+
+	typedef void* uintptr_t;
+
+#endif
+
 #include "mbedtls/platform_util.h"
 #include "mbedtls/private_access.h"
 

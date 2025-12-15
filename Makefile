@@ -8,7 +8,7 @@ MBEDTLS_DIR=mbedtls
 
 # FIX: Added mbedTLS libraries and correctly pointed -L to the library directory
 # Order matters: tls -> x509 -> crypto
-LIBS=-lcurl -pthread -lm -L$(MBEDTLS_DIR)/library -lmbedtls -lmbedx509 -lmbedcrypto
+LIBS=-lcurl -pthread -lm  -I mbedtls/include
 
 # FIX: Added mbedtls include path
 INCLUDES = -I. -Isrc -Iinclude -Ilibs -Ilibs/jansson -I$(MBEDTLS_DIR)/include
@@ -20,7 +20,7 @@ SANITIZE_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer
 MODE ?= debug
 
 # Base warnings/defs
-CFLAGS_BASE=-Wall -Wno-psabi -Wfatal-errors -Werror
+CFLAGS_BASE=-Wall -Wno-psabi -Wfatal-errors -Werror -DMBEDTLS_CONFIG_FILE='"mbedtls_config.h"'
 
 # Select flags per mode
 ifeq ($(MODE),debug)
@@ -41,14 +41,14 @@ SOURCES=$(shell find -L $(SRC_DIR) -type f -name '*.c')
 
 # FIX: Exclude all mbedTLS source files using the corrected path variable
 # This ensures files under ./mbedtls/ are excluded from compilation
-SOURCES_NO_MBEDTLS := $(filter-out ./$(MBEDTLS_DIR)/%.c, $(SOURCES))
+#SOURCES_NO_MBEDTLS := $(filter-out ./$(MBEDTLS_DIR)/%.c, $(SOURCES))
 
 # Ignore stress.c in normal builds
-SOURCES_NO_STRESS := $(filter-out $(SRC_DIR)/stress.c, $(SOURCES_NO_MBEDTLS))
+#SOURCES_NO_STRESS := $(filter-out $(SRC_DIR)/stress.c, $(SOURCES_NO_MBEDTLS))
 
 # Per-target object lists in separate dirs
-SERVER_OBJECTS=$(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/server/%.o,$(SOURCES_NO_STRESS))
-CLIENT_OBJECTS=$(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/client/%.o,$(SOURCES_NO_STRESS))
+SERVER_OBJECTS=$(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/server/%.o,$(SOURCES))
+CLIENT_OBJECTS=$(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/client/%.o,$(SOURCES))
 
 # Executables
 EXECUTABLES=server client stress

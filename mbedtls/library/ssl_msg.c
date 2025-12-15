@@ -321,7 +321,7 @@ int mbedtls_ssl_check_record(mbedtls_ssl_context const *ssl,
                              size_t buflen)
 {
     int ret = 0;
-    MBEDTLS_SSL_DEBUG_MSG(3, ("=> mbedtls_ssl_check_record"));
+    MBEDTLS_SSL_DEBUG_MSG(1, ("=> mbedtls_ssl_check_record"));
     MBEDTLS_SSL_DEBUG_BUF(3, "record buffer", buf, buflen);
 
     /* We don't support record checking in TLS because
@@ -363,7 +363,7 @@ exit:
         ret = MBEDTLS_ERR_SSL_UNEXPECTED_RECORD;
     }
 
-    MBEDTLS_SSL_DEBUG_MSG(3, ("<= mbedtls_ssl_check_record"));
+    MBEDTLS_SSL_DEBUG_MSG(1, ("<= mbedtls_ssl_check_record"));
     return ret;
 }
 
@@ -4461,7 +4461,7 @@ static int ssl_load_buffered_message(mbedtls_ssl_context *ssl)
         ret = 0;
         goto exit;
     } else {
-        MBEDTLS_SSL_DEBUG_MSG(2, ("Next handshake message %u not or only partially buffered",
+        MBEDTLS_SSL_DEBUG_MSG(2, ("Next handshake message %u not or only partially bufffered",
                                   hs->in_msg_seq));
     }
 
@@ -6275,7 +6275,7 @@ int mbedtls_ssl_write_early_data(mbedtls_ssl_context *ssl,
     } else {
         /*
          * If we are past the point where we can send early data or we have
-         * already reached the maximum early data size, return immediately.
+         * already reached the maximum early data size, return immediatly.
          * Otherwise, progress the handshake as much as possible to not delay
          * it too much. If we reach a point where we can still send early data,
          * then we will send some.
