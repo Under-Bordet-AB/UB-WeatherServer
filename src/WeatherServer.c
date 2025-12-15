@@ -10,7 +10,7 @@ int WeatherServer_OnHTTPConnection(void* _Context, HTTPServerConnection* _Connec
 
 int WeatherServer_Initiate(WeatherServer* _Server, char *port)
 {
-	HTTPServer_Initiate(&_Server->httpServer, WeatherServer_OnHTTPConnection, port);
+	HTTPServer_Initiate(&_Server->httpServer, _Server, WeatherServer_OnHTTPConnection, port);
 
 	_Server->instances = LinkedList_create();
 
