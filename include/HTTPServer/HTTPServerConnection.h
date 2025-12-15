@@ -1,11 +1,9 @@
-
 #ifndef __HTTPServerConnection_h_
 #define __HTTPServerConnection_h_
 
-#include "../TCPClient.h"
+#include "../../include/connection.h" // Include your new connection interface
 #include "HTTPParser.h"
 #include "smw.h"
-
 #include "global_defines.h"
 
 typedef int (*HTTPServerConnection_OnRequest)(void *_Context);
@@ -22,12 +20,13 @@ typedef enum {
   HTTPServerConnection_State_Failed
 } HTTPServerConnection_State;
 
-#define READBUFFER_SIZE HTTPServerConnection_READBUFFER_SIZE // From global_defines.h (original: libs/HTTPServer/HTTPServerConnection.h)
-#define WRITEBUFFER_SIZE HTTPServerConnection_WRITEBUFFER_SIZE // From global_defines.h (original: libs/HTTPServer/HTTPServerConnection.h)
-#define HTTPSERVER_TIMEOUT_MS HTTPServerConnection_HTTPSERVER_TIMEOUT_MS // From global_defines.h (original: libs/HTTPServer/HTTPServerConnection.h)
+#define READBUFFER_SIZE HTTPServerConnection_READBUFFER_SIZE 
+#define WRITEBUFFER_SIZE HTTPServerConnection_WRITEBUFFER_SIZE
+#define HTTPSERVER_TIMEOUT_MS HTTPServerConnection_HTTPSERVER_TIMEOUT_MS
 
 typedef struct {
-  TCPClient tcpClient;
+  conn_t *conn;
+
   char readBuffer[READBUFFER_SIZE];
   int bytesRead;
   uint8_t *writeBuffer;
@@ -40,18 +39,18 @@ typedef struct {
 
   char *method;
   char *url;
-
   smw_task *task;
   HTTPServerConnection_State state;
 } HTTPServerConnection;
 
-int HTTPServerConnection_Initiate(HTTPServerConnection *_Connection, int _FD);
-int HTTPServerConnection_InitiatePtr(int _FD,
-                                     HTTPServerConnection **_ConnectionPtr);
+// Updated to take conn_t* instead of int FD
+int HTTPServerConnection_Initiate(HTTPServerConnection *_Connection, conn_t *_Conn);
+int HTTPServerConnection_InitiatePtr(conn_t *_Conn, HTTPServerConnection **_ConnectionPtr);
 
 void HTTPServerConnection_SetCallback(
     HTTPServerConnection *_Connection, void *_Context,
     HTTPServerConnection_OnRequest _OnRequest);
+
 void HTTPServerConnection_SendResponse(HTTPServerConnection *_Connection,
                                        int _responseCode, char *_responseBody, char *_contentType);
 void HTTPServerConnection_SendResponse_Binary(HTTPServerConnection *_Connection,
