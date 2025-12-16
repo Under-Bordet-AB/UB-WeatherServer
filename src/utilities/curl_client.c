@@ -45,7 +45,7 @@ int curl_client_init(curl_client** client) {
     }
     (*client)->mem.size = 0;
 
-    curl_easy_setopt((*client)->easy_handle, CURLOPT_WRITEFUNCTION, write_memory_callback);
+    curl_easy_setopt((*client)->easy_handle, CURLOPT_WRITEFUNCTION, (void*)write_memory_callback);
     curl_easy_setopt((*client)->easy_handle, CURLOPT_WRITEDATA, (void*)&((*client)->mem));
 
     // Apply centralized timeout settings

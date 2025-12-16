@@ -1,6 +1,20 @@
 # UB-WeatherServer
-
 HTTP/HTTPS weather API server using cooperative multitasking.
+
+## Build rules
+```bash
+make all          # Builds entire project, debug as default (change MODE ?= for release)
+make asan         # Builds with ASAN
+```
+- If running with real cert: set absolute path to cert in root project folder in global_define.h (CERT_FILE_PATH, PRIVKEY_FILE_PATH)
+- If runnnig with real cert: set #define SKIP_TLS_CERT_FOR_DEV 0  // Set to 1 for dev in global_define.h
+- TLS_PORT set in global_define (default: 10443)
+
+### Example of compiling and running
+```bash
+make -j<val>
+./server <port>   # ^C to exit program
+```
 
 ## Endpoints
 | Endpoint | Method | Description |
@@ -13,12 +27,14 @@ HTTP/HTTPS weather API server using cooperative multitasking.
 ### GetCities
 ```bash
 curl http://localhost:8080/GetCities
+curl -k -v https://localhost:8080/GetCities
 ```
 Returns JSON with city names and coordinates.
 
 ### GetLocation
 ```bash
 curl "http://localhost:8080/GetLocation?name=Stockholm&count=5&countryCode=SE"
+curl -k -v curl "https://localhost:8080/GetLocation?name=Stockholm&count=5&countryCode=SE"
 ```
 Parameters: `name` (required), `count` (optional), `countryCode` (optional)  
 Returns JSON with matching locations.
@@ -26,19 +42,14 @@ Returns JSON with matching locations.
 ### GetWeather
 ```bash
 curl "http://localhost:8080/GetWeather?lat=59.33&lon=18.07"
+curl -k -v "https://localhost:8080/GetLocation?name=Stockholm&count=5&countryCode=SE"
 ```
 Parameters: `lat` (required), `lon` (required)  
 Returns JSON with weather data.
 
 ### GetSurprise
 ```bash
-curl http://localhost:8080/GetSurprise > image.png
+curl http://localhost:8080/GetSurprise
+curl -k -v https://localhost:8080/GetSurprise
 ```
 Returns binary PNG image.
-
-## Build & Run
-```bash
-make              # build (release)
-make MODE=debug   # build (debug)
-./server          # run
-```

@@ -501,7 +501,7 @@ int weather_work(void** ctx) {
         break;
     case Weather_State_FetchFromAPI_Request:
         printf("Weather: Making API Request\n");
-        char url[256];
+        char url[512];
         snprintf(url, sizeof(url), METEO_FORECAST_URL, weather->latitude, weather->longitude);
 
         if (curl_client_make_request(&weather->curl_client, url) != 0) {
