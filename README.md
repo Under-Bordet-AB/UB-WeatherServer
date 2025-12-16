@@ -1,10 +1,6 @@
 # UB-WeatherServer
 
-HTTP weather API server using cooperative multitasking.
-
-## Onboarding
-- [ToDo.md](ToDo.md) <- Look here for suggestions before contributing.
-- [ARCHITECTURE_ANALYSIS.md](ARCHITECTURE_ANALYSIS.md) <- Project walk through.
+HTTP/HTTPS weather API server using cooperative multitasking.
 
 ## Endpoints
 | Endpoint | Method | Description |

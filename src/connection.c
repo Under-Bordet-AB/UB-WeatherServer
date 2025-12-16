@@ -554,5 +554,3 @@ conn_listen_server_t *conn_listen_server_tls_init(const char *port, OnAcceptCall
 		
 	return &new_server->base;
 }
-
-

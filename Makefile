@@ -3,14 +3,8 @@ CC=gcc
 OPTIMIZE=-ffunction-sections -fdata-sections -O2 -flto -Wno-unused-result -fno-strict-aliasing
 DEBUG_FLAGS=-g -O0 -Wfatal-errors -Werror -Wno-unused-function -Wno-format-truncation
 
-# FIX: Corrected the path to the mbedtls root directory
 MBEDTLS_DIR=mbedtls
-
-# FIX: Added mbedTLS libraries and correctly pointed -L to the library directory
-# Order matters: tls -> x509 -> crypto
 LIBS=-lcurl -pthread -lm  -I mbedtls/include
-
-# FIX: Added mbedtls include path
 INCLUDES = -I. -Isrc -Iinclude -Ilibs -Ilibs/jansson -I$(MBEDTLS_DIR)/include
 
 # AddressSanitizer flags (used for debug builds)
@@ -24,7 +18,7 @@ CFLAGS_BASE=-Wall -Wno-psabi -Wfatal-errors -Werror -DMBEDTLS_CONFIG_FILE='"mbed
 
 # Select flags per mode
 ifeq ($(MODE),debug)
-    CFLAGS=$(CFLAGS_BASE) $(DEBUG_FLAGS) $(SANITIZE_FLAGS)
+    CFLAGS=$(SANITIZE_FLAGS) $(CFLAGS_BASE) $(DEBUG_FLAGS)
     LDFLAGS=$(SANITIZE_FLAGS)
 else
     CFLAGS=$(CFLAGS_BASE) #$(OPTIMIZE)
@@ -38,13 +32,6 @@ CACHE_DIR=cache
 
 # Find all .c files (following symlinks)
 SOURCES=$(shell find -L $(SRC_DIR) -type f -name '*.c')
-
-# FIX: Exclude all mbedTLS source files using the corrected path variable
-# This ensures files under ./mbedtls/ are excluded from compilation
-#SOURCES_NO_MBEDTLS := $(filter-out ./$(MBEDTLS_DIR)/%.c, $(SOURCES))
-
-# Ignore stress.c in normal builds
-#SOURCES_NO_STRESS := $(filter-out $(SRC_DIR)/stress.c, $(SOURCES_NO_MBEDTLS))
 
 # Per-target object lists in separate dirs
 SERVER_OBJECTS=$(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/server/%.o,$(SOURCES))
@@ -86,16 +73,6 @@ server: $(SERVER_OBJECTS)
 client: $(CLIENT_OBJECTS)
 	@echo "Linking $@..."
 	@$(CC) $(LDFLAGS) $^ -o $@ $(LIBS)
-
-# Standalone stress build
-stress: $(BUILD_DIR)/stress.o
-	@echo "Linking stress..."
-	@$(CC) $(LDFLAGS) $^ -o stress $(LIBS)
-
-$(BUILD_DIR)/stress.o: stress.c
-	@echo "Compiling stress.c..."
-	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) $(INCLUDES) -c stress.c -o $(BUILD_DIR)/stress.o
 
 # Compile rules with per-target defines
 $(BUILD_DIR)/server/%.o: $(SRC_DIR)/%.c
