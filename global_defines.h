@@ -6,6 +6,8 @@
 // that these are global configuration values.
 // If you prefer the parser's built-in defaults, remove or change these.
 
+
+
 // G_ prefixed HTTP parser defaults (from libs/HTTPParser.h)
 #define G_HTTP_VERSION "HTTP/1.1" // From libs/HTTPParser.h
 #define G_CLOSE_CONNECTIONS 1 // From libs/HTTPParser.h
@@ -48,6 +50,8 @@
 #define LISTEN_PORT_MAX_SIZE 16
 #define LISTEN_PORT_RANGE 65535
 #define TLS_PORT "10443"
+// SECURITY
+#define SKIP_TLS_CERT_FOR_DEV 0  // Set to 1 for dev
 #define CERT_FILE_PATH "/home/drone/Documents/dump/UB-WeatherServer/cert/fullchain.pem"
 #define PRIVKEY_FILE_PATH "/home/drone/Documents/dump/UB-WeatherServer/cert/privkey.pem"
 

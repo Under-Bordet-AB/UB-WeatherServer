@@ -444,6 +444,14 @@ conn_listen_server_t *conn_listen_server_tls_init(const char *port, OnAcceptCall
 		conn_listen_server_tls_cleanup((conn_listen_server_t*)new_server);
 		return NULL;	   
 	}
+
+#if SKIP_TLS_CERT_FOR_DEV
+	/* Skip certificate and key loading for development */
+	printf("\033[1;31mWARNING: Running TLS server without certificates (development mode)\033[0m\n");
+	printf("\033[1;31mWARNING: Running TLS server without certificates (development mode)\033[0m\n");
+	printf("\033[1;31mWARNING: Running TLS server without certificates (development mode)\033[0m\n");
+
+#else
 	/* load cert */
 	rv = mbedtls_x509_crt_parse_file(&new_server->srvcert, CERT_FILE_PATH);
 	if (rv != 0)
@@ -452,71 +460,77 @@ conn_listen_server_t *conn_listen_server_tls_init(const char *port, OnAcceptCall
 		conn_listen_server_tls_cleanup((conn_listen_server_t*)new_server);
 		return NULL;
 	}
+	
 	/* load private key */
 	/* Did not work
 	  rv = mbedtls_pk_parse_keyfile(&new_server->pkey, PRIVKEY_FILE_PATH, NULL);*/
 	// START FIX: Manually read key file content and use mbedtls_pk_parse_key (robust method)
 	// Friendly AI sloop
-    FILE *f = NULL;
-    long file_size = -1;
-    unsigned char *key_buffer = NULL;
-    // 1. Open the file
-    f = fopen(PRIVKEY_FILE_PATH, "rb");
-    if (f == NULL)
+	FILE *f = NULL;
+	long file_size = -1;
+	unsigned char *key_buffer = NULL;
+	// 1. Open the file
+	f = fopen(PRIVKEY_FILE_PATH, "rb");
+	if (f == NULL)
 	{
-        printf("TLS failed to open private key file %s\n", PRIVKEY_FILE_PATH);
-        conn_listen_server_tls_cleanup((conn_listen_server_t*)new_server);
-        return NULL;
-    }
-    // 2. Get file size
-    fseek(f, 0, SEEK_END);
-    file_size = ftell(f);
-    rewind(f);
-    if (file_size < 0)
+		printf("TLS failed to open private key file %s\n", PRIVKEY_FILE_PATH);
+		conn_listen_server_tls_cleanup((conn_listen_server_t*)new_server);
+		return NULL;
+	}
+	// 2. Get file size
+	fseek(f, 0, SEEK_END);
+	file_size = ftell(f);
+	rewind(f);
+	if (file_size < 0)
 	{
-        printf("TLS failed to get private key file size %s\n", PRIVKEY_FILE_PATH);
-        fclose(f);
-        conn_listen_server_tls_cleanup((conn_listen_server_t*)new_server);
-        return NULL;
-    }
-    // 3. Allocate buffer (+1 for null terminator, required by mbedTLS in some cases)
-    key_buffer = (unsigned char *)malloc(file_size + 1); 
-    if (key_buffer == NULL)
+		printf("TLS failed to get private key file size %s\n", PRIVKEY_FILE_PATH);
+		fclose(f);
+		conn_listen_server_tls_cleanup((conn_listen_server_t*)new_server);
+		return NULL;
+	}
+	// 3. Allocate buffer (+1 for null terminator, required by mbedTLS in some cases)
+	key_buffer = (unsigned char *)malloc(file_size + 1); 
+	if (key_buffer == NULL)
 	{
-        printf("TLS failed to allocate memory for private key\n");
-        fclose(f);
-        conn_listen_server_tls_cleanup((conn_listen_server_t*)new_server);
-        return NULL;
-    }
-    // 4. Read file content
-    if (fread(key_buffer, 1, file_size, f) != file_size)
+		printf("TLS failed to allocate memory for private key\n");
+		fclose(f);
+		conn_listen_server_tls_cleanup((conn_listen_server_t*)new_server);
+		return NULL;
+	}
+	// 4. Read file content
+	if (fread(key_buffer, 1, file_size, f) != file_size)
 	{
-        printf("TLS failed to read private key file content %s\n", PRIVKEY_FILE_PATH);
-        free(key_buffer);
-        fclose(f);
-        conn_listen_server_tls_cleanup((conn_listen_server_t*)new_server);
-        return NULL;
-    }
-    fclose(f);
-    key_buffer[file_size] = '\0'; // Null-terminate the buffer
+		printf("TLS failed to read private key file content %s\n", PRIVKEY_FILE_PATH);
+		free(key_buffer);
+		fclose(f);
+		conn_listen_server_tls_cleanup((conn_listen_server_t*)new_server);
+		return NULL;
+	}
+	fclose(f);
+	key_buffer[file_size] = '\0'; // Null-terminate the buffer
 
 	/* load private key from buffer */
-    // Use mbedtls_pk_parse_key with 7 arguments
+	// Use mbedtls_pk_parse_key with 7 arguments
 	rv = mbedtls_pk_parse_key(&new_server->pkey, 
 							  key_buffer, 
 							  file_size + 1, // Pass length including null terminator
 							  NULL, 0, NULL, NULL);
 
-    // 5. Cleanup buffer
-    free(key_buffer);
+	// 5. Cleanup buffer
+	free(key_buffer);
 	
-    // END FIX
+	// END FIX
 	if (rv != 0)
 	{
 		printf("TLS failed to load private key %s (error: %d)\n", PRIVKEY_FILE_PATH, rv);
 		conn_listen_server_tls_cleanup((conn_listen_server_t*)new_server);
 		return NULL;
 	}
+	
+	/* assign the loaded cert/key to configuration */
+	mbedtls_ssl_conf_own_cert(&new_server->conf, &new_server->srvcert, &new_server->pkey);
+#endif
+	
 	/* Load reasonable default SSL configuration values.
 	   param: conf – SSL configuration context
 	   param: endpoint – MBEDTLS_SSL_IS_CLIENT or MBEDTLS_SSL_IS_SERVER
@@ -534,9 +548,9 @@ conn_listen_server_t *conn_listen_server_tls_init(const char *port, OnAcceptCall
 		conn_listen_server_tls_cleanup((conn_listen_server_t*)new_server);
 		return NULL;
 	}
-	/* assign the rng and loaded cert/ key to configuration */
+	/* assign the rng */
 	mbedtls_ssl_conf_rng(&new_server->conf, mbedtls_ctr_drbg_random, &new_server->ctr_drbg);
-	mbedtls_ssl_conf_own_cert(&new_server->conf, &new_server->srvcert, &new_server->pkey);
+	
 	/* finally wire up base/ parent */
 	new_server->base.vtable    = &TLS_LISTEN_SERVER_VTABLE;
 	new_server->base.listen_fd = listen_fd;
