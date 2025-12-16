@@ -1,128 +1,55 @@
-# 🌦️ UB-WeatherServer
+# UB-WeatherServer
+HTTP/HTTPS weather API server using cooperative multitasking.
 
-Simple HTTP weather API server using cooperative multitasking.
-
-## 📚 Documentation
-
-- **[Architecture Analysis](ARCHITECTURE_ANALYSIS.md)** — comprehensive design pattern analysis, bugs, and improvement roadmap
-- **[Quick Task Checklist](QUICK_TASK_CHECKLIST.md)** — actionable todo list with priorities
-- **[V2 Scaffold README](V2/README_V2.md)** — next-generation architecture proposal
-
-## 🚀 Quick Start
-
+## Build rules
 ```bash
-# Build (release mode)
-make
+make all          # Builds entire project, debug as default (change MODE ?= for release)
+make asan         # Builds with ASAN
+```
+- If running with real cert: set absolute path to cert in root project folder in global_define.h (CERT_FILE_PATH, PRIVKEY_FILE_PATH)
+- If runnnig with real cert: set #define SKIP_TLS_CERT_FOR_DEV 0  // Set to 1 for dev in global_define.h
+- TLS_PORT set in global_define (default: 10443)
 
-# Build (debug mode)
-make MODE=debug
-
-# Run server
-./server
-
-# Test endpoints
-curl http://localhost:8080/health
-curl http://localhost:8080/cities
-curl http://localhost:8080/weather/Stockholm
+### Example of compiling and running
+```bash
+make -j<val>
+./server <port>   # ^C to exit program
 ```
 
-## 🔧 Development
+## Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/GetCities` | GET | List available cities (JSON) |
+| `/GetLocation` | GET | Geocode location name to coordinates |
+| `/GetWeather` | GET | Get weather by latitude/longitude |
+| `/GetSurprise` | GET | Get a surprise (binary image) |
 
+### GetCities
 ```bash
-# Format all code
-git ls-files '*.c' '*.h' | xargs -r clang-format -i
-
-# Check for memory leaks
-make MODE=debug
-valgrind --leak-check=full ./server
-
-# Clean build artifacts
-make clean
+curl http://localhost:8080/GetCities
+curl -k -v https://localhost:8080/GetCities
 ```
+Returns JSON with city names and coordinates.
 
-## 📋 Current Status
+### GetLocation
+```bash
+curl "http://localhost:8080/GetLocation?name=Stockholm&count=5&countryCode=SE"
+curl -k -v curl "https://localhost:8080/GetLocation?name=Stockholm&count=5&countryCode=SE"
+```
+Parameters: `name` (required), `count` (optional), `countryCode` (optional)  
+Returns JSON with matching locations.
 
-**Critical issues identified (see ARCHITECTURE_ANALYSIS.md):**
-- ⚠️ Memory leaks in connection lifecycle
-- ⚠️ CPU waste from busy-loop polling
-- ⚠️ State machine bugs
+### GetWeather
+```bash
+curl "http://localhost:8080/GetWeather?lat=59.33&lon=18.07"
+curl -k -v "https://localhost:8080/GetLocation?name=Stockholm&count=5&countryCode=SE"
+```
+Parameters: `lat` (required), `lon` (required)  
+Returns JSON with weather data.
 
-**Priority fixes in progress:**
-1. Fix memory leaks
-2. Add epoll-based event loop
-3. Improve error handling
-
-## 🌐 API Documentation
-## Retrieve list of available locations.
-*   **Method:** `GET`
-*   **Path:** `/cities`
-*   **Example Request:**
-    ```bash
-    curl -X GET http://localhost:8080/cities
-    ```
-*   **Expected Response (JSON):**
-    ```json
-    {
-        "cities": [
-            { "name": "Stockholm", "latitude": 59.3293, "longitude": 18.0686 },
-            { "name": "Göteborg", "latitude": 57.7089, "longitude": 11.9746 },
-            { "name": "Malmö", "latitude": 55.6050, "longitude": 13.0038 }
-        ]
-    }
-    ```
-*   **Expected Error Response (JSON):**
-    ```json
-    {
-        "error": {
-            "code": 404,
-            "message": "Location not found"
-        }
-    }
-    ```
-
-## Retrieve current weather data for a specified location.
-*   **Method:** `GET`
-*   **Path:** `/weather/{location}`
-*   **URL Parameters:**
-    *   `location` (string, required): The name of the city or location (e.g., `Stockholm`, `London`, `New%20York`).
-*   **Example Request:**
-    ```bash
-    curl -X GET http://localhost:8080/weather/Stockholm
-    ```
-*   **Expected Response (JSON):**
-    ```json
-    {
-        "latitude": "59.3293",
-        "longitude": "18.0686",
-        "location": "Stockholm",
-        "temperature": 15.2,
-        "unit": "celsius",
-        "condition": "Partly Cloudy",
-        "humidity": 70,
-        "wind_speed": 10.5,
-        "wind_direction": "NW"
-    }
-    ```
-*   **Expected Error Response (JSON):**
-    ```json
-    {
-        "error": {
-            "code": 400,
-            "message": "Bad request: missing or invalid location parameter"
-        }
-    }
-    ```
-
-## Retrieve surprise.
-*   **Method:** `GET`
-*   **Path:** `/surprise`
-*   **Example Request:**
-    ```bash
-    curl -X GET http://localhost:8080/weather/surprise
-    ```
-*   **Expected Response (JSON):**
-    ```json
-    "?"
-    ```
-    
-    *Note: The actual response format may vary slightly once implemented.*
+### GetSurprise
+```bash
+curl http://localhost:8080/GetSurprise
+curl -k -v https://localhost:8080/GetSurprise
+```
+Returns binary PNG image.

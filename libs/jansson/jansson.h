@@ -146,7 +146,7 @@ static JSON_INLINE void json_decrefp(json_t **json) {
 
 /* error reporting */
 
-#define JSON_ERROR_TEXT_LENGTH 256
+#define JSON_ERROR_TEXT_LENGTH 512
 #define JSON_ERROR_SOURCE_LENGTH 80
 
 typedef struct json_error_t {

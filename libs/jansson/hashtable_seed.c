@@ -45,7 +45,6 @@
 #include <stdint.h>
 
 /*  note jimmy:  Just an unused function warning
- */
 static uint32_t buf_to_uint32(char *data) {
   size_t i;
   uint32_t result = 0;
@@ -55,7 +54,7 @@ static uint32_t buf_to_uint32(char *data) {
 
   return result;
 }
-
+*/
 /* /dev/urandom */
 #if !defined(_WIN32) && defined(USE_URANDOM)
 static int seed_from_urandom(uint32_t *seed) {
