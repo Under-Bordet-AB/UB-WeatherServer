@@ -1,5 +1,6 @@
 # UB-WeatherServer
 HTTP/HTTPS weather API server using cooperative multitasking.
+Schoolproject @ Chas Academy, class SUVX 2025.
 
 ## Build rules
 ```bash
@@ -12,7 +13,7 @@ make asan         # Builds with ASAN
 
 ### Example of compiling and running
 ```bash
-make -j<val>
+make -j<val>      # or without -j for singel core
 ./server <port>   # ^C to exit program
 ```
 
@@ -33,16 +34,16 @@ Returns JSON with city names and coordinates.
 
 ### GetLocation
 ```bash
-curl "http://localhost:8080/GetLocation?name=Stockholm&count=5&countryCode=SE"
-curl -k -v curl "https://localhost:8080/GetLocation?name=Stockholm&count=5&countryCode=SE"
+curl http://localhost:8080/GetLocation?name=Stockholm&count=5&countryCode=SE
+curl -k -v curl https://localhost:8080/GetLocation?name=Stockholm&count=5&countryCode=SE
 ```
 Parameters: `name` (required), `count` (optional), `countryCode` (optional)  
 Returns JSON with matching locations.
 
 ### GetWeather
 ```bash
-curl "http://localhost:8080/GetWeather?lat=59.33&lon=18.07"
-curl -k -v "https://localhost:8080/GetLocation?name=Stockholm&count=5&countryCode=SE"
+curl http://localhost:8080/GetWeather?lat=59.33&lon=18.07
+curl -k -v https://localhost:8080/GetLocation?name=Stockholm&count=5&countryCode=SE
 ```
 Parameters: `lat` (required), `lon` (required)  
 Returns JSON with weather data.
